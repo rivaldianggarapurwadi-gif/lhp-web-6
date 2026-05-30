@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — LHP AKPOL</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #111111; --navy: #0D2B45; --accent: #D4AF37;
+    --white: #FFFFFF; --surface: #F3F4F6; --text: #2B2B2B;
+    --muted: #6B7280; --border: #D1D5DB; --danger: #B91C1C;
+    --success: #15803D;
+  }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--navy);
+         min-height: 100vh; display: flex; flex-direction: column;
+         align-items: center; justify-content: center; padding: 20px; }
+  .logo-wrap { display: flex; flex-direction: column; align-items: center;
+               gap: 10px; margin-bottom: 28px; }
+  .logo-wrap img { width: 72px; height: 72px; object-fit: contain; }
+  .logo-wrap h1 { color: var(--accent); font-size: 20px; font-weight: 800;
+                  letter-spacing: .5px; text-align: center; }
+  .logo-wrap p { color: #A8C4E8; font-size: 12px; text-align: center; }
+  .card { background: var(--white); border-radius: 12px; padding: 32px 28px;
+          width: 100%; max-width: 380px;
+          box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+  .tabs { display: flex; border-bottom: 2px solid var(--border);
+          margin-bottom: 24px; }
+  .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer;
+         font-weight: 700; font-size: 13px; color: var(--muted);
+         border-bottom: 3px solid transparent; margin-bottom: -2px;
+         transition: color .15s, border-color .15s; }
+  .tab.active { color: var(--navy); border-bottom-color: var(--accent); }
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
+  .field label { font-size: 11px; font-weight: 800; color: var(--navy);
+                 text-transform: uppercase; letter-spacing: .5px; }
+  .field input { border: 1.5px solid var(--border); border-radius: 6px;
+                 padding: 10px 12px; font-size: 13px; background: var(--surface);
+                 color: var(--text); transition: border-color .15s; width: 100%; }
+  .field input:focus { outline: none; border-color: var(--accent);
+                       box-shadow: 0 0 0 3px rgba(212,175,55,.18); }
+  .btn { width: 100%; background: var(--accent); color: var(--primary);
+         border: none; border-radius: 6px; padding: 12px;
+         font-size: 14px; font-weight: 800; cursor: pointer;
+         transition: background .15s; margin-top: 4px; }
+  .btn:hover { background: #b8941e; }
+  .btn:disabled { background: #C9CDD4; cursor: not-allowed; }
+  #error-msg { color: var(--danger); font-size: 12px; font-weight: 600;
+               margin-top: 10px; text-align: center; min-height: 18px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+</style>
+</head>
+<body>
+<div class="logo-wrap">
+  <img src="/static/logo.png" alt="AKPOL">
+  <h1>LHP Kegiatan Positif</h1>
+  <p>Akademi Kepolisian — Batalyon Manggala Satya</p>
+</div>
+
+<div class="card">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('login')">Masuk</div>
+    <div class="tab" onclick="switchTab('register')">Daftar</div>
+  </div>
+
+  <!-- Login -->
+  <div class="panel active" id="panel-login">
+    <div class="field"><label>Email</label>
+      <input type="email" id="login-email" placeholder="email@akpol.ac.id" autocomplete="email"></div>
+    <div class="field"><label>Password</label>
+      <input type="password" id="login-password" placeholder="Password" autocomplete="current-password"></div>
+    <button class="btn" onclick="doLogin()">Masuk</button>
+  </div>
+
+  <!-- Register -->
+  <div class="panel" id="panel-register">
+    <div class="field"><label>Nama Lengkap</label>
+      <input type="text" id="reg-name" placeholder="Nama lengkap taruna"></div>
+    <div class="field"><label>Email</label>
+      <input type="email" id="reg-email" placeholder="email@akpol.ac.id" autocomplete="email"></div>
+    <div class="field"><label>Password</label>
+      <input type="password" id="reg-password" placeholder="Min. 6 karakter" autocomplete="new-password"></div>
+    <button class="btn" onclick="doRegister()">Daftar</button>
+  </div>
+
+  <div id="error-msg"></div>
+</div>
+
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', (i===0 && tab==='login') || (i===1 && tab==='register'));
+  });
+  document.getElementById('panel-login').classList.toggle('active', tab==='login');
+  document.getElementById('panel-register').classList.toggle('active', tab==='register');
+  document.getElementById('error-msg').textContent = '';
+}
+
+// Default to register tab if mode=register
+{% if mode == 'register' %}switchTab('register');{% endif %}
+
+async function doLogin() {
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const err      = document.getElementById('error-msg');
+  if (!email || !password) { err.textContent = 'Isi semua field'; return; }
+  const res = await fetch('/login', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({email, password})
+  });
+  const json = await res.json();
+  if (json.ok) { window.location.href = '/'; }
+  else { err.textContent = json.error || 'Login gagal'; }
+}
+
+async function doRegister() {
+  const name     = document.getElementById('reg-name').value.trim();
+  const email    = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const err      = document.getElementById('error-msg');
+  if (!name || !email || !password) { err.textContent = 'Isi semua field'; return; }
+  const res = await fetch('/register', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name, email, password})
+  });
+  const json = await res.json();
+  if (json.ok) { window.location.href = '/'; }
+  else { err.textContent = json.error || 'Registrasi gagal'; }
+}
+
+// Enter key support
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const active = document.querySelector('.panel.active').id;
+    if (active === 'panel-login') doLogin();
+    else doRegister();
+  }
+});
+</script>
+</body>
+</html>
