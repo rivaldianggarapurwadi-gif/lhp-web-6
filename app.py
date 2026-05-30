@@ -1,101 +1,19 @@
 """
-LHP Kegiatan Positif — Flask web app with token + Midtrans payment
+LHP Kegiatan Positif — Flask web app
 """
-import os, re, shutil, uuid, json, hashlib, hmac
-from datetime import datetime, date
-from functools import wraps
-from flask import (Flask, request, jsonify, send_file,
-                   render_template, after_this_request,
-                   session, redirect, url_for)
+import os, re, shutil, uuid
+from datetime import datetime
+from flask import Flask, request, jsonify, send_file, render_template, after_this_request
 from werkzeug.utils import secure_filename
-from werkzeug.security import generate_password_hash, check_password_hash
 
 BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_FILE = os.path.join(BASE_DIR, "template_lhp.docx")
 XLSX_FILE     = os.path.join(BASE_DIR, "DATA_DANTON_DANKI.xlsx")
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "tmp")
-USERS_FILE    = os.path.join(BASE_DIR, "users.json")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ── Midtrans config ───────────────────────────────────────────────────────────
-MIDTRANS_SERVER_KEY = "Mid-server-pkRweEdXUJ8LNPne8QGDdl1g"
-MIDTRANS_CLIENT_KEY = "Mid-client-ExYTb9mt4x5sJ-PJ"
-MIDTRANS_IS_PRODUCTION = True
-MIDTRANS_SNAP_URL = "https://app.midtrans.com/snap/snap.js"
-TOKEN_PRICE    = 100000   # Rp100.000
-TOKENS_PER_BUY = 10       # 10 tokens per purchase
-TOKENS_PER_DOC = 1        # 1 token per document
-
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "lhp-akpol-secret-2026-xK9mP")
-app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
-
-# ── User store (JSON file) ────────────────────────────────────────────────────
-
-def _load_users():
-    if not os.path.exists(USERS_FILE):
-        return {}
-    try:
-        with open(USERS_FILE) as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-def _save_users(users):
-    with open(USERS_FILE, 'w') as f:
-        json.dump(users, f, indent=2)
-
-def get_user(email):
-    return _load_users().get(email.lower())
-
-def create_user(email, password, name):
-    users = _load_users()
-    if email.lower() in users:
-        return None, "Email sudah terdaftar"
-    users[email.lower()] = {
-        "email": email.lower(),
-        "name": name,
-        "password": generate_password_hash(password),
-        "tokens": 0,
-        "created_at": datetime.now().isoformat()
-    }
-    _save_users(users)
-    return users[email.lower()], None
-
-def add_tokens(email, amount, reason="purchase"):
-    users = _load_users()
-    if email.lower() not in users:
-        return False
-    users[email.lower()]["tokens"] = users[email.lower()].get("tokens", 0) + amount
-    # Log the transaction
-    txns = users[email.lower()].get("transactions", [])
-    txns.append({"type": reason, "amount": amount, "at": datetime.now().isoformat()})
-    users[email.lower()]["transactions"] = txns[-50:]  # keep last 50
-    _save_users(users)
-    return True
-
-def use_token(email):
-    users = _load_users()
-    if email.lower() not in users:
-        return False
-    if users[email.lower()].get("tokens", 0) < TOKENS_PER_DOC:
-        return False
-    users[email.lower()]["tokens"] -= TOKENS_PER_DOC
-    txns = users[email.lower()].get("transactions", [])
-    txns.append({"type": "usage", "amount": -TOKENS_PER_DOC, "at": datetime.now().isoformat()})
-    users[email.lower()]["transactions"] = txns[-50:]
-    _save_users(users)
-    return True
-
-# ── Auth decorator ────────────────────────────────────────────────────────────
-
-def login_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if "email" not in session:
-            return jsonify({"error": "Login diperlukan", "redirect": "/login"}), 401
-        return f(*args, **kwargs)
-    return decorated
+app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20 MB
 
 # ── Roman numeral ─────────────────────────────────────────────────────────────
 
@@ -266,6 +184,8 @@ def _fix_signature_formatting(doc, pangkat_danton, nrp_danton,
              nrp_danton and nrp_danton in full and pangkat_abbr in full)):
             set_center(para)
 
+# ── Core fill function ────────────────────────────────────────────────────────
+
 def fill_template(data, image_paths, output_path):
     from docx import Document
     shutil.copy(TEMPLATE_FILE, output_path)
@@ -347,167 +267,18 @@ def fill_template(data, image_paths, output_path):
                                pangkat_abbr)
     doc.save(output_path)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Flask routes — Auth
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Flask routes ──────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
-    if 'email' not in session:
-        return redirect(url_for('login'))
-    user = get_user(session['email'])
-    if not user:
-        session.clear()
-        return redirect(url_for('login'))
-    return render_template('index.html',
-                           user_name=user['name'],
-                           user_tokens=user.get('tokens', 0),
-                           midtrans_client_key=MIDTRANS_CLIENT_KEY,
-                           midtrans_snap_url=MIDTRANS_SNAP_URL)
-
-@app.route('/login', methods=['GET','POST'])
-def login():
-    if request.method == 'GET':
-        return render_template('login.html')
-    data = request.get_json() or {}
-    email    = data.get('email','').strip().lower()
-    password = data.get('password','')
-    user = get_user(email)
-    if not user or not check_password_hash(user['password'], password):
-        return jsonify({'error': 'Email atau password salah'}), 401
-    session['email'] = email
-    return jsonify({'ok': True})
-
-@app.route('/register', methods=['GET','POST'])
-def register():
-    if request.method == 'GET':
-        return render_template('login.html', mode='register')
-    data = request.get_json() or {}
-    email    = data.get('email','').strip().lower()
-    password = data.get('password','')
-    name     = data.get('name','').strip()
-    if not email or not password or not name:
-        return jsonify({'error': 'Semua field harus diisi'}), 400
-    if len(password) < 6:
-        return jsonify({'error': 'Password minimal 6 karakter'}), 400
-    user, err = create_user(email, password, name)
-    if err:
-        return jsonify({'error': err}), 400
-    session['email'] = email
-    return jsonify({'ok': True})
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('login'))
+    return render_template('index.html')
 
 @app.route('/ads.txt')
 def ads_txt():
     return send_file(os.path.join(BASE_DIR, 'static', 'ads.txt'),
                      mimetype='text/plain')
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Flask routes — Token & Payment
-# ══════════════════════════════════════════════════════════════════════════════
-
-@app.route('/api/create-payment', methods=['POST'])
-@login_required
-def create_payment():
-    import base64, urllib.request
-    user  = get_user(session['email'])
-    order_id = f"LHP-{uuid.uuid4().hex[:12].upper()}"
-
-    payload = json.dumps({
-        "transaction_details": {
-            "order_id": order_id,
-            "gross_amount": TOKEN_PRICE
-        },
-        "item_details": [{
-            "id": "TOKEN-10",
-            "price": TOKEN_PRICE,
-            "quantity": 1,
-            "name": f"10 Token LHP Generator"
-        }],
-        "customer_details": {
-            "email": user['email'],
-            "first_name": user['name']
-        }
-    }).encode()
-
-    auth = base64.b64encode(f"{MIDTRANS_SERVER_KEY}:".encode()).decode()
-    req = urllib.request.Request(
-        "https://app.midtrans.com/snap/v1/transactions",
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Basic {auth}"
-        }
-    )
-    try:
-        with urllib.request.urlopen(req) as resp:
-            result = json.loads(resp.read())
-        # Save pending order_id to user record so webhook can match it
-        users = _load_users()
-        if 'pending_orders' not in users[session['email']]:
-            users[session['email']]['pending_orders'] = []
-        users[session['email']]['pending_orders'].append(order_id)
-        _save_users(users)
-        return jsonify({'snap_token': result['token'], 'order_id': order_id})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/payment-webhook', methods=['POST'])
-def payment_webhook():
-    """Midtrans server-to-server webhook — add tokens after verified payment."""
-    data = request.get_json() or {}
-
-    # Verify signature
-    order_id           = data.get('order_id','')
-    status_code        = data.get('status_code','')
-    gross_amount       = data.get('gross_amount','')
-    server_key         = MIDTRANS_SERVER_KEY
-    signature_key      = data.get('signature_key','')
-    expected_sig       = hashlib.sha512(
-        f"{order_id}{status_code}{gross_amount}{server_key}".encode()
-    ).hexdigest()
-
-    if not hmac.compare_digest(expected_sig, signature_key):
-        return jsonify({'error': 'Invalid signature'}), 403
-
-    transaction_status = data.get('transaction_status','')
-    fraud_status       = data.get('fraud_status','')
-
-    if transaction_status == 'capture' and fraud_status == 'accept':
-        success = True
-    elif transaction_status == 'settlement':
-        success = True
-    else:
-        success = False
-
-    if success:
-        # Find which user owns this order
-        users = _load_users()
-        for email, user in users.items():
-            if order_id in user.get('pending_orders', []):
-                add_tokens(email, TOKENS_PER_BUY, reason="purchase")
-                user['pending_orders'].remove(order_id)
-                _save_users(users)
-                break
-
-    return jsonify({'ok': True})
-
-@app.route('/api/token-balance', methods=['GET'])
-@login_required
-def token_balance():
-    user = get_user(session['email'])
-    return jsonify({'tokens': user.get('tokens', 0), 'name': user['name']})
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Flask routes — Lookup & Generate
-# ══════════════════════════════════════════════════════════════════════════════
-
 @app.route('/api/lookup', methods=['GET'])
-@login_required
 def api_lookup():
     peleton = request.args.get('peleton', '').strip()
     kompi   = request.args.get('kompi', '').strip()
@@ -523,16 +294,10 @@ def api_lookup():
     })
 
 @app.route('/api/generate', methods=['POST'])
-@login_required
 def api_generate():
     import tempfile
 
-    # Check token balance FIRST
-    user = get_user(session['email'])
-    if user.get('tokens', 0) < TOKENS_PER_DOC:
-        return jsonify({'error': 'Token tidak cukup. Beli token untuk melanjutkan.',
-                        'no_token': True}), 402
-
+    # ── Collect form fields ──────────────────────────────────────────────
     fields = ['Nama','No Ak','Pangkat','Peleton','Kompi',
               'Nama Danton','Pangkat Danton','NRP Danton',
               'Nama Danki','Pangkat Danki','NRP Danki',
@@ -544,19 +309,24 @@ def api_generate():
             return jsonify({'error': f'Field "{f}" tidak boleh kosong'}), 400
         data[f] = val
 
+    # ── Save uploaded images to named temp files ─────────────────────────
+    # Use delete=False so files survive until fill_template finishes using them
     image_paths = []
     image_tmpfiles = []
     for i in range(1, 5):
         file = request.files.get(f'foto_{i}')
         if file and file.filename:
             ext = os.path.splitext(secure_filename(file.filename))[1] or '.jpg'
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, dir=UPLOAD_FOLDER)
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext,
+                                             dir=UPLOAD_FOLDER)
             file.save(tmp.name)
             tmp.close()
             image_paths.append(tmp.name)
             image_tmpfiles.append(tmp.name)
 
-    out_tmp  = tempfile.NamedTemporaryFile(delete=False, suffix='.docx', dir=UPLOAD_FOLDER)
+    # ── Generate docx into a temp file ───────────────────────────────────
+    out_tmp  = tempfile.NamedTemporaryFile(delete=False, suffix='.docx',
+                                           dir=UPLOAD_FOLDER)
     out_path = out_tmp.name
     out_tmp.close()
     out_name = f"LHP_{data['Nama'].replace(' ','_')}_{uuid.uuid4().hex[:6]}.docx"
@@ -564,18 +334,18 @@ def api_generate():
     try:
         fill_template(data, image_paths, out_path)
     except Exception as e:
+        # Clean up everything on error
         for p in image_tmpfiles + [out_path]:
             try: os.remove(p)
             except: pass
         return jsonify({'error': str(e)}), 500
     finally:
+        # Delete image temp files AFTER fill_template has finished
         for p in image_tmpfiles:
             try: os.remove(p)
             except: pass
 
-    # Deduct token AFTER successful generation
-    use_token(session['email'])
-
+    # ── Stream docx back to browser, then delete it ───────────────────────
     @after_this_request
     def cleanup(response):
         try: os.remove(out_path)

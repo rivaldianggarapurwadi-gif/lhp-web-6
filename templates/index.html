@@ -192,40 +192,6 @@
              border-radius:50%; animation:spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ── Token badge ── */
-  .token-badge { background: rgba(212,175,55,.15); border: 1.5px solid var(--accent);
-                 color: var(--accent); border-radius: 20px; padding: 5px 14px;
-                 font-size: 13px; font-weight: 700; white-space: nowrap; }
-  .btn-buy { background: var(--accent); color: var(--primary); border: none;
-             border-radius: 6px; padding: 7px 16px; font-size: 12px;
-             font-weight: 800; cursor: pointer; white-space: nowrap;
-             transition: background .15s; }
-  .btn-buy:hover { background: #b8941e; }
-  .btn-logout { color: #A8C4E8; font-size: 12px; text-decoration: none;
-                white-space: nowrap; }
-  .btn-logout:hover { color: var(--white); }
-
-  /* ── Modal ── */
-  .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
-              z-index:1000; align-items:center; justify-content:center; }
-  .modal-bg.open { display:flex; }
-  .modal { background:var(--white); border-radius:12px; padding:32px 28px;
-           max-width:380px; width:90%; text-align:center;
-           box-shadow: 0 20px 60px rgba(0,0,0,.4); }
-  .modal h2 { font-size:18px; color:var(--navy); margin-bottom:8px; }
-  .modal p  { font-size:13px; color:var(--muted); margin-bottom:20px; line-height:1.6; }
-  .modal .price { font-size:28px; font-weight:900; color:var(--accent);
-                  margin-bottom:4px; }
-  .modal .price-sub { font-size:12px; color:var(--muted); margin-bottom:24px; }
-  .btn-pay { width:100%; background:var(--accent); color:var(--primary);
-             border:none; border-radius:8px; padding:14px;
-             font-size:15px; font-weight:800; cursor:pointer;
-             transition:background .15s; }
-  .btn-pay:hover { background:#b8941e; }
-  .btn-pay:disabled { background:#C9CDD4; cursor:not-allowed; }
-  .btn-cancel { background:none; border:none; color:var(--muted); font-size:13px;
-                cursor:pointer; margin-top:12px; width:100%; }
-
   /* ── Footer ── */
   footer { text-align:center; font-size:11px; color: var(--muted);
            padding: 16px; border-top: 1px solid var(--border);
@@ -240,14 +206,7 @@
     <div class="hdr-title">Form LHP Kegiatan Positif</div>
     <div class="hdr-sub">Akademi Kepolisian — Batalyon Manggala Satya</div>
   </div>
-  <div style="margin-left:auto;display:flex;align-items:center;gap:14px;">
-    <div class="token-badge" id="token-badge">
-      <span>🪙</span>
-      <span id="token-count">{{ user_tokens }}</span> token
-    </div>
-    <button class="btn-buy" onclick="buyTokens()">＋ Beli Token</button>
-    <a href="/logout" class="btn-logout">Keluar</a>
-  </div>
+  <div class="hdr-badge">Output: .docx</div>
 </header>
 <div class="gold-bar"></div>
 
@@ -452,7 +411,47 @@ function clearImage(idx) {
   document.getElementById(`plus-label-${idx}`).style.display = '';
 }
 
-// Submit handled by token-aware listener below
+// ── Submit ────────────────────────────────────────────────────────────────────
+document.getElementById('lhp-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn     = document.getElementById('btn-submit');
+  const spinner = document.getElementById('spinner');
+  const status  = document.getElementById('status');
+
+  btn.disabled = true;
+  spinner.style.display = 'block';
+  status.textContent = '';
+  status.className = '';
+
+  try {
+    const formData = new FormData(e.target);
+    const res = await fetch('/api/generate', { method: 'POST', body: formData });
+
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      status.textContent = '❌ ' + (json.error || 'Terjadi kesalahan pada server');
+      status.className = 'err';
+      return;
+    }
+
+    const blob = await res.blob();
+    const cd   = res.headers.get('Content-Disposition') || '';
+    const name = cd.match(/filename="?([^"]+)"?/)?.[1] || 'LHP.docx';
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+
+    status.textContent = '✅ Dokumen berhasil dibuat dan diunduh!';
+    status.className = 'ok';
+  } catch(err) {
+    status.textContent = '❌ Gagal menghubungi server: ' + err.message;
+    status.className = 'err';
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+});
 
 // ── Reset ─────────────────────────────────────────────────────────────────────
 function resetForm() {
@@ -467,125 +466,6 @@ function resetForm() {
   document.getElementById('status').textContent = '';
   document.getElementById('status').className = '';
 }
-</script>
-<!-- Midtrans Snap -->
-<script src="{{ midtrans_snap_url }}" data-client-key="{{ midtrans_client_key }}"></script>
-
-<!-- Buy Token Modal -->
-<div class="modal-bg" id="buy-modal">
-  <div class="modal">
-    <h2>🪙 Beli Token</h2>
-    <p>Token digunakan untuk membuat dokumen LHP.<br>Setiap dokumen membutuhkan <strong>1 token</strong>.</p>
-    <div class="price">Rp100.000</div>
-    <div class="price-sub">= 10 token</div>
-    <button class="btn-pay" id="btn-pay" onclick="processPayment()">Bayar Sekarang</button>
-    <button class="btn-cancel" onclick="closeModal()">Batal</button>
-    <div id="pay-error" style="color:#B91C1C;font-size:12px;margin-top:10px;"></div>
-  </div>
-</div>
-
-<script>
-// ── Token / Payment ───────────────────────────────────────────────────────────
-function buyTokens() {
-  document.getElementById('buy-modal').classList.add('open');
-  document.getElementById('pay-error').textContent = '';
-}
-function closeModal() {
-  document.getElementById('buy-modal').classList.remove('open');
-}
-
-async function processPayment() {
-  const btn = document.getElementById('btn-pay');
-  const err = document.getElementById('pay-error');
-  btn.disabled = true;
-  btn.textContent = 'Memproses...';
-  err.textContent = '';
-  try {
-    const res  = await fetch('/api/create-payment', {method:'POST'});
-    const json = await res.json();
-    if (json.error) { err.textContent = json.error; btn.disabled=false; btn.textContent='Bayar Sekarang'; return; }
-    closeModal();
-    window.snap.pay(json.snap_token, {
-      onSuccess: function(result) {
-        refreshTokens();
-        alert('✅ Pembayaran berhasil! Token telah ditambahkan.');
-      },
-      onPending: function(result) {
-        alert('⏳ Pembayaran pending. Token akan ditambahkan setelah pembayaran dikonfirmasi.');
-      },
-      onError: function(result) {
-        alert('❌ Pembayaran gagal. Silakan coba lagi.');
-      },
-      onClose: function() {
-        btn.disabled=false; btn.textContent='Bayar Sekarang';
-      }
-    });
-  } catch(e) {
-    err.textContent = 'Gagal menghubungi server';
-    btn.disabled=false; btn.textContent='Bayar Sekarang';
-  }
-}
-
-async function refreshTokens() {
-  try {
-    const res  = await fetch('/api/token-balance');
-    const json = await res.json();
-    document.getElementById('token-count').textContent = json.tokens;
-  } catch(e) {}
-}
-
-// Refresh token count on page load
-refreshTokens();
-
-// Handle 402 (no token) response from generate
-const _origSubmit = document.getElementById('lhp-form').onsubmit;
-document.getElementById('lhp-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  const btn     = document.getElementById('btn-submit');
-  const spinner = document.getElementById('spinner');
-  const status  = document.getElementById('status');
-  btn.disabled = true;
-  spinner.style.display = 'block';
-  status.textContent = '';
-  status.className = '';
-  try {
-    const formData = new FormData(e.target);
-    const res = await fetch('/api/generate', { method: 'POST', body: formData });
-    if (res.status === 402) {
-      const json = await res.json();
-      status.textContent = '🪙 ' + json.error;
-      status.className = 'err';
-      buyTokens();
-      return;
-    }
-    if (res.status === 401) {
-      window.location.href = '/login';
-      return;
-    }
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      status.textContent = '❌ ' + (json.error || 'Terjadi kesalahan');
-      status.className = 'err';
-      return;
-    }
-    const blob = await res.blob();
-    const cd   = res.headers.get('Content-Disposition') || '';
-    const name = cd.match(/filename="?([^"]+)"?/)?.[1] || 'LHP.docx';
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = name; a.click();
-    URL.revokeObjectURL(url);
-    status.textContent = '✅ Dokumen berhasil dibuat! (Token: -1)';
-    status.className = 'ok';
-    refreshTokens();
-  } catch(err) {
-    status.textContent = '❌ Gagal: ' + err.message;
-    status.className = 'err';
-  } finally {
-    btn.disabled = false;
-    spinner.style.display = 'none';
-  }
-}, true);
 </script>
 </body>
 </html>
