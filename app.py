@@ -273,6 +273,12 @@ def fill_template(data, image_paths, output_path):
 def index():
     return render_template('index.html')
 
+@app.route('/ads.txt')
+def ads_txt():
+    return "google.com, pub-6151198102509068, DIRECT, f08c47fec0942fa0", 200, {
+        'Content-Type': 'text/plain'
+    }
+
 @app.route('/api/lookup', methods=['GET'])
 def api_lookup():
     peleton = request.args.get('peleton', '').strip()
