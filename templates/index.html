@@ -192,6 +192,13 @@
              border-radius:50%; animation:spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ── Token badge ── */
+  .token-badge { background: rgba(212,175,55,.15); border: 1.5px solid var(--accent);
+                 color: var(--accent); border-radius: 20px; padding: 5px 14px;
+                 font-size: 13px; font-weight: 700; white-space: nowrap; }
+  .btn-logout { color: #A8C4E8; font-size: 12px; text-decoration: none; white-space: nowrap; }
+  .btn-logout:hover { color: var(--white); }
+
   /* ── Footer ── */
   footer { text-align:center; font-size:11px; color: var(--muted);
            padding: 16px; border-top: 1px solid var(--border);
@@ -206,7 +213,10 @@
     <div class="hdr-title">Form LHP Kegiatan Positif</div>
     <div class="hdr-sub">Akademi Kepolisian — Batalyon Manggala Satya</div>
   </div>
-  <div class="hdr-badge">Output: .docx</div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:14px;">
+    <div class="token-badge">🪙 <span id="token-count">{{ user_tokens }}</span> token</div>
+    <a href="/logout" class="btn-logout">Keluar</a>
+  </div>
 </header>
 <div class="gold-bar"></div>
 
@@ -411,47 +421,7 @@ function clearImage(idx) {
   document.getElementById(`plus-label-${idx}`).style.display = '';
 }
 
-// ── Submit ────────────────────────────────────────────────────────────────────
-document.getElementById('lhp-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  const btn     = document.getElementById('btn-submit');
-  const spinner = document.getElementById('spinner');
-  const status  = document.getElementById('status');
-
-  btn.disabled = true;
-  spinner.style.display = 'block';
-  status.textContent = '';
-  status.className = '';
-
-  try {
-    const formData = new FormData(e.target);
-    const res = await fetch('/api/generate', { method: 'POST', body: formData });
-
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      status.textContent = '❌ ' + (json.error || 'Terjadi kesalahan pada server');
-      status.className = 'err';
-      return;
-    }
-
-    const blob = await res.blob();
-    const cd   = res.headers.get('Content-Disposition') || '';
-    const name = cd.match(/filename="?([^"]+)"?/)?.[1] || 'LHP.docx';
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = name; a.click();
-    URL.revokeObjectURL(url);
-
-    status.textContent = '✅ Dokumen berhasil dibuat dan diunduh!';
-    status.className = 'ok';
-  } catch(err) {
-    status.textContent = '❌ Gagal menghubungi server: ' + err.message;
-    status.className = 'err';
-  } finally {
-    btn.disabled = false;
-    spinner.style.display = 'none';
-  }
-});
+// Submit handled by token-aware listener below
 
 // ── Reset ─────────────────────────────────────────────────────────────────────
 function resetForm() {
@@ -466,6 +436,33 @@ function resetForm() {
   document.getElementById('status').textContent = '';
   document.getElementById('status').className = '';
 }
+</script>
+<script>
+document.getElementById('lhp-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn=document.getElementById('btn-submit'), spinner=document.getElementById('spinner'), status=document.getElementById('status');
+  btn.disabled=true; spinner.style.display='block'; status.textContent=''; status.className='';
+  try {
+    const res = await fetch('/api/generate', {method:'POST', body: new FormData(e.target)});
+    if (res.status===401) { window.location.href='/login'; return; }
+    if (res.status===402) {
+      const j=await res.json();
+      status.textContent='🪙 '+j.error; status.className='err'; return;
+    }
+    if (!res.ok) {
+      const j=await res.json().catch(()=>({}));
+      status.textContent='❌ '+(j.error||'Terjadi kesalahan'); status.className='err'; return;
+    }
+    const blob=await res.blob();
+    const name=(res.headers.get('Content-Disposition')||'').match(/filename="?([^"]+)"?/)?.[1]||'LHP.docx';
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+    status.textContent='✅ Dokumen berhasil dibuat!'; status.className='ok';
+    const tb=await (await fetch('/api/token-balance')).json();
+    document.getElementById('token-count').textContent=tb.tokens;
+  } catch(err) {
+    status.textContent='❌ '+err.message; status.className='err';
+  } finally { btn.disabled=false; spinner.style.display='none'; }
+});
 </script>
 </body>
 </html>

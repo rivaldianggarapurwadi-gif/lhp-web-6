@@ -1,19 +1,107 @@
 """
 LHP Kegiatan Positif — Flask web app
+Admin-controlled accounts, token-gated document generation.
 """
-import os, re, shutil, uuid
+import os, re, shutil, uuid, json
 from datetime import datetime
-from flask import Flask, request, jsonify, send_file, render_template, after_this_request
+from functools import wraps
+from flask import (Flask, request, jsonify, send_file,
+                   render_template, after_this_request,
+                   session, redirect, url_for)
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 
 BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_FILE = os.path.join(BASE_DIR, "template_lhp.docx")
 XLSX_FILE     = os.path.join(BASE_DIR, "DATA_DANTON_DANKI.xlsx")
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "tmp")
+USERS_FILE    = os.path.join(BASE_DIR, "users.json")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# ── Config ────────────────────────────────────────────────────────────────────
+ADMIN_USERNAME   = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD   = os.environ.get("ADMIN_PASSWORD", "admin123")
+TOKENS_PER_ACCOUNT = 8
+TOKENS_PER_DOC     = 1
+
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20 MB
+app.secret_key = os.environ.get("SECRET_KEY", "lhp-akpol-secret-2026-xK9mP")
+app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
+
+# ── User store ────────────────────────────────────────────────────────────────
+
+def _load_users():
+    if not os.path.exists(USERS_FILE):
+        return {}
+    try:
+        with open(USERS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_users(users):
+    with open(USERS_FILE, 'w') as f:
+        json.dump(users, f, indent=2, ensure_ascii=False)
+
+def get_user(username):
+    return _load_users().get(username.lower())
+
+def create_user(username, password, name):
+    users = _load_users()
+    key = username.lower()
+    if key in users:
+        return None, "Username sudah digunakan"
+    users[key] = {
+        "username": key,
+        "name": name,
+        "password": generate_password_hash(password),
+        "tokens": TOKENS_PER_ACCOUNT,
+        "created_at": datetime.now().isoformat()
+    }
+    _save_users(users)
+    return users[key], None
+
+def delete_user(username):
+    users = _load_users()
+    key = username.lower()
+    if key not in users:
+        return False
+    del users[key]
+    _save_users(users)
+    return True
+
+def use_token(username):
+    users = _load_users()
+    key = username.lower()
+    if key not in users:
+        return False
+    if users[key].get("tokens", 0) < TOKENS_PER_DOC:
+        return False
+    users[key]["tokens"] -= TOKENS_PER_DOC
+    _save_users(users)
+    return True
+
+# ── Auth decorators ───────────────────────────────────────────────────────────
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "username" not in session:
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({"error": "Login diperlukan", "redirect": "/login"}), 401
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if session.get("role") != "admin":
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({"error": "Akses ditolak"}), 403
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
 
 # ── Roman numeral ─────────────────────────────────────────────────────────────
 
@@ -184,8 +272,6 @@ def _fix_signature_formatting(doc, pangkat_danton, nrp_danton,
              nrp_danton and nrp_danton in full and pangkat_abbr in full)):
             set_center(para)
 
-# ── Core fill function ────────────────────────────────────────────────────────
-
 def fill_template(data, image_paths, output_path):
     from docx import Document
     shutil.copy(TEMPLATE_FILE, output_path)
@@ -267,18 +353,116 @@ def fill_template(data, image_paths, output_path):
                                pangkat_abbr)
     doc.save(output_path)
 
-# ── Flask routes ──────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# Routes — Auth
+# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    if 'username' not in session:
+        return redirect(url_for('login'))
+    if session.get('role') == 'admin':
+        return redirect(url_for('admin_panel'))
+    user = get_user(session['username'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+    return render_template('index.html',
+                           user_name=user['name'],
+                           user_tokens=user.get('tokens', 0))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'GET':
+        return render_template('login.html')
+    data     = request.get_json() or {}
+    username = data.get('username', '').strip().lower()
+    password = data.get('password', '')
+    # Check admin
+    if username == ADMIN_USERNAME.lower() and password == ADMIN_PASSWORD:
+        session['username'] = username
+        session['role']     = 'admin'
+        return jsonify({'ok': True, 'redirect': '/admin'})
+    # Check user
+    user = get_user(username)
+    if not user or not check_password_hash(user['password'], password):
+        return jsonify({'error': 'Username atau password salah'}), 401
+    session['username'] = username
+    session['role']     = 'user'
+    return jsonify({'ok': True, 'redirect': '/'})
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 @app.route('/ads.txt')
 def ads_txt():
     return send_file(os.path.join(BASE_DIR, 'static', 'ads.txt'),
                      mimetype='text/plain')
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Routes — Admin panel
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/admin')
+@admin_required
+def admin_panel():
+    users = _load_users()
+    user_list = sorted(users.values(), key=lambda u: u.get('created_at',''))
+    return render_template('admin.html', users=user_list,
+                           tokens_per_account=TOKENS_PER_ACCOUNT)
+
+@app.route('/api/admin/create-user', methods=['POST'])
+@admin_required
+def admin_create_user():
+    data     = request.get_json() or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    name     = data.get('name', '').strip()
+    if not username or not password or not name:
+        return jsonify({'error': 'Semua field harus diisi'}), 400
+    if len(password) < 4:
+        return jsonify({'error': 'Password minimal 4 karakter'}), 400
+    user, err = create_user(username, password, name)
+    if err:
+        return jsonify({'error': err}), 400
+    return jsonify({'ok': True, 'user': {
+        'username': user['username'],
+        'name': user['name'],
+        'tokens': user['tokens'],
+        'created_at': user['created_at']
+    }})
+
+@app.route('/api/admin/delete-user', methods=['POST'])
+@admin_required
+def admin_delete_user():
+    data     = request.get_json() or {}
+    username = data.get('username', '').strip().lower()
+    if not username:
+        return jsonify({'error': 'Username diperlukan'}), 400
+    if delete_user(username):
+        return jsonify({'ok': True})
+    return jsonify({'error': 'User tidak ditemukan'}), 404
+
+@app.route('/api/admin/reset-tokens', methods=['POST'])
+@admin_required
+def admin_reset_tokens():
+    data     = request.get_json() or {}
+    username = data.get('username', '').strip().lower()
+    users    = _load_users()
+    if username not in users:
+        return jsonify({'error': 'User tidak ditemukan'}), 404
+    users[username]['tokens'] = TOKENS_PER_ACCOUNT
+    _save_users(users)
+    return jsonify({'ok': True, 'tokens': TOKENS_PER_ACCOUNT})
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Routes — App
+# ══════════════════════════════════════════════════════════════════════════════
+
 @app.route('/api/lookup', methods=['GET'])
+@login_required
 def api_lookup():
     peleton = request.args.get('peleton', '').strip()
     kompi   = request.args.get('kompi', '').strip()
@@ -287,17 +471,26 @@ def api_lookup():
     danton = lookup_danton(peleton, kompi)
     danki  = lookup_danki(kompi)
     return jsonify({
-        'danton': danton,
-        'danki':  danki,
-        'label':  f"DANTON TAR {peleton}/{to_roman(kompi)}  |  DANKI TAR {to_roman(kompi)}"
-                  if danton and danki else None,
+        'danton': danton, 'danki': danki,
+        'label': f"DANTON TAR {peleton}/{to_roman(kompi)}  |  DANKI TAR {to_roman(kompi)}"
+                 if danton and danki else None,
     })
 
+@app.route('/api/token-balance', methods=['GET'])
+@login_required
+def token_balance():
+    user = get_user(session['username'])
+    return jsonify({'tokens': user.get('tokens', 0)})
+
 @app.route('/api/generate', methods=['POST'])
+@login_required
 def api_generate():
     import tempfile
+    user = get_user(session['username'])
+    if user.get('tokens', 0) < TOKENS_PER_DOC:
+        return jsonify({'error': 'Token habis. Hubungi admin untuk reset token.',
+                        'no_token': True}), 402
 
-    # ── Collect form fields ──────────────────────────────────────────────
     fields = ['Nama','No Ak','Pangkat','Peleton','Kompi',
               'Nama Danton','Pangkat Danton','NRP Danton',
               'Nama Danki','Pangkat Danki','NRP Danki',
@@ -309,24 +502,19 @@ def api_generate():
             return jsonify({'error': f'Field "{f}" tidak boleh kosong'}), 400
         data[f] = val
 
-    # ── Save uploaded images to named temp files ─────────────────────────
-    # Use delete=False so files survive until fill_template finishes using them
     image_paths = []
     image_tmpfiles = []
     for i in range(1, 5):
         file = request.files.get(f'foto_{i}')
         if file and file.filename:
             ext = os.path.splitext(secure_filename(file.filename))[1] or '.jpg'
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext,
-                                             dir=UPLOAD_FOLDER)
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, dir=UPLOAD_FOLDER)
             file.save(tmp.name)
             tmp.close()
             image_paths.append(tmp.name)
             image_tmpfiles.append(tmp.name)
 
-    # ── Generate docx into a temp file ───────────────────────────────────
-    out_tmp  = tempfile.NamedTemporaryFile(delete=False, suffix='.docx',
-                                           dir=UPLOAD_FOLDER)
+    out_tmp  = tempfile.NamedTemporaryFile(delete=False, suffix='.docx', dir=UPLOAD_FOLDER)
     out_path = out_tmp.name
     out_tmp.close()
     out_name = f"LHP_{data['Nama'].replace(' ','_')}_{uuid.uuid4().hex[:6]}.docx"
@@ -334,18 +522,17 @@ def api_generate():
     try:
         fill_template(data, image_paths, out_path)
     except Exception as e:
-        # Clean up everything on error
         for p in image_tmpfiles + [out_path]:
             try: os.remove(p)
             except: pass
         return jsonify({'error': str(e)}), 500
     finally:
-        # Delete image temp files AFTER fill_template has finished
         for p in image_tmpfiles:
             try: os.remove(p)
             except: pass
 
-    # ── Stream docx back to browser, then delete it ───────────────────────
+    use_token(session['username'])
+
     @after_this_request
     def cleanup(response):
         try: os.remove(out_path)

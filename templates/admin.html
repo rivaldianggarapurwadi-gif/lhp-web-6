@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — LHP AKPOL</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--primary:#111;--navy:#0D2B45;--accent:#D4AF37;--white:#fff;
+        --surface:#F3F4F6;--text:#2B2B2B;--muted:#6B7280;
+        --border:#D1D5DB;--danger:#B91C1C;--success:#15803D}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:var(--surface);
+       color:var(--text);min-height:100vh}
+  header{background:var(--primary);color:#fff;height:60px;display:flex;
+         align-items:center;padding:0 24px;gap:14px;
+         border-bottom:3px solid var(--accent);position:sticky;top:0;z-index:10}
+  header img{height:38px;width:38px;object-fit:contain}
+  header h1{font-size:16px;font-weight:800;letter-spacing:.5px}
+  header .badge{background:var(--accent);color:var(--primary);font-size:10px;
+                font-weight:800;padding:3px 10px;border-radius:20px;
+                letter-spacing:.5px}
+  header a{margin-left:auto;color:#A8C4E8;font-size:12px;text-decoration:none}
+  header a:hover{color:#fff}
+  main{max-width:860px;margin:28px auto;padding:0 16px 60px}
+  .card{background:#fff;border:1px solid var(--border);border-radius:8px;
+        margin-bottom:20px;overflow:hidden;
+        box-shadow:0 1px 4px rgba(0,0,0,.06)}
+  .card-header{background:var(--navy);color:#fff;padding:11px 18px;
+               font-weight:700;font-size:12px;letter-spacing:.6px;
+               text-transform:uppercase;border-left:4px solid var(--accent)}
+  .form-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;
+            gap:12px;padding:16px 20px;align-items:end}
+  @media(max-width:600px){.form-row{grid-template-columns:1fr}}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:10px;font-weight:800;color:var(--navy);
+               text-transform:uppercase;letter-spacing:.5px}
+  .field input{border:1.5px solid var(--border);border-radius:5px;
+               padding:8px 10px;font-size:13px;background:var(--surface);
+               color:var(--text);width:100%}
+  .field input:focus{outline:none;border-color:var(--accent)}
+  .btn-create{background:var(--accent);color:var(--primary);border:none;
+              border-radius:5px;padding:9px 20px;font-size:13px;
+              font-weight:800;cursor:pointer;white-space:nowrap;height:38px}
+  .btn-create:hover{background:#b8941e}
+  #create-msg{padding:0 20px 12px;font-size:12px;font-weight:600;min-height:20px}
+  #create-msg.ok{color:var(--success)} #create-msg.err{color:var(--danger)}
+  table{width:100%;border-collapse:collapse}
+  th{background:#F8F9FB;padding:10px 16px;font-size:11px;font-weight:800;
+     color:var(--navy);text-transform:uppercase;letter-spacing:.5px;
+     border-bottom:2px solid var(--border);text-align:left}
+  td{padding:12px 16px;font-size:13px;border-bottom:1px solid #F0F0F0;
+     vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:#FAFBFC}
+  .token-pill{background:rgba(212,175,55,.15);border:1px solid var(--accent);
+              color:#8B6914;border-radius:20px;padding:2px 10px;
+              font-size:12px;font-weight:700;display:inline-block}
+  .token-pill.empty{background:#FEF2F2;border-color:#FCA5A5;color:#B91C1C}
+  .btn-sm{border:none;border-radius:4px;padding:5px 12px;font-size:11px;
+          font-weight:700;cursor:pointer;margin-right:4px}
+  .btn-reset{background:#EFF6FF;color:#1D4ED8}
+  .btn-reset:hover{background:#DBEAFE}
+  .btn-delete{background:#FEF2F2;color:#B91C1C}
+  .btn-delete:hover{background:#FEE2E2}
+  .empty-state{text-align:center;padding:40px;color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <img src="/static/logo.png" alt="AKPOL">
+  <h1>Admin Panel — LHP AKPOL</h1>
+  <span class="badge">ADMIN</span>
+  <a href="/logout">Keluar</a>
+</header>
+<main>
+
+  <!-- Create user -->
+  <div class="card">
+    <div class="card-header">➕ Buat Akun Baru</div>
+    <div class="form-row">
+      <div class="field">
+        <label>Nama Lengkap</label>
+        <input type="text" id="new-name" placeholder="Nama taruna">
+      </div>
+      <div class="field">
+        <label>Username</label>
+        <input type="text" id="new-username" placeholder="username">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="text" id="new-password" placeholder="Min. 4 karakter">
+      </div>
+      <button class="btn-create" onclick="createUser()">Buat Akun</button>
+    </div>
+    <div id="create-msg"></div>
+  </div>
+
+  <!-- User list -->
+  <div class="card">
+    <div class="card-header">👥 Daftar Akun ({{ users|length }} akun)</div>
+    {% if users %}
+    <table>
+      <thead>
+        <tr>
+          <th>Nama</th>
+          <th>Username</th>
+          <th>Token</th>
+          <th>Dibuat</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="user-table">
+        {% for u in users %}
+        <tr id="row-{{ u.username }}">
+          <td><strong>{{ u.name }}</strong></td>
+          <td style="color:var(--muted);font-family:monospace">{{ u.username }}</td>
+          <td>
+            <span class="token-pill {% if u.tokens == 0 %}empty{% endif %}"
+                  id="token-{{ u.username }}">
+              🪙 {{ u.tokens }} token
+            </span>
+          </td>
+          <td style="color:var(--muted);font-size:12px">
+            {{ u.created_at[:10] if u.created_at else '—' }}
+          </td>
+          <td>
+            <button class="btn-sm btn-reset"
+                    onclick="resetTokens('{{ u.username }}')">
+              🔄 Reset Token
+            </button>
+            <button class="btn-sm btn-delete"
+                    onclick="deleteUser('{{ u.username }}', '{{ u.name }}')">
+              🗑 Hapus
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">Belum ada akun. Buat akun baru di atas.</div>
+    {% endif %}
+  </div>
+
+</main>
+<script>
+async function createUser() {
+  const name     = document.getElementById('new-name').value.trim();
+  const username = document.getElementById('new-username').value.trim();
+  const password = document.getElementById('new-password').value.trim();
+  const msg      = document.getElementById('create-msg');
+  if (!name || !username || !password) {
+    msg.className = 'err'; msg.textContent = 'Semua field harus diisi'; return;
+  }
+  const res  = await fetch('/api/admin/create-user', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name, username, password})
+  });
+  const json = await res.json();
+  if (json.ok) {
+    msg.className = 'ok';
+    msg.textContent = `✅ Akun "${json.user.name}" berhasil dibuat (${json.user.tokens} token)`;
+    document.getElementById('new-name').value = '';
+    document.getElementById('new-username').value = '';
+    document.getElementById('new-password').value = '';
+    // Add row to table
+    addUserRow(json.user);
+  } else {
+    msg.className = 'err'; msg.textContent = '❌ ' + json.error;
+  }
+}
+
+function addUserRow(u) {
+  const tbody = document.getElementById('user-table');
+  if (!tbody) { location.reload(); return; }
+  const tr = document.createElement('tr');
+  tr.id = `row-${u.username}`;
+  tr.innerHTML = `
+    <td><strong>${u.name}</strong></td>
+    <td style="color:var(--muted);font-family:monospace">${u.username}</td>
+    <td><span class="token-pill" id="token-${u.username}">🪙 ${u.tokens} token</span></td>
+    <td style="color:var(--muted);font-size:12px">${u.created_at.slice(0,10)}</td>
+    <td>
+      <button class="btn-sm btn-reset" onclick="resetTokens('${u.username}')">🔄 Reset Token</button>
+      <button class="btn-sm btn-delete" onclick="deleteUser('${u.username}','${u.name}')">🗑 Hapus</button>
+    </td>`;
+  tbody.appendChild(tr);
+}
+
+async function resetTokens(username) {
+  const res  = await fetch('/api/admin/reset-tokens', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({username})
+  });
+  const json = await res.json();
+  if (json.ok) {
+    const pill = document.getElementById(`token-${username}`);
+    if (pill) { pill.className = 'token-pill'; pill.textContent = `🪙 ${json.tokens} token`; }
+  } else { alert(json.error); }
+}
+
+async function deleteUser(username, name) {
+  if (!confirm(`Hapus akun "${name}" (${username})?\nAksi ini tidak bisa dibatalkan.`)) return;
+  const res  = await fetch('/api/admin/delete-user', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({username})
+  });
+  const json = await res.json();
+  if (json.ok) {
+    const row = document.getElementById(`row-${username}`);
+    if (row) row.remove();
+  } else { alert(json.error); }
+}
+</script>
+</body>
+</html>
