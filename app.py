@@ -21,7 +21,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # ── Config ────────────────────────────────────────────────────────────────────
 ADMIN_USERNAME   = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD   = os.environ.get("ADMIN_PASSWORD", "admin123")
-TOKENS_PER_ACCOUNT = 7
+TOKENS_PER_ACCOUNT = 10
 TOKENS_PER_DOC     = 1
 
 app = Flask(__name__)
