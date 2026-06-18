@@ -149,6 +149,7 @@
     justify-content: center; font-size: 11px; color: var(--muted);
     overflow: hidden; position: relative;
     transition: border-color .15s, background .15s;
+    -webkit-tap-highlight-color: transparent;
   }
   .foto-preview:hover { border-color: var(--accent); background: #fdf8e8; }
   .foto-preview img   { width:100%; height:100%; object-fit:cover; }
@@ -293,23 +294,22 @@
     <div class="foto-grid">
       {% for i in range(1,5) %}
       <div class="foto-slot">
-        <div class="foto-preview" id="preview-{{i}}"
-             onclick="document.getElementById('foto-input-{{i}}').click()">
+        <div class="foto-preview" id="preview-{{i}}">
           <span class="plus" id="plus-{{i}}">＋</span>
           <span id="plus-label-{{i}}" style="margin-top:4px">Foto {{i}}</span>
-          <img id="thumb-{{i}}" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;">
+          <img id="thumb-{{i}}" src="" alt=""
+               style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">
+          <input type="file" id="foto-input-{{i}}" name="foto_{{i}}"
+                 accept="image/*" onchange="previewImage(this, {{i}})"
+                 style="position:absolute;inset:0;width:100%;height:100%;
+                        opacity:0;cursor:pointer;z-index:10;">
         </div>
         <div class="foto-label">Foto {{i}}</div>
         <button type="button" class="btn-clear" onclick="clearImage({{i}})">✕ Hapus</button>
       </div>
       {% endfor %}
     </div>
-    <div style="display:none">
-      {% for i in range(1,5) %}
-      <input type="file" id="foto-input-{{i}}" name="foto_{{i}}"
-             accept="image/*" onchange="previewImage(this, {{i}})">
-      {% endfor %}
-    </div>
+
   </div>
 
   <!-- ── Actions ── -->
@@ -414,7 +414,11 @@ function previewImage(input, idx) {
 
 function clearImage(idx) {
   const input = document.getElementById(`foto-input-${idx}`);
-  input.value = '';
+  // Reset by replacing the input element (most reliable on Android)
+  const newInput = input.cloneNode(true);
+  newInput.value = '';
+  input.parentNode.replaceChild(newInput, input);
+  newInput.addEventListener('change', function() { previewImage(this, idx); });
   document.getElementById(`thumb-${idx}`).style.display = 'none';
   document.getElementById(`thumb-${idx}`).src = '';
   document.getElementById(`plus-${idx}`).style.display = '';
