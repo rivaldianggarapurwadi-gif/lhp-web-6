@@ -94,6 +94,25 @@
 </header>
 <main>
 
+  {% if storage_persistent %}
+  <div class="card" style="border-left:4px solid var(--success)">
+    <div style="padding:12px 18px;font-size:13px;color:var(--success);font-weight:700">
+      ✅ Penyimpanan persisten aktif — data akun aman saat redeploy.
+      <span style="color:var(--muted);font-weight:400;font-size:11px">({{ data_dir }})</span>
+    </div>
+  </div>
+  {% else %}
+  <div class="card" style="border-left:4px solid var(--danger)">
+    <div style="padding:12px 18px;font-size:13px;color:var(--danger);font-weight:700">
+      ⚠️ PERINGATAN: Data disimpan di disk sementara ({{ data_dir }}).
+      <span style="display:block;color:var(--text);font-weight:400;font-size:12px;margin-top:4px">
+        Akun akan HILANG setiap kali aplikasi di-redeploy. Pasang Railway Volume
+        ke service ini (mount path bebas, mis. <code>/data</code>) lalu restart.
+      </span>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Create user -->
   <div class="card">
     <div class="card-header">➕ Buat Akun Baru</div>
