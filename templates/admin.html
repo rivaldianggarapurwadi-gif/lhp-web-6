@@ -63,25 +63,6 @@
   .btn-delete{background:#FEF2F2;color:#B91C1C}
   .btn-delete:hover{background:#FEE2E2}
   .empty-state{text-align:center;padding:40px;color:var(--muted);font-size:14px}
-
-  /* Token editor */
-  .token-edit-row { display:none; align-items:center; gap:8px; margin-top:6px; }
-  .token-edit-row.open { display:flex; }
-  .token-edit-row input {
-    width:70px; border:1.5px solid var(--border); border-radius:4px;
-    padding:4px 8px; font-size:13px; font-weight:700; text-align:center;
-    color:var(--text);
-  }
-  .token-edit-row input:focus { outline:none; border-color:var(--accent); }
-  .btn-confirm { background:var(--success); color:#fff; border:none;
-                 border-radius:4px; padding:4px 10px; font-size:11px;
-                 font-weight:700; cursor:pointer; }
-  .btn-confirm:hover { background:#166534; }
-  .btn-cancel-edit { background:#F3F4F6; color:var(--muted); border:none;
-                     border-radius:4px; padding:4px 10px; font-size:11px;
-                     font-weight:700; cursor:pointer; }
-  .btn-edit-token { background:#F0FDF4; color:var(--success); }
-  .btn-edit-token:hover { background:#DCFCE7; }
 </style>
 </head>
 <body>
@@ -138,28 +119,14 @@
                   id="token-{{ u.username }}">
               🪙 {{ u.tokens }} token
             </span>
-            <div class="token-edit-row" id="edit-row-{{ u.username }}">
-              <input type="number" min="0" max="999"
-                     id="edit-input-{{ u.username }}"
-                     value="{{ u.tokens }}"
-                     onkeydown="if(event.key==='Enter')confirmTokens('{{ u.username }}')">
-              <button class="btn-confirm"
-                      onclick="confirmTokens('{{ u.username }}')">✓ Simpan</button>
-              <button class="btn-cancel-edit"
-                      onclick="cancelEdit('{{ u.username }}')">✕</button>
-            </div>
           </td>
           <td style="color:var(--muted);font-size:12px">
             {{ u.created_at[:10] if u.created_at else '—' }}
           </td>
           <td>
-            <button class="btn-sm btn-edit-token"
-                    onclick="editTokens('{{ u.username }}')">
-              ✏️ Atur Token
-            </button>
             <button class="btn-sm btn-reset"
                     onclick="resetTokens('{{ u.username }}')">
-              🔄 Reset ({{ tokens_per_account }})
+              🔄 Reset Token
             </button>
             <button class="btn-sm btn-delete"
                     onclick="deleteUser('{{ u.username }}', '{{ u.name }}')">
@@ -185,21 +152,31 @@ async function createUser() {
   if (!name || !username || !password) {
     msg.className = 'err'; msg.textContent = 'Semua field harus diisi'; return;
   }
-  const res  = await fetch('/api/admin/create-user', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({name, username, password})
-  });
-  const json = await res.json();
-  if (json.ok) {
-    msg.className = 'ok';
-    msg.textContent = `✅ Akun "${json.user.name}" berhasil dibuat (${json.user.tokens} token)`;
-    document.getElementById('new-name').value = '';
-    document.getElementById('new-username').value = '';
-    document.getElementById('new-password').value = '';
-    // Add row to table
-    addUserRow(json.user);
-  } else {
-    msg.className = 'err'; msg.textContent = '❌ ' + json.error;
+  msg.className = ''; msg.textContent = '⏳ Memproses...';
+  try {
+    const res  = await fetch('/api/admin/create-user', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, username, password})
+    });
+    if (res.status === 401) {
+      msg.className = 'err';
+      msg.textContent = '❌ Sesi habis. Redirect ke login...';
+      setTimeout(() => window.location.href = '/login', 1500);
+      return;
+    }
+    const json = await res.json();
+    if (json.ok) {
+      msg.className = 'ok';
+      msg.textContent = `✅ Akun "${json.user.name}" berhasil dibuat (${json.user.tokens} token)`;
+      document.getElementById('new-name').value = '';
+      document.getElementById('new-username').value = '';
+      document.getElementById('new-password').value = '';
+      addUserRow(json.user);
+    } else {
+      msg.className = 'err'; msg.textContent = '❌ ' + (json.error || 'Gagal membuat akun');
+    }
+  } catch(e) {
+    msg.className = 'err'; msg.textContent = '❌ Koneksi gagal: ' + e.message;
   }
 }
 
@@ -211,78 +188,44 @@ function addUserRow(u) {
   tr.innerHTML = `
     <td><strong>${u.name}</strong></td>
     <td style="color:var(--muted);font-family:monospace">${u.username}</td>
-    <td>
-      <span class="token-pill" id="token-${u.username}">🪙 ${u.tokens} token</span>
-      <div class="token-edit-row" id="edit-row-${u.username}">
-        <input type="number" min="0" max="999" id="edit-input-${u.username}" value="${u.tokens}"
-               onkeydown="if(event.key==='Enter')confirmTokens('${u.username}')">
-        <button class="btn-confirm" onclick="confirmTokens('${u.username}')">✓ Simpan</button>
-        <button class="btn-cancel-edit" onclick="cancelEdit('${u.username}')">✕</button>
-      </div>
-    </td>
+    <td><span class="token-pill" id="token-${u.username}">🪙 ${u.tokens} token</span></td>
     <td style="color:var(--muted);font-size:12px">${u.created_at.slice(0,10)}</td>
     <td>
-      <button class="btn-sm btn-edit-token" onclick="editTokens('${u.username}')">✏️ Atur Token</button>
-      <button class="btn-sm btn-reset" onclick="resetTokens('${u.username}')">🔄 Reset (8)</button>
+      <button class="btn-sm btn-reset" onclick="resetTokens('${u.username}')">🔄 Reset Token</button>
       <button class="btn-sm btn-delete" onclick="deleteUser('${u.username}','${u.name}')">🗑 Hapus</button>
     </td>`;
   tbody.appendChild(tr);
 }
 
 async function resetTokens(username) {
-  const res  = await fetch('/api/admin/reset-tokens', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({username})
-  });
-  const json = await res.json();
-  if (json.ok) {
-    const pill = document.getElementById(`token-${username}`);
-    if (pill) { pill.className = 'token-pill'; pill.textContent = `🪙 ${json.tokens} token`; }
-  } else { alert(json.error); }
-}
-
-function editTokens(username) {
-  document.getElementById(`edit-row-${username}`).classList.add('open');
-  const input = document.getElementById(`edit-input-${username}`);
-  input.focus(); input.select();
-}
-
-function cancelEdit(username) {
-  document.getElementById(`edit-row-${username}`).classList.remove('open');
-}
-
-async function confirmTokens(username) {
-  const input  = document.getElementById(`edit-input-${username}`);
-  const amount = parseInt(input.value);
-  if (isNaN(amount) || amount < 0) {
-    alert('Masukkan angka yang valid (0 atau lebih)'); return;
-  }
-  const res  = await fetch('/api/admin/set-tokens', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({username, amount})
-  });
-  const json = await res.json();
-  if (json.ok) {
-    const pill = document.getElementById(`token-${username}`);
-    if (pill) {
-      pill.className = `token-pill${json.tokens === 0 ? ' empty' : ''}`;
-      pill.textContent = `🪙 ${json.tokens} token`;
-    }
-    cancelEdit(username);
-  } else { alert(json.error); }
+  try {
+    const res  = await fetch('/api/admin/reset-tokens', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({username})
+    });
+    if (res.status === 401) { window.location.href = '/login'; return; }
+    const json = await res.json();
+    if (json.ok) {
+      const pill = document.getElementById(`token-${username}`);
+      if (pill) { pill.className = 'token-pill'; pill.textContent = `🪙 ${json.tokens} token`; }
+    } else { alert(json.error); }
+  } catch(e) { alert('Koneksi gagal: ' + e.message); }
 }
 
 async function deleteUser(username, name) {
   if (!confirm(`Hapus akun "${name}" (${username})?\nAksi ini tidak bisa dibatalkan.`)) return;
-  const res  = await fetch('/api/admin/delete-user', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({username})
-  });
-  const json = await res.json();
-  if (json.ok) {
-    const row = document.getElementById(`row-${username}`);
-    if (row) row.remove();
-  } else { alert(json.error); }
+  try {
+    const res  = await fetch('/api/admin/delete-user', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({username})
+    });
+    if (res.status === 401) { window.location.href = '/login'; return; }
+    const json = await res.json();
+    if (json.ok) {
+      const row = document.getElementById(`row-${username}`);
+      if (row) row.remove();
+    } else { alert(json.error); }
+  } catch(e) { alert('Koneksi gagal: ' + e.message); }
 }
 </script>
 </body>
