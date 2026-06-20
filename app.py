@@ -30,9 +30,20 @@ app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 # ── Database ──────────────────────────────────────────────────────────────────
 
 def get_conn():
-    import pg8000.native, urllib.parse
-    # Parse DATABASE_URL: postgres://user:pass@host:port/dbname
-    url = urllib.parse.urlparse(DATABASE_URL)
+    import pg8000.native, urllib.parse, os
+    # Railway may use DATABASE_URL or PGHOST/PGUSER/etc separately
+    db_url = (os.environ.get("DATABASE_URL") or
+              os.environ.get("DATABASE_PRIVATE_URL") or
+              os.environ.get("POSTGRES_URL") or
+              DATABASE_URL)
+
+    if not db_url:
+        raise RuntimeError("DATABASE_URL environment variable not set")
+
+    # Railway sometimes uses postgres:// — normalize to postgresql://
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+    url = urllib.parse.urlparse(db_url)
     return pg8000.native.Connection(
         user=url.username,
         password=url.password,
