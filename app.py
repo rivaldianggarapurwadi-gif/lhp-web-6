@@ -2,7 +2,7 @@
 LHP Kegiatan Positif — Flask web app
 Admin-controlled accounts, token-gated document generation.
 """
-import os, re, shutil, uuid
+import os, re, shutil, uuid, json
 from datetime import datetime
 from functools import wraps
 from flask import (Flask, request, jsonify, send_file,
@@ -15,100 +15,71 @@ BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_FILE = os.path.join(BASE_DIR, "template_lhp.docx")
 XLSX_FILE     = os.path.join(BASE_DIR, "DATA_DANTON_DANKI.xlsx")
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "tmp")
+USERS_FILE    = os.path.join(BASE_DIR, "users.json")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # ── Config ────────────────────────────────────────────────────────────────────
-ADMIN_USERNAME     = os.environ.get("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD     = os.environ.get("ADMIN_PASSWORD", "admin123")
+ADMIN_USERNAME   = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD   = os.environ.get("ADMIN_PASSWORD", "admin123")
 TOKENS_PER_ACCOUNT = 8
 TOKENS_PER_DOC     = 1
-
-SUPABASE_URL       = os.environ.get("SUPABASE_URL", "https://mvicffprktrdwykxrbgo.supabase.co")
-SUPABASE_KEY       = os.environ.get("SUPABASE_KEY", "sb_secret_ug-THwRgqJRtdcp00jlWxw_zZK91DOT")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "lhp-akpol-secret-2026-xK9mP")
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 
-# ── Supabase client ───────────────────────────────────────────────────────────
+# ── User store ────────────────────────────────────────────────────────────────
 
-def get_db():
-    from supabase import create_client
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
-
-def _ensure_table():
-    """Create users table if it doesn't exist (runs on first request)."""
+def _load_users():
+    if not os.path.exists(USERS_FILE):
+        return {}
     try:
-        db = get_db()
-        db.table("users").select("username").limit(1).execute()
+        with open(USERS_FILE) as f:
+            return json.load(f)
     except Exception:
-        pass  # Table exists or will be created via Supabase dashboard
+        return {}
 
-# ── User store (Supabase) ─────────────────────────────────────────────────────
+def _save_users(users):
+    with open(USERS_FILE, 'w') as f:
+        json.dump(users, f, indent=2, ensure_ascii=False)
 
 def get_user(username):
-    try:
-        db  = get_db()
-        res = db.table("users").select("*").eq("username", username.lower()).execute()
-        return res.data[0] if res.data else None
-    except Exception:
-        return None
-
-def get_all_users():
-    try:
-        db  = get_db()
-        res = db.table("users").select("*").order("created_at").execute()
-        return res.data or []
-    except Exception:
-        return []
+    return _load_users().get(username.lower())
 
 def create_user(username, password, name):
-    try:
-        db  = get_db()
-        key = username.lower()
-        # Check existing
-        existing = db.table("users").select("username").eq("username", key).execute()
-        if existing.data:
-            return None, "Username sudah digunakan"
-        row = {
-            "username":   key,
-            "name":       name,
-            "password":   generate_password_hash(password),
-            "tokens":     TOKENS_PER_ACCOUNT,
-            "created_at": datetime.now().isoformat()
-        }
-        res = db.table("users").insert(row).execute()
-        return res.data[0] if res.data else row, None
-    except Exception as e:
-        return None, str(e)
+    users = _load_users()
+    key = username.lower()
+    if key in users:
+        return None, "Username sudah digunakan"
+    users[key] = {
+        "username": key,
+        "name": name,
+        "password": generate_password_hash(password),
+        "tokens": TOKENS_PER_ACCOUNT,
+        "created_at": datetime.now().isoformat()
+    }
+    _save_users(users)
+    return users[key], None
 
 def delete_user(username):
-    try:
-        db  = get_db()
-        res = db.table("users").delete().eq("username", username.lower()).execute()
-        return True
-    except Exception:
+    users = _load_users()
+    key = username.lower()
+    if key not in users:
         return False
+    del users[key]
+    _save_users(users)
+    return True
 
 def use_token(username):
-    try:
-        db   = get_db()
-        user = get_user(username)
-        if not user or user.get("tokens", 0) < TOKENS_PER_DOC:
-            return False
-        new_tokens = user["tokens"] - TOKENS_PER_DOC
-        db.table("users").update({"tokens": new_tokens}).eq("username", username.lower()).execute()
-        return True
-    except Exception:
+    users = _load_users()
+    key = username.lower()
+    if key not in users:
         return False
-
-def reset_tokens(username):
-    try:
-        db = get_db()
-        db.table("users").update({"tokens": TOKENS_PER_ACCOUNT}).eq("username", username.lower()).execute()
-        return True
-    except Exception:
+    if users[key].get("tokens", 0) < TOKENS_PER_DOC:
         return False
+    users[key]["tokens"] -= TOKENS_PER_DOC
+    _save_users(users)
+    return True
 
 # ── Auth decorators ───────────────────────────────────────────────────────────
 
@@ -125,9 +96,13 @@ def login_required(f):
 def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        if "username" not in session:
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({"error": "Sesi habis. Silakan login ulang.", "redirect": "/login"}), 401
+            return redirect(url_for('login'))
         if session.get("role") != "admin":
             if request.is_json or request.path.startswith('/api/'):
-                return jsonify({"error": "Akses ditolak"}), 403
+                return jsonify({"error": "Akses ditolak. Bukan admin."}), 403
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
@@ -437,7 +412,8 @@ def ads_txt():
 @app.route('/admin')
 @admin_required
 def admin_panel():
-    user_list = get_all_users()
+    users = _load_users()
+    user_list = sorted(users.values(), key=lambda u: u.get('created_at',''))
     return render_template('admin.html', users=user_list,
                            tokens_per_account=TOKENS_PER_ACCOUNT)
 
@@ -478,31 +454,12 @@ def admin_delete_user():
 def admin_reset_tokens():
     data     = request.get_json() or {}
     username = data.get('username', '').strip().lower()
-    if not get_user(username):
+    users    = _load_users()
+    if username not in users:
         return jsonify({'error': 'User tidak ditemukan'}), 404
-    reset_tokens(username)
+    users[username]['tokens'] = TOKENS_PER_ACCOUNT
+    _save_users(users)
     return jsonify({'ok': True, 'tokens': TOKENS_PER_ACCOUNT})
-
-@app.route('/api/admin/set-tokens', methods=['POST'])
-@admin_required
-def admin_set_tokens():
-    data     = request.get_json() or {}
-    username = data.get('username', '').strip().lower()
-    amount   = data.get('amount')
-    try:
-        amount = int(amount)
-    except (TypeError, ValueError):
-        return jsonify({'error': 'Jumlah token harus berupa angka'}), 400
-    if amount < 0:
-        return jsonify({'error': 'Token tidak boleh negatif'}), 400
-    if not get_user(username):
-        return jsonify({'error': 'User tidak ditemukan'}), 404
-    try:
-        db = get_db()
-        db.table("users").update({"tokens": amount}).eq("username", username).execute()
-        return jsonify({'ok': True, 'tokens': amount})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Routes — App
