@@ -461,6 +461,26 @@ def admin_reset_tokens():
     _save_users(users)
     return jsonify({'ok': True, 'tokens': TOKENS_PER_ACCOUNT})
 
+@app.route('/api/admin/set-tokens', methods=['POST'])
+@admin_required
+def admin_set_tokens():
+    data     = request.get_json() or {}
+    username = data.get('username', '').strip().lower()
+    try:
+        tokens = int(data.get('tokens', -1))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Jumlah token tidak valid'}), 400
+    if tokens < 0:
+        return jsonify({'error': 'Token tidak boleh negatif'}), 400
+    if tokens > 999:
+        return jsonify({'error': 'Token maksimal 999'}), 400
+    users = _load_users()
+    if username not in users:
+        return jsonify({'error': 'User tidak ditemukan'}), 404
+    users[username]['tokens'] = tokens
+    _save_users(users)
+    return jsonify({'ok': True, 'tokens': tokens})
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Routes — App
 # ══════════════════════════════════════════════════════════════════════════════
