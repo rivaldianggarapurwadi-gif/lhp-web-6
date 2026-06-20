@@ -1,6 +1,6 @@
 """
 LHP Kegiatan Positif — Flask web app
-Admin-controlled accounts, token-gated document generation.
+Admin-controlled accounts, PostgreSQL persistent storage.
 """
 import os, re, shutil, uuid
 from datetime import datetime
@@ -17,96 +17,112 @@ XLSX_FILE     = os.path.join(BASE_DIR, "DATA_DANTON_DANKI.xlsx")
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "tmp")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ── Config ────────────────────────────────────────────────────────────────────
 ADMIN_USERNAME     = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD     = os.environ.get("ADMIN_PASSWORD", "admin123")
 TOKENS_PER_ACCOUNT = 8
 TOKENS_PER_DOC     = 1
-
-SUPABASE_URL       = os.environ.get("SUPABASE_URL", "https://mvicffprktrdwykxrbgo.supabase.co")
-SUPABASE_KEY       = os.environ.get("SUPABASE_KEY", "sb_secret_ug-THwRgqJRtdcp00jlWxw_zZK91DOT")
+DATABASE_URL       = os.environ.get("DATABASE_URL", "")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "lhp-akpol-secret-2026-xK9mP")
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 
-# ── Supabase client ───────────────────────────────────────────────────────────
+# ── Database ──────────────────────────────────────────────────────────────────
 
-def get_db():
-    from supabase import create_client
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+def get_conn():
+    import psycopg2
+    return psycopg2.connect(DATABASE_URL)
 
-def _ensure_table():
-    """Create users table if it doesn't exist (runs on first request)."""
-    try:
-        db = get_db()
-        db.table("users").select("username").limit(1).execute()
-    except Exception:
-        pass  # Table exists or will be created via Supabase dashboard
+def init_db():
+    """Create users table if not exists."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    username   TEXT PRIMARY KEY,
+                    name       TEXT NOT NULL,
+                    password   TEXT NOT NULL,
+                    tokens     INTEGER DEFAULT 8,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+        conn.commit()
 
-# ── User store (Supabase) ─────────────────────────────────────────────────────
+# Init DB on startup
+try:
+    init_db()
+except Exception as e:
+    print(f"DB init warning: {e}")
+
+# ── User store ────────────────────────────────────────────────────────────────
 
 def get_user(username):
     try:
-        db  = get_db()
-        res = db.table("users").select("*").eq("username", username.lower()).execute()
-        return res.data[0] if res.data else None
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT username,name,password,tokens,created_at FROM users WHERE username=%s",
+                            (username.lower(),))
+                row = cur.fetchone()
+                if not row: return None
+                return {"username": row[0], "name": row[1], "password": row[2],
+                        "tokens": row[3], "created_at": str(row[4])}
     except Exception:
         return None
 
 def get_all_users():
     try:
-        db  = get_db()
-        res = db.table("users").select("*").order("created_at").execute()
-        return res.data or []
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT username,name,password,tokens,created_at FROM users ORDER BY created_at")
+                rows = cur.fetchall()
+                return [{"username": r[0], "name": r[1], "password": r[2],
+                         "tokens": r[3], "created_at": str(r[4])} for r in rows]
     except Exception:
         return []
 
 def create_user(username, password, name):
     try:
-        db  = get_db()
         key = username.lower()
-        # Check existing
-        existing = db.table("users").select("username").eq("username", key).execute()
-        if existing.data:
+        if get_user(key):
             return None, "Username sudah digunakan"
-        row = {
-            "username":   key,
-            "name":       name,
-            "password":   generate_password_hash(password),
-            "tokens":     TOKENS_PER_ACCOUNT,
-            "created_at": datetime.now().isoformat()
-        }
-        res = db.table("users").insert(row).execute()
-        return res.data[0] if res.data else row, None
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO users (username,name,password,tokens) VALUES (%s,%s,%s,%s)",
+                    (key, name, generate_password_hash(password), TOKENS_PER_ACCOUNT)
+                )
+            conn.commit()
+        return get_user(key), None
     except Exception as e:
         return None, str(e)
 
 def delete_user(username):
     try:
-        db  = get_db()
-        res = db.table("users").delete().eq("username", username.lower()).execute()
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM users WHERE username=%s", (username.lower(),))
+            conn.commit()
+        return True
+    except Exception:
+        return False
+
+def set_tokens(username, amount):
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE users SET tokens=%s WHERE username=%s",
+                            (amount, username.lower()))
+            conn.commit()
         return True
     except Exception:
         return False
 
 def use_token(username):
     try:
-        db   = get_db()
         user = get_user(username)
         if not user or user.get("tokens", 0) < TOKENS_PER_DOC:
             return False
-        new_tokens = user["tokens"] - TOKENS_PER_DOC
-        db.table("users").update({"tokens": new_tokens}).eq("username", username.lower()).execute()
-        return True
-    except Exception:
-        return False
-
-def reset_tokens(username):
-    try:
-        db = get_db()
-        db.table("users").update({"tokens": TOKENS_PER_ACCOUNT}).eq("username", username.lower()).execute()
-        return True
+        return set_tokens(username, user["tokens"] - TOKENS_PER_DOC)
     except Exception:
         return False
 
@@ -116,7 +132,7 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if "username" not in session:
-            if request.is_json or request.path.startswith('/api/'):
+            if request.path.startswith('/api/'):
                 return jsonify({"error": "Login diperlukan", "redirect": "/login"}), 401
             return redirect(url_for('login'))
         return f(*args, **kwargs)
@@ -126,7 +142,7 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if session.get("role") != "admin":
-            if request.is_json or request.path.startswith('/api/'):
+            if request.path.startswith('/api/'):
                 return jsonify({"error": "Akses ditolak"}), 403
             return redirect(url_for('login'))
         return f(*args, **kwargs)
@@ -144,7 +160,7 @@ def to_roman(n) -> str:
         while n >= v: r += s; n -= v
     return r or str(n)
 
-# ── Pangkat abbreviation ─────────────────────────────────────────────────────
+# ── Pangkat abbreviation ──────────────────────────────────────────────────────
 
 PANGKAT_SINGKAT = {
     'BHAYANGKARA TARUNA':   'BHATAR',
@@ -305,7 +321,6 @@ def fill_template(data, image_paths, output_path):
     from docx import Document
     shutil.copy(TEMPLATE_FILE, output_path)
     doc = Document(output_path)
-
     nama           = data['Nama']
     no_ak          = data['No Ak']
     pangkat        = data['Pangkat'].upper()
@@ -322,10 +337,8 @@ def fill_template(data, image_paths, output_path):
     nama_danki     = data['Nama Danki']
     pangkat_danki  = data['Pangkat Danki']
     nrp_danki      = data['NRP Danki']
-
     hari, tgl_num, bulan_str, tahun_str = parse_tanggal(tanggal_raw)
     waktu_clean = parse_waktu(waktu_raw)
-
     uraian = (
         f"--------PADA HARI {hari} TANGGAL {tgl_num} BULAN {bulan_str} "
         f"TAHUN {tahun_str} PUKUL {waktu_clean} WIB, SAYA {nama} "
@@ -333,7 +346,6 @@ def fill_template(data, image_paths, output_path):
         f"ANGKATAN KE-60, BATALYON MANGGALA SATYA, "
         f"TELAH MELAKSANAKAN KEGIATAN POSITIF BERUPA {nama_kegiatan.upper()}.-"
     )
-
     simple = {
         '(No. Ak. Panjang)':                      no_ak,
         '(Nama lengkap taruna)':                  nama,
@@ -361,7 +373,6 @@ def fill_template(data, image_paths, output_path):
         '(ABRIGTARakhir)':                        pangkat_abbr,
         '(No. Ak. Panjang ttd)':                  no_ak,
     }
-
     for para in _all_paragraphs(doc):
         full = ''.join(r.text for r in para.runs if not _has_drawing(r))
         if '--------PADA HARI' in full:
@@ -372,14 +383,11 @@ def fill_template(data, image_paths, output_path):
             continue
         for old, new in simple.items():
             _replace_para(para, old, new)
-
     valid_imgs = [p for p in image_paths if p and os.path.exists(p)]
     if valid_imgs:
         _insert_images(doc, '(Dokumentasi)', valid_imgs)
-
     _fix_signature_formatting(doc, pangkat_danton, nrp_danton,
-                               nama_danki, pangkat_danki, nrp_danki,
-                               pangkat_abbr)
+                               nama_danki, pangkat_danki, nrp_danki, pangkat_abbr)
     doc.save(output_path)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -407,12 +415,10 @@ def login():
     data     = request.get_json() or {}
     username = data.get('username', '').strip().lower()
     password = data.get('password', '')
-    # Check admin
     if username == ADMIN_USERNAME.lower() and password == ADMIN_PASSWORD:
         session['username'] = username
         session['role']     = 'admin'
         return jsonify({'ok': True, 'redirect': '/admin'})
-    # Check user
     user = get_user(username)
     if not user or not check_password_hash(user['password'], password):
         return jsonify({'error': 'Username atau password salah'}), 401
@@ -431,7 +437,7 @@ def ads_txt():
                      mimetype='text/plain')
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Routes — Admin panel
+# Routes — Admin
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/admin')
@@ -456,10 +462,8 @@ def admin_create_user():
     if err:
         return jsonify({'error': err}), 400
     return jsonify({'ok': True, 'user': {
-        'username': user['username'],
-        'name': user['name'],
-        'tokens': user['tokens'],
-        'created_at': user['created_at']
+        'username': user['username'], 'name': user['name'],
+        'tokens': user['tokens'], 'created_at': str(user['created_at'])
     }})
 
 @app.route('/api/admin/delete-user', methods=['POST'])
@@ -472,16 +476,6 @@ def admin_delete_user():
     if delete_user(username):
         return jsonify({'ok': True})
     return jsonify({'error': 'User tidak ditemukan'}), 404
-
-@app.route('/api/admin/reset-tokens', methods=['POST'])
-@admin_required
-def admin_reset_tokens():
-    data     = request.get_json() or {}
-    username = data.get('username', '').strip().lower()
-    if not get_user(username):
-        return jsonify({'error': 'User tidak ditemukan'}), 404
-    reset_tokens(username)
-    return jsonify({'ok': True, 'tokens': TOKENS_PER_ACCOUNT})
 
 @app.route('/api/admin/set-tokens', methods=['POST'])
 @admin_required
@@ -497,12 +491,18 @@ def admin_set_tokens():
         return jsonify({'error': 'Token tidak boleh negatif'}), 400
     if not get_user(username):
         return jsonify({'error': 'User tidak ditemukan'}), 404
-    try:
-        db = get_db()
-        db.table("users").update({"tokens": amount}).eq("username", username).execute()
-        return jsonify({'ok': True, 'tokens': amount})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    set_tokens(username, amount)
+    return jsonify({'ok': True, 'tokens': amount})
+
+@app.route('/api/admin/reset-tokens', methods=['POST'])
+@admin_required
+def admin_reset_tokens():
+    data     = request.get_json() or {}
+    username = data.get('username', '').strip().lower()
+    if not get_user(username):
+        return jsonify({'error': 'User tidak ditemukan'}), 404
+    set_tokens(username, TOKENS_PER_ACCOUNT)
+    return jsonify({'ok': True, 'tokens': TOKENS_PER_ACCOUNT})
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Routes — App
@@ -527,15 +527,15 @@ def api_lookup():
 @login_required
 def token_balance():
     user = get_user(session['username'])
-    return jsonify({'tokens': user.get('tokens', 0)})
+    return jsonify({'tokens': user.get('tokens', 0) if user else 0})
 
 @app.route('/api/generate', methods=['POST'])
 @login_required
 def api_generate():
     import tempfile
     user = get_user(session['username'])
-    if user.get('tokens', 0) < TOKENS_PER_DOC:
-        return jsonify({'error': 'Token habis. Hubungi admin untuk reset token.',
+    if not user or user.get('tokens', 0) < TOKENS_PER_DOC:
+        return jsonify({'error': 'Token habis. Hubungi admin untuk menambah token.',
                         'no_token': True}), 402
 
     fields = ['Nama','No Ak','Pangkat','Peleton','Kompi',
@@ -556,14 +556,12 @@ def api_generate():
         if file and file.filename:
             ext = os.path.splitext(secure_filename(file.filename))[1] or '.jpg'
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, dir=UPLOAD_FOLDER)
-            file.save(tmp.name)
-            tmp.close()
+            file.save(tmp.name); tmp.close()
             image_paths.append(tmp.name)
             image_tmpfiles.append(tmp.name)
 
     out_tmp  = tempfile.NamedTemporaryFile(delete=False, suffix='.docx', dir=UPLOAD_FOLDER)
-    out_path = out_tmp.name
-    out_tmp.close()
+    out_path = out_tmp.name; out_tmp.close()
     out_name = f"LHP_{data['Nama'].replace(' ','_')}_{uuid.uuid4().hex[:6]}.docx"
 
     try:
@@ -586,8 +584,7 @@ def api_generate():
         except: pass
         return response
 
-    return send_file(out_path, as_attachment=True,
-                     download_name=out_name,
+    return send_file(out_path, as_attachment=True, download_name=out_name,
                      mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
 
 if __name__ == '__main__':
