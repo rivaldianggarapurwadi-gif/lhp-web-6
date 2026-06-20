@@ -30,23 +30,41 @@ app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 # ── Database ──────────────────────────────────────────────────────────────────
 
 def get_conn():
-    import psycopg2
-    return psycopg2.connect(DATABASE_URL)
+    import pg8000.native, urllib.parse
+    # Parse DATABASE_URL: postgres://user:pass@host:port/dbname
+    url = urllib.parse.urlparse(DATABASE_URL)
+    return pg8000.native.Connection(
+        user=url.username,
+        password=url.password,
+        host=url.hostname,
+        port=url.port or 5432,
+        database=url.path.lstrip('/'),
+        ssl_context=True
+    )
+
+def _run(sql, params=(), fetch=False):
+    """Run a single SQL statement, return rows if fetch=True."""
+    conn = get_conn()
+    try:
+        result = conn.run(sql, *params) if params else conn.run(sql)
+        if fetch:
+            cols = [c["name"] for c in conn.columns]
+            return [dict(zip(cols, row)) for row in result]
+        return []
+    finally:
+        conn.close()
 
 def init_db():
     """Create users table if not exists."""
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    username   TEXT PRIMARY KEY,
-                    name       TEXT NOT NULL,
-                    password   TEXT NOT NULL,
-                    tokens     INTEGER DEFAULT 8,
-                    created_at TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-        conn.commit()
+    _run("""
+        CREATE TABLE IF NOT EXISTS users (
+            username   TEXT PRIMARY KEY,
+            name       TEXT NOT NULL,
+            password   TEXT NOT NULL,
+            tokens     INTEGER DEFAULT 8,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
 
 # Init DB on startup
 try:
@@ -58,25 +76,16 @@ except Exception as e:
 
 def get_user(username):
     try:
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT username,name,password,tokens,created_at FROM users WHERE username=%s",
-                            (username.lower(),))
-                row = cur.fetchone()
-                if not row: return None
-                return {"username": row[0], "name": row[1], "password": row[2],
-                        "tokens": row[3], "created_at": str(row[4])}
+        rows = _run("SELECT username,name,password,tokens,created_at FROM users WHERE username=:1",
+                    (username.lower(),), fetch=True)
+        return rows[0] if rows else None
     except Exception:
         return None
 
 def get_all_users():
     try:
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT username,name,password,tokens,created_at FROM users ORDER BY created_at")
-                rows = cur.fetchall()
-                return [{"username": r[0], "name": r[1], "password": r[2],
-                         "tokens": r[3], "created_at": str(r[4])} for r in rows]
+        return _run("SELECT username,name,password,tokens,created_at FROM users ORDER BY created_at",
+                    fetch=True)
     except Exception:
         return []
 
@@ -85,34 +94,22 @@ def create_user(username, password, name):
         key = username.lower()
         if get_user(key):
             return None, "Username sudah digunakan"
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO users (username,name,password,tokens) VALUES (%s,%s,%s,%s)",
-                    (key, name, generate_password_hash(password), TOKENS_PER_ACCOUNT)
-                )
-            conn.commit()
+        _run("INSERT INTO users (username,name,password,tokens) VALUES (:1,:2,:3,:4)",
+             (key, name, generate_password_hash(password), TOKENS_PER_ACCOUNT))
         return get_user(key), None
     except Exception as e:
         return None, str(e)
 
 def delete_user(username):
     try:
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM users WHERE username=%s", (username.lower(),))
-            conn.commit()
+        _run("DELETE FROM users WHERE username=:1", (username.lower(),))
         return True
     except Exception:
         return False
 
 def set_tokens(username, amount):
     try:
-        with get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("UPDATE users SET tokens=%s WHERE username=%s",
-                            (amount, username.lower()))
-            conn.commit()
+        _run("UPDATE users SET tokens=:1 WHERE username=:2", (amount, username.lower()))
         return True
     except Exception:
         return False
