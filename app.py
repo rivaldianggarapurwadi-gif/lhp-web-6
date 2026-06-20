@@ -15,8 +15,54 @@ BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_FILE = os.path.join(BASE_DIR, "template_lhp.docx")
 XLSX_FILE     = os.path.join(BASE_DIR, "DATA_DANTON_DANKI.xlsx")
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "tmp")
-USERS_FILE    = os.path.join(BASE_DIR, "users.json")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# ── Persistent data directory ───────────────────────────────────────────────
+# Railway (and most PaaS) wipe the container filesystem on every redeploy, so
+# users.json MUST live on a mounted persistent volume. Railway auto-sets
+# RAILWAY_VOLUME_MOUNT_PATH; DATA_DIR lets you override on other hosts.
+# Falls back to BASE_DIR for local dev.
+DATA_DIR = (os.environ.get("DATA_DIR")
+            or os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
+            or BASE_DIR)
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+except Exception:
+    DATA_DIR = BASE_DIR  # last-resort fallback
+
+USERS_FILE     = os.path.join(DATA_DIR, "users.json")
+_LEGACY_USERS  = os.path.join(BASE_DIR, "users.json")
+
+# Is data actually on a persistent volume, or on the ephemeral container disk?
+STORAGE_IS_PERSISTENT = os.path.abspath(DATA_DIR) != os.path.abspath(BASE_DIR)
+
+# One-time migration: if old users.json sits in the code dir (pre-volume) and
+# the volume copy doesn't exist yet, move the data onto the volume so existing
+# accounts survive the switch.
+if not os.path.exists(USERS_FILE) and os.path.exists(_LEGACY_USERS) \
+        and os.path.abspath(_LEGACY_USERS) != os.path.abspath(USERS_FILE):
+    try:
+        shutil.copy2(_LEGACY_USERS, USERS_FILE)
+    except Exception:
+        pass
+
+# Startup diagnostics — visible in Railway "Deploy Logs". If you DON'T see
+# "PERSISTENT volume", accounts WILL be wiped on every redeploy.
+import sys as _sys
+print("=" * 60, file=_sys.stderr)
+print(f"[STORAGE] DATA_DIR            = {DATA_DIR}", file=_sys.stderr)
+print(f"[STORAGE] USERS_FILE          = {USERS_FILE}", file=_sys.stderr)
+print(f"[STORAGE] RAILWAY_VOLUME_MOUNT_PATH = "
+      f"{os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '(not set)')}", file=_sys.stderr)
+print(f"[STORAGE] users.json exists?  = {os.path.exists(USERS_FILE)}", file=_sys.stderr)
+if STORAGE_IS_PERSISTENT:
+    print("[STORAGE] ✅ Using PERSISTENT volume — data survives redeploy.",
+          file=_sys.stderr)
+else:
+    print("[STORAGE] ⚠️  EPHEMERAL disk — DATA WILL BE WIPED on redeploy! "
+          "Attach a Railway Volume to this service.", file=_sys.stderr)
+print("=" * 60, file=_sys.stderr)
+_sys.stderr.flush()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 ADMIN_USERNAME   = os.environ.get("ADMIN_USERNAME", "admin")
@@ -217,6 +263,28 @@ def _all_paragraphs(doc):
             for cell in row.cells:
                 for p in cell.paragraphs: yield p
 
+def _downscale_image(path, max_edge=1280, quality=82):
+    """Resize a (possibly huge phone) photo to a small temp JPEG before
+    embedding. python-docx embeds the original bytes, so full-res photos
+    bloat the docx and spike memory. Returns a path to use for embedding
+    (the downscaled temp file, or the original if anything fails)."""
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(path) as im:
+            im = ImageOps.exif_transpose(im)   # honor phone rotation
+            if im.mode not in ('RGB', 'L'):
+                im = im.convert('RGB')
+            w, h = im.size
+            scale = min(1.0, max_edge / float(max(w, h)))
+            if scale < 1.0:
+                im = im.resize((max(1, int(w * scale)),
+                                max(1, int(h * scale))), Image.LANCZOS)
+            out = path + '.small.jpg'
+            im.save(out, 'JPEG', quality=quality, optimize=True)
+            return out
+    except Exception:
+        return path  # fall back to original on any error
+
 def _insert_images(doc, placeholder, image_paths):
     from docx.shared import Inches
     from lxml import etree
@@ -226,11 +294,18 @@ def _insert_images(doc, placeholder, image_paths):
             target = para; break
     if not target: return
     for r in target.runs: r.text = ''
+    _scaled_tmp = []
     for path in image_paths:
         if path and os.path.exists(path):
+            small = _downscale_image(path)
+            if small != path:
+                _scaled_tmp.append(small)
             run = target.add_run()
-            try: run.add_picture(path, width=Inches(2.8))
+            try: run.add_picture(small, width=Inches(2.8))
             except: run.text = f'[{os.path.basename(path)}]'
+    for p in _scaled_tmp:
+        try: os.remove(p)
+        except: pass
     body = doc.element.body
     try: img_idx = list(body).index(target._element)
     except ValueError: return
@@ -415,7 +490,9 @@ def admin_panel():
     users = _load_users()
     user_list = sorted(users.values(), key=lambda u: u.get('created_at',''))
     return render_template('admin.html', users=user_list,
-                           tokens_per_account=TOKENS_PER_ACCOUNT)
+                           tokens_per_account=TOKENS_PER_ACCOUNT,
+                           storage_persistent=STORAGE_IS_PERSISTENT,
+                           data_dir=DATA_DIR)
 
 @app.route('/api/admin/create-user', methods=['POST'])
 @admin_required
