@@ -31,26 +31,40 @@ app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
 
 def get_conn():
     import pg8000.native, urllib.parse, os
-    # Railway may use DATABASE_URL or PGHOST/PGUSER/etc separately
+
+    # Try full URL first (DATABASE_URL or DATABASE_PRIVATE_URL)
     db_url = (os.environ.get("DATABASE_URL") or
               os.environ.get("DATABASE_PRIVATE_URL") or
-              os.environ.get("POSTGRES_URL") or
-              DATABASE_URL)
+              os.environ.get("POSTGRES_URL") or "")
 
-    if not db_url:
-        raise RuntimeError("DATABASE_URL environment variable not set")
+    if db_url:
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+        url = urllib.parse.urlparse(db_url)
+        return pg8000.native.Connection(
+            user=url.username,
+            password=url.password,
+            host=url.hostname,
+            port=url.port or 5432,
+            database=url.path.lstrip('/'),
+            ssl_context=True
+        )
 
-    # Railway sometimes uses postgres:// — normalize to postgresql://
-    db_url = db_url.replace("postgres://", "postgresql://", 1)
+    # Fall back to individual variables (POSTGRES_USER, POSTGRES_PASSWORD, etc)
+    host     = (os.environ.get("PGHOST") or
+                os.environ.get("POSTGRES_HOST") or "localhost")
+    port     = int(os.environ.get("PGPORT") or
+                   os.environ.get("POSTGRES_PORT") or 5432)
+    user     = (os.environ.get("PGUSER") or
+                os.environ.get("POSTGRES_USER") or "postgres")
+    password = (os.environ.get("PGPASSWORD") or
+                os.environ.get("POSTGRES_PASSWORD") or "")
+    database = (os.environ.get("PGDATABASE") or
+                os.environ.get("POSTGRES_DB") or "railway")
 
-    url = urllib.parse.urlparse(db_url)
     return pg8000.native.Connection(
-        user=url.username,
-        password=url.password,
-        host=url.hostname,
-        port=url.port or 5432,
-        database=url.path.lstrip('/'),
-        ssl_context=True
+        user=user, password=password,
+        host=host, port=port,
+        database=database, ssl_context=True
     )
 
 def _run(sql, params=(), fetch=False):
