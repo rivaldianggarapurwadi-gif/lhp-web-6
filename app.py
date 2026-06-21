@@ -77,7 +77,7 @@ _sys.stderr.flush()
 # ── Config ────────────────────────────────────────────────────────────────────
 ADMIN_USERNAME   = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD   = os.environ.get("ADMIN_PASSWORD", "admin123")
-TOKENS_PER_ACCOUNT = 8
+TOKENS_PER_ACCOUNT = 10
 TOKENS_PER_DOC     = 1
 
 app = Flask(__name__)
