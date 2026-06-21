@@ -3,6 +3,7 @@ LHP Kegiatan Positif — Flask web app
 Admin-controlled accounts, token-gated document generation.
 """
 import os, re, shutil, uuid, json
+import logging, traceback
 from datetime import datetime
 from functools import wraps
 from flask import (Flask, request, jsonify, send_file,
@@ -10,6 +11,15 @@ from flask import (Flask, request, jsonify, send_file,
                    session, redirect, url_for)
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
+
+# iPhone photos are HEIC; without this Pillow can't open them and image
+# embedding silently fails. Best-effort: register the HEIF opener if available.
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+    _HEIC_OK = True
+except Exception:
+    _HEIC_OK = False
 
 BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_FILE = os.path.join(BASE_DIR, "template_lhp.docx")
@@ -72,7 +82,24 @@ TOKENS_PER_DOC     = 1
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "lhp-akpol-secret-2026-xK9mP")
-app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024
+logging.basicConfig(level=logging.INFO)
+
+@app.errorhandler(413)
+def _too_large(e):
+    return jsonify({'error': 'Total ukuran foto terlalu besar. '
+                             'Coba kurangi jumlah/ukuran foto.'}), 413
+
+@app.errorhandler(Exception)
+def _unhandled(e):
+    # Turn any uncaught crash into a readable JSON response instead of a
+    # dropped connection (which the browser shows as "Load failed").
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e  # let Flask handle normal 4xx/redirects
+    app.logger.error("UNHANDLED ERROR:\n%s", traceback.format_exc())
+    return jsonify({'error': 'Kesalahan server saat memproses. '
+                             'Coba lagi atau kurangi foto.'}), 500
 
 # ── User store ────────────────────────────────────────────────────────────────
 
@@ -614,6 +641,8 @@ def api_generate():
             tmp.close()
             image_paths.append(tmp.name)
             image_tmpfiles.append(tmp.name)
+    app.logger.info("generate: user=%s photos=%d", session.get('username'),
+                    len(image_paths))
 
     out_tmp  = tempfile.NamedTemporaryFile(delete=False, suffix='.docx', dir=UPLOAD_FOLDER)
     out_path = out_tmp.name
@@ -621,12 +650,16 @@ def api_generate():
     out_name = f"LHP_{data['Nama'].replace(' ','_')}_{uuid.uuid4().hex[:6]}.docx"
 
     try:
+        import time as _t; _start = _t.time()
         fill_template(data, image_paths, out_path)
+        app.logger.info("generate: done in %.1fs -> %s",
+                        _t.time() - _start, out_name)
     except Exception as e:
+        app.logger.error("generate FAILED:\n%s", traceback.format_exc())
         for p in image_tmpfiles + [out_path]:
             try: os.remove(p)
             except: pass
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'Gagal membuat dokumen: {e}'}), 500
     finally:
         for p in image_tmpfiles:
             try: os.remove(p)
