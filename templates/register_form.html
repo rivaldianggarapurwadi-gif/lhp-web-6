@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daftar Akun — LHP AKPOL</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--navy:#0D2B45;--accent:#D4AF37;--accent2:#b8941e;--text:#2B2B2B;
+        --muted:#6B7280;--border:#D1D5DB;--danger:#B91C1C;--surface:#F3F4F6;
+        --success:#15803D}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:var(--navy);
+       min-height:100vh;display:flex;flex-direction:column;
+       align-items:center;justify-content:center;padding:20px}
+  .logo-wrap{display:flex;flex-direction:column;align-items:center;
+             gap:10px;margin-bottom:24px}
+  .logo-wrap img{width:68px;height:68px;object-fit:contain}
+  .logo-wrap h1{color:var(--accent);font-size:19px;font-weight:800;text-align:center}
+  .logo-wrap p{color:#A8C4E8;font-size:12px;text-align:center}
+  .card{background:#fff;border-radius:14px;padding:32px 28px;width:100%;
+        max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .card h2{font-size:15px;font-weight:800;color:var(--navy);margin-bottom:6px}
+  .verified-badge{display:flex;align-items:center;gap:8px;background:#F0FDF4;
+                  border:1px solid #BBF7D0;border-radius:8px;padding:10px 14px;
+                  margin-bottom:20px;font-size:12px;color:var(--success);font-weight:600}
+  .verified-badge img{width:28px;height:28px;border-radius:50%;object-fit:cover}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+  .field label{font-size:11px;font-weight:800;color:var(--navy);
+               text-transform:uppercase;letter-spacing:.5px}
+  .field input{border:1.5px solid var(--border);border-radius:6px;
+               padding:10px 12px;font-size:13px;background:var(--surface);
+               color:var(--text);width:100%;transition:border-color .15s}
+  .field input:focus{outline:none;border-color:var(--accent)}
+  .field .hint{font-size:11px;color:var(--muted);margin-top:3px}
+  .btn-primary{width:100%;background:var(--accent);color:#111;border:none;
+               border-radius:6px;padding:12px;font-size:14px;font-weight:800;
+               cursor:pointer;transition:background .15s;margin-top:4px}
+  .btn-primary:hover{background:var(--accent2)}
+  .btn-primary:disabled{background:#C9CDD4;cursor:not-allowed}
+  #err{color:var(--danger);font-size:12px;font-weight:600;
+       margin-top:10px;text-align:center;min-height:18px}
+  .token-info{background:rgba(212,175,55,.1);border:1px solid var(--accent);
+              border-radius:8px;padding:10px 14px;font-size:12px;color:#8B6914;
+              font-weight:600;margin-bottom:18px;text-align:center}
+  .back-link{display:block;text-align:center;margin-top:16px;font-size:12px;
+             color:var(--muted);text-decoration:none}
+  .back-link:hover{color:var(--navy)}
+  .strength-bar{height:4px;border-radius:2px;background:var(--border);
+                margin-top:6px;overflow:hidden}
+  .strength-fill{height:100%;border-radius:2px;transition:width .3s,background .3s;width:0}
+</style>
+</head>
+<body>
+<div class="logo-wrap">
+  <img src="/static/logo.png" alt="AKPOL">
+  <h1>Daftar Akun Baru</h1>
+  <p>Akademi Kepolisian — Batalyon Manggala Satya</p>
+</div>
+<div class="card">
+  <h2>Lengkapi Data Akun</h2>
+
+  <div class="verified-badge">
+    {% if google_picture %}
+    <img src="{{ google_picture }}" alt="Google" onerror="this.style.display='none'">
+    {% endif %}
+    <span>✅ Terverifikasi Google: <strong>{{ google_email }}</strong></span>
+  </div>
+
+  <div class="token-info">🎁 Akun baru mendapat <strong>3 token gratis</strong></div>
+
+  <div class="field">
+    <label>Nama Lengkap</label>
+    <input type="text" id="name" placeholder="Nama lengkap kamu"
+           value="{{ suggested_name }}" autocomplete="name">
+  </div>
+  <div class="field">
+    <label>Username</label>
+    <input type="text" id="username" placeholder="Pilih username (min. 3 karakter)"
+           autocomplete="username" oninput="checkUsername(this.value)">
+    <div class="hint">Huruf kecil, angka, titik, underscore. 3–30 karakter.</div>
+    <div id="username-status" style="font-size:11px;font-weight:600;margin-top:3px"></div>
+  </div>
+  <div class="field">
+    <label>Password</label>
+    <input type="password" id="password" placeholder="Min. 6 karakter"
+           autocomplete="new-password" oninput="checkStrength(this.value)">
+    <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
+    <div id="strength-label" class="hint"></div>
+  </div>
+  <div class="field">
+    <label>Konfirmasi Password</label>
+    <input type="password" id="password2" placeholder="Ulangi password"
+           autocomplete="new-password">
+  </div>
+
+  <button class="btn-primary" id="btn-daftar" onclick="doDaftar()">
+    Buat Akun
+  </button>
+  <div id="err"></div>
+  <a href="/login" class="back-link">← Kembali ke halaman login</a>
+</div>
+<script>
+let usernameTimer = null;
+
+function checkUsername(val) {
+  const el = document.getElementById('username-status');
+  if (!val) { el.textContent = ''; return; }
+  const ok = /^[a-z0-9._-]{3,30}$/.test(val.toLowerCase());
+  if (!ok) {
+    el.style.color = '#B91C1C';
+    el.textContent = '⚠ Format tidak valid';
+    return;
+  }
+  el.style.color = '#6B7280';
+  el.textContent = '...';
+  clearTimeout(usernameTimer);
+  usernameTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/check-username?u=${encodeURIComponent(val.toLowerCase())}`);
+      const j   = await res.json();
+      if (j.available) { el.style.color='#15803D'; el.textContent='✓ Username tersedia'; }
+      else             { el.style.color='#B91C1C'; el.textContent='✗ Username sudah dipakai'; }
+    } catch { el.textContent = ''; }
+  }, 500);
+}
+
+function checkStrength(val) {
+  const fill  = document.getElementById('strength-fill');
+  const label = document.getElementById('strength-label');
+  let score = 0;
+  if (val.length >= 6)  score++;
+  if (val.length >= 10) score++;
+  if (/[A-Z]/.test(val) || /[0-9]/.test(val)) score++;
+  if (/[^a-zA-Z0-9]/.test(val)) score++;
+  const levels = [
+    { w:'0%',   c:'#EF4444', t:'' },
+    { w:'33%',  c:'#EF4444', t:'Lemah' },
+    { w:'60%',  c:'#F59E0B', t:'Sedang' },
+    { w:'80%',  c:'#10B981', t:'Kuat' },
+    { w:'100%', c:'#10B981', t:'Sangat kuat' },
+  ];
+  const lv = levels[Math.min(score, 4)];
+  fill.style.width = lv.w; fill.style.background = lv.c;
+  label.textContent = lv.t; label.style.color = lv.c;
+}
+
+async function doDaftar() {
+  const name      = document.getElementById('name').value.trim();
+  const username  = document.getElementById('username').value.trim().toLowerCase();
+  const password  = document.getElementById('password').value;
+  const password2 = document.getElementById('password2').value;
+  const err       = document.getElementById('err');
+  const btn       = document.getElementById('btn-daftar');
+
+  err.textContent = '';
+  if (!name || !username || !password || !password2) {
+    err.textContent = 'Semua field harus diisi'; return;
+  }
+  if (password !== password2) {
+    err.textContent = 'Password tidak cocok'; return;
+  }
+  if (password.length < 6) {
+    err.textContent = 'Password minimal 6 karakter'; return;
+  }
+  if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
+    err.textContent = 'Format username tidak valid'; return;
+  }
+
+  btn.disabled = true; btn.textContent = '⏳ Membuat akun...';
+  try {
+    const res  = await fetch('/api/register', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, username, password})
+    });
+    const json = await res.json();
+    if (json.ok) { window.location.href = json.redirect || '/'; }
+    else { err.textContent = json.error || 'Gagal mendaftar'; }
+  } catch(e) { err.textContent = 'Koneksi gagal'; }
+  btn.disabled = false; btn.textContent = 'Buat Akun';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Enter') doDaftar(); });
+</script>
+</body>
+</html>

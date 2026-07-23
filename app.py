@@ -116,53 +116,66 @@ def _save_users(users):
     with open(USERS_FILE, 'w') as f:
         json.dump(users, f, indent=2, ensure_ascii=False)
 
-def get_user(uid):
-    """uid = google_id (string). Returns user dict or None."""
-    return _load_users().get(str(uid))
+def get_user(username):
+    """Ambil user berdasarkan username (lowercase). Returns user dict or None."""
+    return _load_users().get(username.lower())
 
-def get_user_by_email(email):
+def get_user_by_google_id(google_id):
+    """Cari user berdasarkan google_id yang tersimpan."""
     users = _load_users()
     for u in users.values():
-        if u.get('email', '').lower() == email.lower():
+        if u.get('google_id') == str(google_id):
             return u
     return None
 
-def upsert_google_user(google_id, email, name, picture=''):
-    """Create or update user from Google OAuth. Returns user dict."""
-    users = _load_users()
-    uid   = str(google_id)
-    now   = datetime.now(timezone.utc).isoformat()
-    if uid not in users:
-        users[uid] = {
-            'uid':        uid,
-            'email':      email,
-            'name':       name,
-            'picture':    picture,
-            'tokens':     TOKENS_NEW_USER,
-            'created_at': now,
-            'last_regen': now,   # start regen timer from registration
-        }
-        app.logger.info("New user registered: %s (%s)", email, uid)
-    else:
-        # Update profile info but keep tokens
-        users[uid]['name']    = name
-        users[uid]['picture'] = picture
-        users[uid]['email']   = email
-    _save_users(users)
-    return users[uid]
+def is_google_id_used(google_id):
+    """Cek apakah google_id sudah pernah dipakai daftar."""
+    return get_user_by_google_id(google_id) is not None
 
-def delete_user(uid):
+def create_user(username, password, name, google_id, google_email, google_picture=''):
+    """Buat akun baru setelah verifikasi Google. Returns (user, error)."""
+    from werkzeug.security import generate_password_hash
     users = _load_users()
-    key   = str(uid)
+    key   = username.lower().strip()
+    # Validasi username
+    if not key:
+        return None, 'Username tidak boleh kosong'
+    if not re.match(r'^[a-z0-9._-]{3,30}$', key):
+        return None, 'Username hanya boleh huruf kecil, angka, titik, underscore, 3-30 karakter'
+    if key in users:
+        return None, 'Username sudah digunakan, pilih username lain'
+    # Cek google_id belum pernah dipakai
+    if is_google_id_used(google_id):
+        return None, 'Akun Google ini sudah pernah digunakan untuk mendaftar'
+    now = datetime.now(timezone.utc).isoformat()
+    users[key] = {
+        'uid':            key,
+        'username':       key,
+        'name':           name.strip(),
+        'password':       generate_password_hash(password),
+        'google_id':      str(google_id),
+        'google_email':   google_email,
+        'picture':        google_picture,
+        'tokens':         TOKENS_NEW_USER,
+        'created_at':     now,
+        'last_regen':     now,
+    }
+    _save_users(users)
+    app.logger.info("New user registered: %s (google: %s)", key, google_email)
+    return users[key], None
+
+def delete_user(username):
+    users = _load_users()
+    key   = username.lower()
     if key not in users:
         return False
     del users[key]
     _save_users(users)
     return True
 
-def use_token(uid):
+def use_token(username):
     users = _load_users()
-    key   = str(uid)
+    key   = username.lower()
     if key not in users:
         return False
     if users[key].get('tokens', 0) < TOKENS_PER_DOC:
@@ -171,29 +184,26 @@ def use_token(uid):
     _save_users(users)
     return True
 
-def add_tokens(uid, amount):
+def add_tokens(username, amount):
     users = _load_users()
-    key   = str(uid)
+    key   = username.lower()
     if key not in users:
         return False
     users[key]['tokens'] = users[key].get('tokens', 0) + amount
     _save_users(users)
     return True
 
-def try_weekly_regen(uid):
-    """
-    Regenerasi 1 token/minggu HANYA jika token == 0.
-    Returns (bool_did_regen, next_regen_iso).
-    """
+def try_weekly_regen(username):
+    """Regenerasi 1 token/minggu HANYA jika token == 0."""
     users = _load_users()
-    key   = str(uid)
+    key   = username.lower()
     if key not in users:
         return False, None
     user = users[key]
     if user.get('tokens', 0) > 0:
-        return False, None   # masih punya token, tidak regen
+        return False, None
 
-    last_str  = user.get('last_regen', user.get('created_at'))
+    last_str = user.get('last_regen', user.get('created_at'))
     try:
         last_dt = datetime.fromisoformat(last_str)
         if last_dt.tzinfo is None:
@@ -201,11 +211,11 @@ def try_weekly_regen(uid):
     except Exception:
         last_dt = datetime.now(timezone.utc) - timedelta(weeks=2)
 
-    now       = datetime.now(timezone.utc)
+    now        = datetime.now(timezone.utc)
     next_regen = last_dt + timedelta(weeks=1)
 
     if now >= next_regen:
-        users[key]['tokens']    = TOKENS_WEEKLY_REGEN
+        users[key]['tokens']     = TOKENS_WEEKLY_REGEN
         users[key]['last_regen'] = now.isoformat()
         _save_users(users)
         return True, (now + timedelta(weeks=1)).isoformat()
@@ -256,10 +266,10 @@ def complete_order(order_id):
         return False
     if orders[order_id]['status'] == 'paid':
         return True   # idempotent
-    orders[order_id]['status']   = 'paid'
-    orders[order_id]['paid_at']  = datetime.now(timezone.utc).isoformat()
+    orders[order_id]['status']  = 'paid'
+    orders[order_id]['paid_at'] = datetime.now(timezone.utc).isoformat()
     _save_orders(orders)
-    add_tokens(orders[order_id]['uid'], orders[order_id]['tokens'])
+    add_tokens(orders[order_id]['username'], orders[order_id]['tokens'])
     return True
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -269,7 +279,7 @@ def complete_order(order_id):
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'uid' not in session:
+        if 'username' not in session:
             if request.is_json or request.path.startswith('/api/'):
                 return jsonify({'error': 'Login diperlukan', 'redirect': '/login'}), 401
             return redirect(url_for('login'))
@@ -279,7 +289,7 @@ def login_required(f):
 def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'uid' not in session:
+        if 'username' not in session:
             if request.is_json or request.path.startswith('/api/'):
                 return jsonify({'error': 'Sesi habis. Silakan login ulang.', 'redirect': '/login'}), 401
             return redirect(url_for('login'))
@@ -671,7 +681,12 @@ def fill_template(data, image_paths, output_path):
     doc.save(output_path)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Routes — Auth (Google OAuth)
+# Routes — Auth
+# Alur:
+#   DAFTAR : /register → Google OAuth → /auth/google/callback → /register/form
+#            → POST /api/register → login otomatis → /
+#   LOGIN  : /login → POST username+password → /
+#   ADMIN  : /login-admin → POST username+password → /admin
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/')
@@ -684,9 +699,8 @@ def index():
     if not user:
         session.clear()
         return redirect(url_for('login'))
-    # Try weekly regen on every page load (cheap JSON check)
     try_weekly_regen(session['uid'])
-    user = get_user(session['uid'])  # reload after possible regen
+    user = get_user(session['uid'])
     return render_template('index.html',
                            user_name=user['name'],
                            user_tokens=user.get('tokens', 0),
@@ -694,26 +708,56 @@ def index():
                            token_packages=TOKEN_PACKAGES,
                            midtrans_client_key=MIDTRANS_CLIENT_KEY)
 
-@app.route('/login')
+# ── Login (username + password) ───────────────────────────────────────────────
+
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     if 'uid' in session:
         return redirect(url_for('index'))
-    if not GOOGLE_CLIENT_ID:
-        return render_template('login.html', google_configured=False)
-    return render_template('login.html', google_configured=True,
-                           google_auth_url=_google_auth_url())
+    if request.method == 'GET':
+        return render_template('login.html',
+                               google_configured=bool(GOOGLE_CLIENT_ID),
+                               google_auth_url=_google_auth_url() if GOOGLE_CLIENT_ID else '')
+    # POST — login dengan username + password
+    data     = request.get_json() or {}
+    username = data.get('username', '').strip().lower()
+    password = data.get('password', '')
+    if not username or not password:
+        return jsonify({'error': 'Isi semua field'}), 400
+    from werkzeug.security import check_password_hash
+    user = get_user(username)
+    if not user or not check_password_hash(user.get('password',''), password):
+        return jsonify({'error': 'Username atau password salah'}), 401
+    session['uid']     = user['username']
+    session['role']    = 'user'
+    session['name']    = user['name']
+    session['picture'] = user.get('picture', '')
+    return jsonify({'ok': True, 'redirect': '/'})
 
-@app.route('/auth/google')
-def auth_google():
+# ── Register step 1: mulai OAuth Google ───────────────────────────────────────
+
+@app.route('/register')
+def register():
+    if 'uid' in session:
+        return redirect(url_for('index'))
+    if not GOOGLE_CLIENT_ID:
+        return render_template('login.html', google_configured=False,
+                               error='Google OAuth belum dikonfigurasi.')
+    # Simpan state=register di session agar callback tahu ini alur daftar
+    session['oauth_flow'] = 'register'
     return redirect(_google_auth_url())
+
+# ── Register step 2: callback Google ─────────────────────────────────────────
 
 @app.route('/auth/google/callback')
 def auth_google_callback():
     error = request.args.get('error')
     if error:
+        session.pop('oauth_flow', None)
         return redirect(url_for('login') + '?error=google_denied')
     code = request.args.get('code', '')
     if not code:
+        session.pop('oauth_flow', None)
         return redirect(url_for('login') + '?error=no_code')
     try:
         token_data = _google_exchange_code(code)
@@ -723,29 +767,86 @@ def auth_google_callback():
         email      = userinfo.get('email', '')
         name       = userinfo.get('name', email)
         picture    = userinfo.get('picture', '')
-        user = upsert_google_user(google_id, email, name, picture)
-        session['uid']     = google_id
-        session['role']    = 'user'
-        session['name']    = name
-        session['email']   = email
-        session['picture'] = picture
-        return redirect(url_for('index'))
+        flow       = session.pop('oauth_flow', 'register')
+
+        if flow == 'register':
+            # Cek apakah Google ID sudah pernah dipakai daftar
+            existing = get_user_by_google_id(google_id)
+            if existing:
+                # Sudah punya akun — arahkan ke login dengan pesan
+                return redirect(url_for('login') + '?error=google_already_registered')
+            # Simpan data Google sementara di session, lanjut ke form registrasi
+            session['pending_google'] = {
+                'google_id':    google_id,
+                'google_email': email,
+                'picture':      picture,
+                'suggested_name': name,
+            }
+            return redirect(url_for('register_form'))
+        else:
+            # Flow lain (tidak dipakai saat ini)
+            return redirect(url_for('login'))
     except Exception:
         app.logger.error("Google OAuth error:\n%s", traceback.format_exc())
+        session.pop('oauth_flow', None)
         return redirect(url_for('login') + '?error=oauth_failed')
+
+# ── Register step 3: form isi nama/username/password ──────────────────────────
+
+@app.route('/register/form', methods=['GET'])
+def register_form():
+    pending = session.get('pending_google')
+    if not pending:
+        return redirect(url_for('login') + '?error=session_expired')
+    return render_template('register_form.html',
+                           google_email=pending['google_email'],
+                           suggested_name=pending['suggested_name'],
+                           google_picture=pending['picture'])
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    pending = session.get('pending_google')
+    if not pending:
+        return jsonify({'error': 'Sesi habis. Ulangi proses pendaftaran.'}), 400
+    data     = request.get_json() or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    name     = data.get('name', '').strip()
+    if not username or not password or not name:
+        return jsonify({'error': 'Semua field harus diisi'}), 400
+    if len(password) < 6:
+        return jsonify({'error': 'Password minimal 6 karakter'}), 400
+    user, err = create_user(
+        username=username,
+        password=password,
+        name=name,
+        google_id=pending['google_id'],
+        google_email=pending['google_email'],
+        google_picture=pending['picture'],
+    )
+    if err:
+        return jsonify({'error': err}), 400
+    # Hapus pending data, langsung login
+    session.pop('pending_google', None)
+    session['uid']     = user['username']
+    session['role']    = 'user'
+    session['name']    = user['name']
+    session['picture'] = user.get('picture', '')
+    return jsonify({'ok': True, 'redirect': '/'})
+
+# ── Admin login ───────────────────────────────────────────────────────────────
 
 @app.route('/login-admin', methods=['GET', 'POST'])
 def login_admin():
-    """Admin login tetap pakai username/password."""
     if request.method == 'GET':
         return render_template('login_admin.html')
     data     = request.get_json() or {}
     username = data.get('username', '').strip().lower()
     password = data.get('password', '')
     if username == ADMIN_USERNAME.lower() and password == ADMIN_PASSWORD:
-        session['uid']      = f'admin_{username}'
-        session['role']     = 'admin'
-        session['name']     = 'Admin'
+        session['uid']   = f'admin_{username}'
+        session['role']  = 'admin'
+        session['name']  = 'Admin'
         return jsonify({'ok': True, 'redirect': '/admin'})
     return jsonify({'error': 'Username atau password salah'}), 401
 
@@ -757,6 +858,13 @@ def logout():
 @app.route('/ads.txt')
 def ads_txt():
     return send_file(os.path.join(BASE_DIR, 'static', 'ads.txt'), mimetype='text/plain')
+
+@app.route('/api/check-username')
+def check_username_route():
+    u   = request.args.get('u', '').strip().lower()
+    ok  = bool(u) and re.match(r'^[a-z0-9._-]{3,30}$', u) is not None
+    avail = ok and get_user(u) is None
+    return jsonify({'available': avail})
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Routes — Profile & Token info
