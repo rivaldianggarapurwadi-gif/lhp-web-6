@@ -236,11 +236,25 @@
         <select name="Pangkat" required>
           <option value="BHAYANGKARA TARUNA">BHAYANGKARA TARUNA</option>
           <option value="AJUN BRIGADIR TARUNA">AJUN BRIGADIR TARUNA</option>
+          <option value="BRIGADIR TARUNA">BRIGADIR TARUNA</option>
+          <option value="BRIGADIR KEPALA TARUNA">BRIGADIR KEPALA TARUNA</option>
+        </select></div>
+      <div class="field"><label>Tingkat</label>
+        <select name="Tingkat" id="f-tingkat" required onchange="onTingkatChange()">
+          <option value="1">Tingkat I — Angkatan 61</option>
+          <option value="2" selected>Tingkat II — Angkatan 60 (MS)</option>
+          <option value="3">Tingkat III — Angkatan 59</option>
         </select></div>
       <div class="field"><label>Peleton</label>
         <input type="number" name="Peleton" id="f-peleton" placeholder="cth. 2" min="1" required></div>
       <div class="field"><label>Kompi</label>
         <input type="number" name="Kompi" id="f-kompi" placeholder="cth. 4" min="1" required></div>
+    </div>
+    <!-- Info badge tingkat yang aktif -->
+    <div id="tingkat-info" style="margin:0 20px 14px;padding:8px 14px;
+         background:rgba(13,43,69,.06);border-left:3px solid var(--navy);
+         border-radius:0 5px 5px 0;font-size:12px;color:var(--navy);font-weight:600;">
+      📋 BATALYON TARUNA TK II/60/MS &nbsp;·&nbsp; ANGKATAN KE-60, BATALYON MANGGALA SATYA
     </div>
   </div>
 
@@ -292,24 +306,51 @@
   <div class="card">
     <div class="card-header gold">🖼️ Dokumentasi <span class="badge">Maks. 4 Gambar</span></div>
     <div class="foto-grid">
-      {% for i in range(1,5) %}
       <div class="foto-slot">
-        <div class="foto-preview" id="preview-{{i}}">
-          <span class="plus" id="plus-{{i}}">＋</span>
-          <span id="plus-label-{{i}}" style="margin-top:4px">Foto {{i}}</span>
-          <img id="thumb-{{i}}" src="" alt=""
-               style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">
-          <input type="file" id="foto-input-{{i}}" name="foto_{{i}}"
-                 accept="image/*" onchange="previewImage(this, {{i}})"
-                 style="position:absolute;inset:0;width:100%;height:100%;
-                        opacity:0;cursor:pointer;z-index:10;">
+        <div class="foto-preview" id="preview-1">
+          <span class="plus" id="plus-1">＋</span>
+          <span id="plus-label-1" style="margin-top:4px">Foto 1</span>
+          <img id="thumb-1" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">
+          <input type="file" id="foto-input-1" name="foto_1" accept="image/*" onchange="previewImage(this, 1)"
+                 style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
         </div>
-        <div class="foto-label">Foto {{i}}</div>
-        <button type="button" class="btn-clear" onclick="clearImage({{i}})">✕ Hapus</button>
+        <div class="foto-label">Foto 1</div>
+        <button type="button" class="btn-clear" onclick="clearImage(1)">✕ Hapus</button>
       </div>
-      {% endfor %}
+      <div class="foto-slot">
+        <div class="foto-preview" id="preview-2">
+          <span class="plus" id="plus-2">＋</span>
+          <span id="plus-label-2" style="margin-top:4px">Foto 2</span>
+          <img id="thumb-2" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">
+          <input type="file" id="foto-input-2" name="foto_2" accept="image/*" onchange="previewImage(this, 2)"
+                 style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
+        </div>
+        <div class="foto-label">Foto 2</div>
+        <button type="button" class="btn-clear" onclick="clearImage(2)">✕ Hapus</button>
+      </div>
+      <div class="foto-slot">
+        <div class="foto-preview" id="preview-3">
+          <span class="plus" id="plus-3">＋</span>
+          <span id="plus-label-3" style="margin-top:4px">Foto 3</span>
+          <img id="thumb-3" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">
+          <input type="file" id="foto-input-3" name="foto_3" accept="image/*" onchange="previewImage(this, 3)"
+                 style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
+        </div>
+        <div class="foto-label">Foto 3</div>
+        <button type="button" class="btn-clear" onclick="clearImage(3)">✕ Hapus</button>
+      </div>
+      <div class="foto-slot">
+        <div class="foto-preview" id="preview-4">
+          <span class="plus" id="plus-4">＋</span>
+          <span id="plus-label-4" style="margin-top:4px">Foto 4</span>
+          <img id="thumb-4" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">
+          <input type="file" id="foto-input-4" name="foto_4" accept="image/*" onchange="previewImage(this, 4)"
+                 style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
+        </div>
+        <div class="foto-label">Foto 4</div>
+        <button type="button" class="btn-clear" onclick="clearImage(4)">✕ Hapus</button>
+      </div>
     </div>
-
   </div>
 
   <!-- ── Actions ── -->
@@ -345,6 +386,22 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+// ── Konfigurasi Tingkat ───────────────────────────────────────────────────────
+const TINGKAT_INFO = {
+  '1': { kop: 'BATALYON TARUNA TK I/61/X',    angkatan: 'ANGKATAN KE-61, BATALYON X' },
+  '2': { kop: 'BATALYON TARUNA TK II/60/MS',  angkatan: 'ANGKATAN KE-60, BATALYON MANGGALA SATYA' },
+  '3': { kop: 'BATALYON TARUNA TK III/59/BD', angkatan: 'ANGKATAN KE-59, BATALYON BHAYANGKARA DHARMA' },
+};
+
+function onTingkatChange() {
+  const tk  = document.getElementById('f-tingkat').value;
+  const cfg = TINGKAT_INFO[tk] || TINGKAT_INFO['2'];
+  document.getElementById('tingkat-info').textContent =
+    '📋 ' + cfg.kop + '  ·  ' + cfg.angkatan;
+  // Reset komando fields & re-lookup kalau peleton+kompi sudah diisi
+  triggerLookup();
+}
+
 // ── Auto-fill Danton/Danki ────────────────────────────────────────────────────
 let lookupTimer = null;
 
@@ -356,6 +413,7 @@ function triggerLookup() {
 async function doLookup() {
   const peleton = document.getElementById('f-peleton').value.trim();
   const kompi   = document.getElementById('f-kompi').value.trim();
+  const tingkat = document.getElementById('f-tingkat').value.trim();
   const status  = document.getElementById('komando-status');
   const fields  = ['f-nama-danton','f-pangkat-danton','f-nrp-danton',
                    'f-nama-danki', 'f-pangkat-danki', 'f-nrp-danki'];
@@ -368,7 +426,7 @@ async function doLookup() {
   }
 
   try {
-    const res  = await fetch(`/api/lookup?peleton=${peleton}&kompi=${kompi}`);
+    const res  = await fetch(`/api/lookup?peleton=${peleton}&kompi=${kompi}&tingkat=${tingkat}`);
     const json = await res.json();
     if (json.error) {
       status.textContent = '⚠ ' + json.error;
@@ -398,6 +456,7 @@ async function doLookup() {
 
 document.getElementById('f-peleton').addEventListener('input', triggerLookup);
 document.getElementById('f-kompi').addEventListener('input', triggerLookup);
+document.getElementById('f-tingkat').addEventListener('change', onTingkatChange);
 
 // ── Image preview ─────────────────────────────────────────────────────────────
 function previewImage(input, idx) {
@@ -439,6 +498,8 @@ function resetForm() {
   document.getElementById('komando-status').className = '';
   document.getElementById('status').textContent = '';
   document.getElementById('status').className = '';
+  // Reset tingkat info badge ke default (TK II)
+  onTingkatChange();
 }
 </script>
 <script>
