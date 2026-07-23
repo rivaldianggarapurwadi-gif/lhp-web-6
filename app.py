@@ -195,12 +195,38 @@ def to_roman(n) -> str:
 # ── Pangkat abbreviation ─────────────────────────────────────────────────────
 
 PANGKAT_SINGKAT = {
-    'BHAYANGKARA TARUNA':   'BHATAR',
-    'AJUN BRIGADIR TARUNA': 'ABRIGTAR',
+    'BHAYANGKARA TARUNA':     'BHATAR',
+    'AJUN BRIGADIR TARUNA':   'ABRIGTAR',
+    'BRIGADIR TARUNA':        'BRIGTAR',
+    'BRIGADIR KEPALA TARUNA': 'BRIGKATAR',
 }
 
 def pangkat_singkat(p: str) -> str:
     return PANGKAT_SINGKAT.get(p.upper().strip(), p.upper().strip())
+
+# ── Konfigurasi Tingkat ───────────────────────────────────────────────────────
+# Masing-masing tingkat punya: kode kop, label angkatan+batalyon, suffix ttd
+
+TINGKAT_CONFIG = {
+    '1': {
+        'kop':       'BATALYON TARUNA TK I/61/X',
+        'header':    'LAPORAN KEGIATAN TARUNA TK. I/61/X',
+        'angkatan':  'ANGKATAN KE-61, BATALYON X',
+        'tk_suffix': 'TK I/61/X',
+    },
+    '2': {
+        'kop':       'BATALYON TARUNA TK II/60/MS',
+        'header':    'LAPORAN KEGIATAN TARUNA TK. II/60/MS',
+        'angkatan':  'ANGKATAN KE-60, BATALYON MANGGALA SATYA',
+        'tk_suffix': 'TK II/60/MS',
+    },
+    '3': {
+        'kop':       'BATALYON TARUNA TK III/59/BD',
+        'header':    'LAPORAN KEGIATAN TARUNA TK. III/59/BD',
+        'angkatan':  'ANGKATAN KE-59, BATALYON BHAYANGKARA DHARMA',
+        'tk_suffix': 'TK III/59/BD',
+    },
+}
 
 # ── Date / time parsers ───────────────────────────────────────────────────────
 
@@ -248,18 +274,44 @@ def _norm(jab):
     jab = re.sub(r'DANTONTAR', 'DANTON TAR', jab)
     return re.sub(r'\s+', ' ', jab)
 
-def lookup_danton(peleton, kompi):
+def _load_xlsx_for_tingkat(tingkat: str):
+    """Load data dari sheet yang sesuai tingkat (Sheet1 = TK II/default,
+    SheetTK1 = TK I, SheetTK3 = TK III). Fallback ke Sheet1 jika tidak ada."""
+    sheet_map = {'1': 'TK I', '2': 'TK II', '3': 'TK III'}
+    target_sheet = sheet_map.get(str(tingkat), 'TK II')
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(XLSX_FILE, data_only=True)
+        # Coba nama sheet sesuai tingkat dulu, lalu fallback
+        ws = None
+        for name in wb.sheetnames:
+            if name.strip().upper() == target_sheet.upper():
+                ws = wb[name]
+                break
+        if ws is None:
+            ws = wb.active  # fallback ke sheet pertama (TK II)
+        rows = list(ws.iter_rows(values_only=True))
+        if not rows:
+            return []
+        headers = [str(h).strip() if h else '' for h in rows[0]]
+        return [{headers[i]: (str(rows[j][i]).strip() if rows[j][i] is not None else '')
+                 for i in range(len(headers))}
+                for j in range(1, len(rows)) if any(rows[j])]
+    except Exception:
+        return []
+
+def lookup_danton(peleton, kompi, tingkat='2'):
     target = f"DANTON TAR {peleton}/{to_roman(kompi)}"
-    for row in _load_xlsx():
+    for row in _load_xlsx_for_tingkat(tingkat):
         if _norm(row.get('JABATAN','')) == target:
             return {'Nama Danton': row.get('NAMA',''),
                     'Pangkat Danton': row.get('PANGKAT',''),
                     'NRP Danton': row.get('NRP','')}
     return None
 
-def lookup_danki(kompi):
+def lookup_danki(kompi, tingkat='2'):
     target = f"DANKI TAR {to_roman(kompi)}"
-    for row in _load_xlsx():
+    for row in _load_xlsx_for_tingkat(tingkat):
         if _norm(row.get('JABATAN','')) == target:
             return {'Nama Danki': row.get('NAMA',''),
                     'Pangkat Danki': row.get('PANGKAT',''),
@@ -400,6 +452,14 @@ def fill_template(data, image_paths, output_path):
     pangkat_danki  = data['Pangkat Danki']
     nrp_danki      = data['NRP Danki']
 
+    # ── Resolusi tingkat ──────────────────────────────────────────────────────
+    tingkat    = str(data.get('Tingkat', '2'))
+    tk_cfg     = TINGKAT_CONFIG.get(tingkat, TINGKAT_CONFIG['2'])
+    kop_baru   = tk_cfg['kop']        # mis. "BATALYON TARUNA TK II/60/MS"
+    header_baru = tk_cfg['header']    # mis. "LAPORAN KEGIATAN TARUNA TK. II/60/MS"
+    angkatan_str = tk_cfg['angkatan'] # mis. "ANGKATAN KE-60, BATALYON MANGGALA SATYA"
+    tk_suffix  = tk_cfg['tk_suffix']  # mis. "TK II/60/MS"
+
     hari, tgl_num, bulan_str, tahun_str = parse_tanggal(tanggal_raw)
     waktu_clean = parse_waktu(waktu_raw)
 
@@ -407,31 +467,41 @@ def fill_template(data, image_paths, output_path):
         f"--------PADA HARI {hari} TANGGAL {tgl_num} BULAN {bulan_str} "
         f"TAHUN {tahun_str} PUKUL {waktu_clean} WIB, SAYA {nama} "
         f"TARUNA AKPOL, PANGKAT {pangkat}, NO AKADEMI {no_ak}, "
-        f"ANGKATAN KE-60, BATALYON MANGGALA SATYA, "
+        f"{angkatan_str}, "
         f"TELAH MELAKSANAKAN KEGIATAN POSITIF BERUPA {nama_kegiatan.upper()}.-"
     )
 
     simple = {
+        # ── Kop surat & header ───────────────────────────────────────────────
+        'BATALYON TARUNA TK I/60/MS':             kop_baru,
+        'LAPORAN KEGIATAN TARUNA TK. I/60/MS':    header_baru,
+        # ── Identitas taruna ─────────────────────────────────────────────────
         '(No. Ak. Panjang)':                      no_ak,
         '(Nama lengkap taruna)':                  nama,
         'KOMPI III':                              f'KOMPI {kompi_roman}',
         'PLETON 1':                               f'PLETON {peleton}',
+        # ── Data kegiatan ────────────────────────────────────────────────────
         '(Judul Kegiatan)':                       nama_kegiatan,
         '(Hari, Tanggal, pukul)':                 f'{tanggal_raw}, {waktu_raw}',
         '(Lokasi pelaksanaan kegiatan, lengkap)':  tempat,
         '(Tempat)':                               'Semarang',
         '(Tanggal Bulan Tahun)':                  tanggal_raw,
+        # ── Tanda tangan Danton (termasuk suffix TK) ─────────────────────────
         'DANTONTAR 1 KOMPI III':                  f'DANTONTAR {peleton} KOMPI {kompi_roman}',
+        'TK I/60/MS YANG MEMBUAT LAPORAN':        f'{tk_suffix} YANG MEMBUAT LAPORAN',
         '(Nama lengkap dan gelar dantontar)':     nama_danton,
         '(Pangkat danton)':                       pangkat_danton,
         '(NRP Danton)':                           nrp_danton,
         'ABRIGTAR':                               pangkat_abbr,
         '(No Ak ttd)':                            no_ak,
         '(Nama Lengkap)':                         nama,
+        # ── Tanda tangan Danki (termasuk suffix TK) ──────────────────────────
         'DANKITAR III':                           f'DANKITAR {kompi_roman}',
+        'TK I/60/MS\n':                           f'{tk_suffix}\n',  # baris danki
         '(Nama lengkap dan gelar dankitar)':      nama_danki,
         '(Pangkat danki)':                        pangkat_danki,
         '(NRP Danki)':                            nrp_danki,
+        # ── Tanda tangan taruna (bawah) ───────────────────────────────────────
         '(tempat ttd)':                           'Semarang',
         '(tanggal buat laporan ttd)':             tanggal_raw,
         '(Nama Lengkap ttd)':                     nama,
@@ -449,6 +519,9 @@ def fill_template(data, image_paths, output_path):
             continue
         for old, new in simple.items():
             _replace_para(para, old, new)
+        # Replace inline suffix TK (mis. "DANTONTAR 2 KOMPI III TK I/60/MS")
+        # yang tidak pas dengan key dict karena sudah dimodifikasi kompi/peleton-nya
+        _replace_para(para, 'TK I/60/MS', tk_suffix)
 
     valid_imgs = [p for p in image_paths if p and os.path.exists(p)]
     if valid_imgs:
@@ -594,10 +667,13 @@ def admin_set_tokens():
 def api_lookup():
     peleton = request.args.get('peleton', '').strip()
     kompi   = request.args.get('kompi', '').strip()
+    tingkat = request.args.get('tingkat', '2').strip()
     if not peleton or not kompi:
         return jsonify({'error': 'peleton dan kompi diperlukan'}), 400
-    danton = lookup_danton(peleton, kompi)
-    danki  = lookup_danki(kompi)
+    if tingkat not in ('1', '2', '3'):
+        tingkat = '2'
+    danton = lookup_danton(peleton, kompi, tingkat)
+    danki  = lookup_danki(kompi, tingkat)
     return jsonify({
         'danton': danton, 'danki': danki,
         'label': f"DANTON TAR {peleton}/{to_roman(kompi)}  |  DANKI TAR {to_roman(kompi)}"
@@ -619,7 +695,7 @@ def api_generate():
         return jsonify({'error': 'Token habis. Hubungi admin untuk reset token.',
                         'no_token': True}), 402
 
-    fields = ['Nama','No Ak','Pangkat','Peleton','Kompi',
+    fields = ['Nama','No Ak','Pangkat','Tingkat','Peleton','Kompi',
               'Nama Danton','Pangkat Danton','NRP Danton',
               'Nama Danki','Pangkat Danki','NRP Danki',
               'Nama Kegiatan','Tanggal Kegiatan','Waktu Kegiatan','Tempat Kegiatan']
@@ -629,6 +705,8 @@ def api_generate():
         if not val:
             return jsonify({'error': f'Field "{f}" tidak boleh kosong'}), 400
         data[f] = val
+    if data['Tingkat'] not in ('1', '2', '3'):
+        return jsonify({'error': 'Tingkat tidak valid (pilih 1, 2, atau 3)'}), 400
 
     image_paths = []
     image_tmpfiles = []
