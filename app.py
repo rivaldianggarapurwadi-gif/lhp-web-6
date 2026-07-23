@@ -334,19 +334,31 @@ def _google_userinfo(access_token):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _midtrans_create_transaction(order_id, amount, name, email):
+    """Buat Snap token via Midtrans Snap API."""
     import urllib.request, base64
-    auth    = base64.b64encode(f"{MIDTRANS_SERVER_KEY}:".encode()).decode()
+    snap_url = ("https://app.midtrans.com/snap/v1/transactions"
+                if MIDTRANS_IS_PROD
+                else "https://app.sandbox.midtrans.com/snap/v1/transactions")
+    auth  = base64.b64encode(f"{MIDTRANS_SERVER_KEY}:".encode()).decode()
+    parts = name.strip().split(' ', 1)
+    first_name = parts[0]
+    last_name  = parts[1] if len(parts) > 1 else ''
     payload = json.dumps({
-        "transaction_details": {"order_id": order_id, "gross_amount": amount},
-        "customer_details":    {"first_name": name, "email": email},
-        "credit_card":         {"secure": True},
+        "transaction_details": {
+            "order_id":     order_id,
+            "gross_amount": int(amount)
+        },
+        "customer_details": {
+            "first_name": first_name,
+            "last_name":  last_name,
+            "email":      email,
+        },
+        "credit_card": {"secure": True},
     }).encode()
-    req = urllib.request.Request(
-        f"{MIDTRANS_API_URL}/v1/payment-links",
-        data=payload, method='POST')
-    req.add_header('Authorization',  f'Basic {auth}')
-    req.add_header('Content-Type',   'application/json')
-    req.add_header('Accept',         'application/json')
+    req = urllib.request.Request(snap_url, data=payload, method='POST')
+    req.add_header('Authorization', f'Basic {auth}')
+    req.add_header('Content-Type',  'application/json')
+    req.add_header('Accept',        'application/json')
     with urllib.request.urlopen(req, timeout=15) as r:
         return json.loads(r.read())
 
@@ -679,7 +691,8 @@ def index():
                            user_name=user['name'],
                            user_tokens=user.get('tokens', 0),
                            user_picture=user.get('picture',''),
-                           token_packages=TOKEN_PACKAGES)
+                           token_packages=TOKEN_PACKAGES,
+                           midtrans_client_key=MIDTRANS_CLIENT_KEY)
 
 @app.route('/login')
 def login():
@@ -794,8 +807,14 @@ def topup_create():
         resp = _midtrans_create_transaction(
             order_id, pkg['price'],
             user.get('name', ''), user.get('email', ''))
-        payment_url = resp.get('payment_url') or resp.get('redirect_url', '')
-        return jsonify({'ok': True, 'payment_url': payment_url, 'order_id': order_id})
+        # Snap API returns 'redirect_url' for full-page redirect
+        snap_token   = resp.get('token', '')
+        redirect_url = resp.get('redirect_url', '')
+        if not redirect_url and not snap_token:
+            app.logger.error("Midtrans resp missing url/token: %s", resp)
+            return jsonify({'error': 'Respons Midtrans tidak valid. Coba lagi.'}), 500
+        return jsonify({'ok': True, 'payment_url': redirect_url,
+                        'snap_token': snap_token, 'order_id': order_id})
     except Exception:
         app.logger.error("Midtrans error:\n%s", traceback.format_exc())
         return jsonify({'error': 'Gagal membuat transaksi. Coba lagi.'}), 500

@@ -242,6 +242,9 @@
            padding: 16px; border-top: 1px solid var(--border);
            background: var(--white); margin-top: 20px; }
 </style>
+<!-- Midtrans Snap.js -->
+<script src="https://app.sandbox.midtrans.com/snap/snap.js"
+        data-client-key="{{ midtrans_client_key if midtrans_client_key else '' }}"></script>
 </head>
 <body>
 
@@ -650,7 +653,39 @@ async function doPay() {
       btn.textContent = 'Selesai';
       return;
     }
-    if (json.payment_url) {
+    if (json.snap_token) {
+      // Snap pop-up langsung di halaman
+      window.snap.pay(json.snap_token, {
+        onSuccess: async function() {
+          status.textContent = '✅ Pembayaran berhasil! Token sedang diproses...';
+          status.className = 'modal-status ok';
+          setTimeout(async () => {
+            const tb = await (await fetch('/api/token-balance')).json();
+            document.getElementById('token-count').textContent = tb.tokens;
+            status.textContent = `✅ +${json.tokens || ''} token ditambahkan!`;
+          }, 2000);
+          btn.textContent = 'Selesai'; btn.disabled = true;
+        },
+        onPending: function() {
+          status.textContent = '⏳ Menunggu pembayaran...';
+          status.className = 'modal-status';
+          btn.textContent = 'Cek status'; btn.disabled = false;
+          btn.onclick = () => checkPayStatus(json.order_id);
+        },
+        onError: function() {
+          status.textContent = '❌ Pembayaran gagal. Coba lagi.';
+          status.className = 'modal-status err';
+          btn.disabled = false; btn.textContent = 'Coba lagi'; btn.onclick = doPay;
+        },
+        onClose: function() {
+          if (!status.textContent) {
+            status.textContent = 'Pembayaran dibatalkan.';
+            status.className = 'modal-status';
+          }
+          btn.disabled = false; btn.textContent = 'Bayar lagi'; btn.onclick = doPay;
+        }
+      });
+    } else if (json.payment_url) {
       window.open(json.payment_url, '_blank');
       status.innerHTML = '🔗 Halaman pembayaran dibuka di tab baru.<br><small>Token akan ditambah otomatis setelah pembayaran berhasil.</small>';
       status.className = 'modal-status ok';
