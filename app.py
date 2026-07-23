@@ -475,6 +475,10 @@ def fill_template(data, image_paths, output_path):
         # ── Kop surat & header ───────────────────────────────────────────────
         'BATALYON TARUNA TK I/60/MS':             kop_baru,
         'LAPORAN KEGIATAN TARUNA TK. I/60/MS':    header_baru,
+        # ── Tanda tangan Danton — HARUS sebelum KOMPI III & PLETON 1 ──────────
+        # Urutan kritis: jika KOMPI III di-replace duluan maka string ini tidak cocok lagi
+        'DANTONTAR 1 KOMPI III':                  f'DANTONTAR {peleton} KOMPI {kompi_roman}',
+        'TK I/60/MS YANG MEMBUAT LAPORAN':        f'{tk_suffix} YANG MEMBUAT LAPORAN',
         # ── Identitas taruna ─────────────────────────────────────────────────
         '(No. Ak. Panjang)':                      no_ak,
         '(Nama lengkap taruna)':                  nama,
@@ -486,9 +490,6 @@ def fill_template(data, image_paths, output_path):
         '(Lokasi pelaksanaan kegiatan, lengkap)':  tempat,
         '(Tempat)':                               'Semarang',
         '(Tanggal Bulan Tahun)':                  tanggal_raw,
-        # ── Tanda tangan Danton (termasuk suffix TK) ─────────────────────────
-        'DANTONTAR 1 KOMPI III':                  f'DANTONTAR {peleton} KOMPI {kompi_roman}',
-        'TK I/60/MS YANG MEMBUAT LAPORAN':        f'{tk_suffix} YANG MEMBUAT LAPORAN',
         '(Nama lengkap dan gelar dantontar)':     nama_danton,
         '(Pangkat danton)':                       pangkat_danton,
         '(NRP Danton)':                           nrp_danton,
@@ -505,7 +506,7 @@ def fill_template(data, image_paths, output_path):
         '(tempat ttd)':                           'Semarang',
         '(tanggal buat laporan ttd)':             tanggal_raw,
         '(Nama Lengkap ttd)':                     nama,
-        '(ABRIGTARakhir)':                        pangkat_abbr,
+        '(BRIGTARakhir)':                         pangkat_abbr,
         '(No. Ak. Panjang ttd)':                  no_ak,
     }
 
