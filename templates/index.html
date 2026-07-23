@@ -196,9 +196,46 @@
   /* ── Token badge ── */
   .token-badge { background: rgba(212,175,55,.15); border: 1.5px solid var(--accent);
                  color: var(--accent); border-radius: 20px; padding: 5px 14px;
-                 font-size: 13px; font-weight: 700; white-space: nowrap; }
+                 font-size: 13px; font-weight: 700; white-space: nowrap;
+                 cursor: pointer; transition: background .15s; }
+  .token-badge:hover { background: rgba(212,175,55,.3); }
   .btn-logout { color: #A8C4E8; font-size: 12px; text-decoration: none; white-space: nowrap; }
   .btn-logout:hover { color: var(--white); }
+  .user-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover;
+                 border: 2px solid var(--accent); }
+
+  /* ── Topup Modal ── */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55);
+                   z-index:1000; align-items:center; justify-content:center; padding:16px; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:#fff; border-radius:14px; padding:32px 28px; width:100%;
+           max-width:420px; box-shadow:0 20px 60px rgba(0,0,0,.35); position:relative; }
+  .modal-close { position:absolute; top:14px; right:16px; background:none; border:none;
+                 font-size:20px; cursor:pointer; color:var(--muted); line-height:1; }
+  .modal-close:hover { color:var(--text); }
+  .modal h2 { font-size:16px; font-weight:800; color:var(--navy); margin-bottom:6px; }
+  .modal .modal-sub { font-size:12px; color:var(--muted); margin-bottom:20px; line-height:1.6; }
+  .pkg-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:20px; }
+  .pkg-card { border:2px solid var(--border); border-radius:10px; padding:16px 8px;
+              text-align:center; cursor:pointer; transition:border-color .15s,box-shadow .15s; }
+  .pkg-card:hover { border-color:var(--accent); box-shadow:0 2px 12px rgba(212,175,55,.2); }
+  .pkg-card.selected { border-color:var(--accent); background:rgba(212,175,55,.08); }
+  .pkg-tokens { font-size:24px; font-weight:800; color:var(--navy); }
+  .pkg-unit { font-size:10px; color:var(--muted); margin-bottom:4px; }
+  .pkg-price { font-size:12px; font-weight:700; color:var(--accent); }
+  .pkg-note { font-size:10px; color:#15803D; margin-top:3px; font-weight:600; }
+  .btn-pay { width:100%; background:var(--accent); color:#111; border:none; border-radius:8px;
+             padding:13px; font-size:14px; font-weight:800; cursor:pointer; }
+  .btn-pay:hover { background:#b8941e; }
+  .btn-pay:disabled { background:#C9CDD4; cursor:not-allowed; }
+  .modal-status { font-size:13px; font-weight:600; margin-top:12px;
+                  text-align:center; min-height:20px; }
+  .modal-status.ok { color:#15803D; }
+  .modal-status.err { color:var(--danger); }
+  .regen-info { background:#F0FDF4; border:1px solid #BBF7D0; border-radius:8px;
+                padding:10px 14px; font-size:12px; color:#15803D;
+                margin-bottom:16px; font-weight:600; line-height:1.5; }
+  .regen-info.waiting { background:#FFF8E1; border-color:#FDE68A; color:#92400E; }
 
   /* ── Footer ── */
   footer { text-align:center; font-size:11px; color: var(--muted);
@@ -215,7 +252,13 @@
     <div class="hdr-sub">Akademi Kepolisian — Batalyon Manggala Satya</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:14px;">
-    <div class="token-badge">🪙 <span id="token-count">{{ user_tokens }}</span> token</div>
+    {% if user_picture %}
+    <img class="user-avatar" src="{{ user_picture }}" alt="{{ user_name }}" title="{{ user_name }}"
+         onerror="this.style.display='none'">
+    {% endif %}
+    <div class="token-badge" onclick="openTopup()" title="Klik untuk topup token">
+      🪙 <span id="token-count">{{ user_tokens }}</span> token
+    </div>
     <a href="/logout" class="btn-logout">Keluar</a>
   </div>
 </header>
@@ -528,6 +571,161 @@ document.getElementById('lhp-form').addEventListener('submit', async e => {
     status.textContent='❌ '+err.message; status.className='err';
   } finally { btn.disabled=false; spinner.style.display='none'; }
 });
+
+// ── Topup Modal ─────────────────────────────────────────────────────────────
+let selectedPkg = null;
+
+function openTopup() {
+  selectedPkg = null;
+  document.getElementById('modal-status').textContent = '';
+  document.getElementById('modal-status').className = 'modal-status';
+  document.getElementById('btn-pay').disabled = true;
+  document.getElementById('btn-pay').textContent = 'Pilih paket dulu';
+  document.querySelectorAll('.pkg-card').forEach(c => c.classList.remove('selected'));
+  // Load regen info
+  loadRegenInfo();
+  document.getElementById('topup-overlay').classList.add('open');
+}
+
+function closeTopup() {
+  document.getElementById('topup-overlay').classList.remove('open');
+}
+
+async function loadRegenInfo() {
+  try {
+    const res  = await fetch('/api/token-balance');
+    const json = await res.json();
+    const box  = document.getElementById('regen-info-box');
+    if (json.did_regen) {
+      box.innerHTML = '<div class="regen-info">✅ Kamu baru saja mendapat 1 token gratis minggu ini!</div>';
+      document.getElementById('token-count').textContent = json.tokens;
+    } else if (json.next_regen) {
+      const next = new Date(json.next_regen);
+      const now  = new Date();
+      const diff = Math.max(0, next - now);
+      const days = Math.floor(diff / 86400000);
+      const hrs  = Math.floor((diff % 86400000) / 3600000);
+      if (json.tokens === 0) {
+        box.innerHTML = `<div class="regen-info waiting">⏳ Token regen minggu depan dalam ${days} hari ${hrs} jam lagi.</div>`;
+      } else {
+        box.innerHTML = `<div class="regen-info">🔋 Token regenerasi aktif — kamu akan dapat 1 token gratis saat token habis, sekitar ${days} hari lagi.</div>`;
+      }
+    } else {
+      box.innerHTML = '';
+    }
+  } catch(e) {
+    document.getElementById('regen-info-box').innerHTML = '';
+  }
+}
+
+function selectPkg(pkgId) {
+  selectedPkg = pkgId;
+  document.querySelectorAll('.pkg-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById(`pkg-${pkgId}`).classList.add('selected');
+  const labels = {'pkg_1':'1 Token — Rp5.000','pkg_5':'5 Token — Rp25.000','pkg_10':'10 Token — Rp40.000'};
+  document.getElementById('btn-pay').disabled = false;
+  document.getElementById('btn-pay').textContent = `💳 Bayar ${labels[pkgId] || pkgId}`;
+}
+
+async function doPay() {
+  if (!selectedPkg) return;
+  const btn    = document.getElementById('btn-pay');
+  const status = document.getElementById('modal-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Memproses...';
+  status.textContent = '';
+  status.className = 'modal-status';
+  try {
+    const res  = await fetch('/api/topup/create', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({pkg_id: selectedPkg})
+    });
+    if (res.status === 401) { window.location.href = '/login'; return; }
+    const json = await res.json();
+    if (json.dev_mode) {
+      status.textContent = '✅ ' + json.message;
+      status.className = 'modal-status ok';
+      const tb = await (await fetch('/api/token-balance')).json();
+      document.getElementById('token-count').textContent = tb.tokens;
+      btn.textContent = 'Selesai';
+      return;
+    }
+    if (json.payment_url) {
+      window.open(json.payment_url, '_blank');
+      status.innerHTML = '🔗 Halaman pembayaran dibuka di tab baru.<br><small>Token akan ditambah otomatis setelah pembayaran berhasil.</small>';
+      status.className = 'modal-status ok';
+      btn.textContent = 'Cek status';
+      btn.disabled = false;
+      btn.onclick = () => checkPayStatus(json.order_id);
+    } else {
+      status.textContent = '❌ ' + (json.error || 'Gagal membuat transaksi');
+      status.className = 'modal-status err';
+      btn.disabled = false; btn.textContent = 'Coba lagi';
+    }
+  } catch(e) {
+    status.textContent = '❌ Koneksi gagal: ' + e.message;
+    status.className = 'modal-status err';
+    btn.disabled = false; btn.textContent = 'Coba lagi';
+  }
+}
+
+async function checkPayStatus(orderId) {
+  const status = document.getElementById('modal-status');
+  try {
+    const res  = await fetch(`/api/topup/status/${orderId}`);
+    const json = await res.json();
+    if (json.status === 'paid') {
+      status.textContent = `✅ Pembayaran berhasil! +${json.tokens} token ditambahkan.`;
+      status.className = 'modal-status ok';
+      const tb = await (await fetch('/api/token-balance')).json();
+      document.getElementById('token-count').textContent = tb.tokens;
+    } else {
+      status.textContent = `⏳ Status: ${json.status}. Refresh setelah bayar.`;
+      status.className = 'modal-status';
+    }
+  } catch(e) {
+    status.textContent = '❌ Gagal cek status.';
+    status.className = 'modal-status err';
+  }
+}
+
+// Tutup modal dengan Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeTopup();
+});
+
 </script>
+
+
+<!-- ── Topup Modal ── -->
+<div class="modal-overlay" id="topup-overlay" onclick="if(event.target===this)closeTopup()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeTopup()">✕</button>
+    <h2>🪙 Topup Token</h2>
+    <p class="modal-sub">
+      Token digunakan untuk generate dokumen LHP. Kamu juga mendapat
+      <strong>1 token gratis setiap minggu</strong> jika token kamu habis.
+    </p>
+
+    <div id="regen-info-box"></div>
+
+    <div class="pkg-grid">
+      {% for pkg in token_packages %}
+      <div class="pkg-card" id="pkg-{{ pkg.id }}" onclick="selectPkg('{{ pkg.id }}')">
+        <div class="pkg-tokens">{{ pkg.tokens }}</div>
+        <div class="pkg-unit">token</div>
+        <div class="pkg-price">{{ pkg.desc }}</div>
+        {% if pkg.tokens >= 10 %}<div class="pkg-note">Hemat!</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <button class="btn-pay" id="btn-pay" onclick="doPay()" disabled>
+      Pilih paket dulu
+    </button>
+    <div class="modal-status" id="modal-status"></div>
+  </div>
+</div>
+
 </body>
 </html>

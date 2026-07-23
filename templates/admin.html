@@ -9,80 +9,47 @@
   :root{--primary:#111;--navy:#0D2B45;--accent:#D4AF37;--white:#fff;
         --surface:#F3F4F6;--text:#2B2B2B;--muted:#6B7280;
         --border:#D1D5DB;--danger:#B91C1C;--success:#15803D}
-  body{font-family:'Segoe UI',Arial,sans-serif;background:var(--surface);
-       color:var(--text);min-height:100vh}
-  header{background:var(--primary);color:#fff;height:60px;display:flex;
-         align-items:center;padding:0 24px;gap:14px;
-         border-bottom:3px solid var(--accent);position:sticky;top:0;z-index:10}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:var(--surface);color:var(--text);min-height:100vh}
+  header{background:var(--primary);color:#fff;height:60px;display:flex;align-items:center;
+         padding:0 24px;gap:14px;border-bottom:3px solid var(--accent);position:sticky;top:0;z-index:10}
   header img{height:38px;width:38px;object-fit:contain}
   header h1{font-size:16px;font-weight:800;letter-spacing:.5px}
-  header .badge{background:var(--accent);color:var(--primary);font-size:10px;
-                font-weight:800;padding:3px 10px;border-radius:20px;
-                letter-spacing:.5px}
+  header .badge{background:var(--accent);color:var(--primary);font-size:10px;font-weight:800;
+                padding:3px 10px;border-radius:20px;letter-spacing:.5px}
   header a{margin-left:auto;color:#A8C4E8;font-size:12px;text-decoration:none}
   header a:hover{color:#fff}
-  main{max-width:860px;margin:28px auto;padding:0 16px 60px}
+  main{max-width:900px;margin:28px auto;padding:0 16px 60px}
   .card{background:#fff;border:1px solid var(--border);border-radius:8px;
-        margin-bottom:20px;overflow:hidden;
-        box-shadow:0 1px 4px rgba(0,0,0,.06)}
-  .card-header{background:var(--navy);color:#fff;padding:11px 18px;
-               font-weight:700;font-size:12px;letter-spacing:.6px;
-               text-transform:uppercase;border-left:4px solid var(--accent)}
-  .form-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;
-            gap:12px;padding:16px 20px;align-items:end}
-  @media(max-width:600px){.form-row{grid-template-columns:1fr}}
-  .field{display:flex;flex-direction:column;gap:4px}
-  .field label{font-size:10px;font-weight:800;color:var(--navy);
-               text-transform:uppercase;letter-spacing:.5px}
-  .field input{border:1.5px solid var(--border);border-radius:5px;
-               padding:8px 10px;font-size:13px;background:var(--surface);
-               color:var(--text);width:100%}
-  .field input:focus{outline:none;border-color:var(--accent)}
-  .btn-create{background:var(--accent);color:var(--primary);border:none;
-              border-radius:5px;padding:9px 20px;font-size:13px;
-              font-weight:800;cursor:pointer;white-space:nowrap;height:38px}
-  .btn-create:hover{background:#b8941e}
-  #create-msg{padding:0 20px 12px;font-size:12px;font-weight:600;min-height:20px}
-  #create-msg.ok{color:var(--success)} #create-msg.err{color:var(--danger)}
+        margin-bottom:20px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+  .card-header{background:var(--navy);color:#fff;padding:11px 18px;font-weight:700;
+               font-size:12px;letter-spacing:.6px;text-transform:uppercase;
+               border-left:4px solid var(--accent)}
   table{width:100%;border-collapse:collapse}
-  th{background:#F8F9FB;padding:10px 16px;font-size:11px;font-weight:800;
-     color:var(--navy);text-transform:uppercase;letter-spacing:.5px;
-     border-bottom:2px solid var(--border);text-align:left}
-  td{padding:12px 16px;font-size:13px;border-bottom:1px solid #F0F0F0;
-     vertical-align:middle}
+  th{background:#F8F9FB;padding:10px 16px;font-size:11px;font-weight:800;color:var(--navy);
+     text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--border);text-align:left}
+  td{padding:10px 16px;font-size:13px;border-bottom:1px solid #F0F0F0;vertical-align:middle}
   tr:last-child td{border-bottom:none}
   tr:hover td{background:#FAFBFC}
-  .token-pill{background:rgba(212,175,55,.15);border:1px solid var(--accent);
-              color:#8B6914;border-radius:20px;padding:2px 10px;
-              font-size:12px;font-weight:700;display:inline-block}
-  .token-pill.empty{background:#FEF2F2;border-color:#FCA5A5;color:#B91C1C}
-  .btn-sm{border:none;border-radius:4px;padding:5px 12px;font-size:11px;
-          font-weight:700;cursor:pointer;margin-right:4px}
-  .btn-reset{background:#EFF6FF;color:#1D4ED8}
-  .btn-reset:hover{background:#DBEAFE}
-  .btn-delete{background:#FEF2F2;color:#B91C1C}
-  .btn-delete:hover{background:#FEE2E2}
-  .empty-state{text-align:center;padding:40px;color:var(--muted);font-size:14px}
-  /* ── Inline token editor ── */
+  .avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:8px}
   .token-cell{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-  .token-pill{background:rgba(212,175,55,.15);border:1px solid var(--accent);
-              color:#8B6914;border-radius:20px;padding:2px 10px;
-              font-size:12px;font-weight:700;display:inline-block;
+  .token-pill{background:rgba(212,175,55,.15);border:1px solid var(--accent);color:#8B6914;
+              border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700;
               cursor:pointer;transition:background .15s}
   .token-pill:hover{background:rgba(212,175,55,.3)}
   .token-pill.empty{background:#FEF2F2;border-color:#FCA5A5;color:#B91C1C}
-  .token-pill.empty:hover{background:#FEE2E2}
   .token-edit{display:none;align-items:center;gap:4px}
   .token-edit input{width:58px;border:1.5px solid var(--accent);border-radius:4px;
-                    padding:3px 6px;font-size:12px;font-weight:700;text-align:center;
-                    color:var(--text);background:#fff}
-  .token-edit input:focus{outline:none;box-shadow:0 0 0 2px rgba(212,175,55,.3)}
-  .btn-save{background:var(--success);color:#fff;border:none;border-radius:4px;
-            padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer}
-  .btn-save:hover{background:#166534}
-  .btn-cancel{background:#E5E7EB;color:var(--text);border:none;border-radius:4px;
-              padding:4px 7px;font-size:11px;font-weight:700;cursor:pointer}
-  .btn-cancel:hover{background:#D1D5DB}
+                    padding:3px 6px;font-size:12px;font-weight:700;text-align:center}
+  .token-edit input:focus{outline:none}
+  .btn-sm{border:none;border-radius:4px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;margin-right:4px}
+  .btn-save{background:var(--success);color:#fff;border:none;border-radius:4px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer}
+  .btn-cancel{background:#E5E7EB;color:var(--text);border:none;border-radius:4px;padding:4px 7px;font-size:11px;font-weight:700;cursor:pointer}
+  .btn-reset{background:#EFF6FF;color:#1D4ED8}
+  .btn-delete{background:#FEF2F2;color:#B91C1C}
+  .empty-state{text-align:center;padding:40px;color:var(--muted);font-size:14px}
+  .info-bar{padding:12px 18px;font-size:13px;font-weight:700}
+  .info-ok{color:var(--success)}
+  .info-warn{color:var(--danger)}
 </style>
 </head>
 <body>
@@ -96,245 +63,100 @@
 
   {% if storage_persistent %}
   <div class="card" style="border-left:4px solid var(--success)">
-    <div style="padding:12px 18px;font-size:13px;color:var(--success);font-weight:700">
-      ✅ Penyimpanan persisten aktif — data akun aman saat redeploy.
-      <span style="color:var(--muted);font-weight:400;font-size:11px">({{ data_dir }})</span>
-    </div>
+    <div class="info-bar info-ok">✅ Penyimpanan persisten aktif — data aman saat redeploy.
+      <span style="color:var(--muted);font-weight:400;font-size:11px">({{ data_dir }})</span></div>
   </div>
   {% else %}
   <div class="card" style="border-left:4px solid var(--danger)">
-    <div style="padding:12px 18px;font-size:13px;color:var(--danger);font-weight:700">
-      ⚠️ PERINGATAN: Data disimpan di disk sementara ({{ data_dir }}).
-      <span style="display:block;color:var(--text);font-weight:400;font-size:12px;margin-top:4px">
-        Akun akan HILANG setiap kali aplikasi di-redeploy. Pasang Railway Volume
-        ke service ini (mount path bebas, mis. <code>/data</code>) lalu restart.
-      </span>
-    </div>
+    <div class="info-bar info-warn">⚠️ Data di disk sementara ({{ data_dir }}) — akan HILANG saat redeploy.
+      Pasang Railway Volume ke service ini.</div>
   </div>
   {% endif %}
 
-  <!-- Create user -->
   <div class="card">
-    <div class="card-header">➕ Buat Akun Baru</div>
-    <div class="form-row">
-      <div class="field">
-        <label>Nama Lengkap</label>
-        <input type="text" id="new-name" placeholder="Nama taruna">
-      </div>
-      <div class="field">
-        <label>Username</label>
-        <input type="text" id="new-username" placeholder="username">
-      </div>
-      <div class="field">
-        <label>Password</label>
-        <input type="text" id="new-password" placeholder="Min. 4 karakter">
-      </div>
-      <button class="btn-create" onclick="createUser()">Buat Akun</button>
-    </div>
-    <div id="create-msg"></div>
-  </div>
-
-  <!-- User list -->
-  <div class="card">
-    <div class="card-header">👥 Daftar Akun ({{ users|length }} akun)</div>
+    <div class="card-header">👥 Daftar Akun Google ({{ users|length }} akun)</div>
     {% if users %}
     <table>
-      <thead>
-        <tr>
-          <th>Nama</th>
-          <th>Username</th>
-          <th>Token</th>
-          <th>Dibuat</th>
-          <th>Aksi</th>
-        </tr>
-      </thead>
+      <thead><tr>
+        <th>Nama</th><th>Email</th><th>Token</th><th>Bergabung</th><th>Aksi</th>
+      </tr></thead>
       <tbody id="user-table">
         {% for u in users %}
-        <tr id="row-{{ u.username }}">
-          <td><strong>{{ u.name }}</strong></td>
-          <td style="color:var(--muted);font-family:monospace">{{ u.username }}</td>
+        <tr id="row-{{ u.uid }}">
           <td>
-            <div class="token-cell" id="token-cell-{{ u.username }}">
+            {% if u.picture %}<img class="avatar" src="{{ u.picture }}" onerror="this.style.display='none'">{% endif %}
+            <strong>{{ u.name }}</strong>
+          </td>
+          <td style="color:var(--muted);font-size:12px">{{ u.email }}</td>
+          <td>
+            <div class="token-cell" id="token-cell-{{ u.uid }}">
               <span class="token-pill {% if u.tokens == 0 %}empty{% endif %}"
-                    id="token-{{ u.username }}"
-                    onclick="openTokenEdit('{{ u.username }}', {{ u.tokens }})"
-                    title="Klik untuk ubah jumlah token">
-                🪙 {{ u.tokens }} token
-              </span>
-              <div class="token-edit" id="token-edit-{{ u.username }}">
-                <input type="number" id="token-input-{{ u.username }}"
-                       min="0" max="999" value="{{ u.tokens }}">
-                <button class="btn-save" onclick="saveTokens('{{ u.username }}')">✓</button>
-                <button class="btn-cancel" onclick="closeTokenEdit('{{ u.username }}')">✕</button>
+                    id="token-{{ u.uid }}"
+                    onclick="openTokenEdit('{{ u.uid }}', {{ u.tokens }})"
+                    title="Klik untuk ubah">🪙 {{ u.tokens }} token</span>
+              <div class="token-edit" id="token-edit-{{ u.uid }}">
+                <input type="number" id="token-input-{{ u.uid }}" min="0" max="999" value="{{ u.tokens }}">
+                <button class="btn-save" onclick="saveTokens('{{ u.uid }}')">✓</button>
+                <button class="btn-cancel" onclick="closeTokenEdit('{{ u.uid }}')">✕</button>
               </div>
             </div>
           </td>
-          <td style="color:var(--muted);font-size:12px">
-            {{ u.created_at[:10] if u.created_at else '—' }}
-          </td>
+          <td style="color:var(--muted);font-size:12px">{{ u.created_at[:10] if u.created_at else '—' }}</td>
           <td>
-            <button class="btn-sm btn-reset"
-                    onclick="resetTokens('{{ u.username }}')">
-              🔄 Reset Token
-            </button>
-            <button class="btn-sm btn-delete"
-                    onclick="deleteUser('{{ u.username }}', '{{ u.name }}')">
-              🗑 Hapus
-            </button>
+            <button class="btn-sm btn-reset" onclick="resetTokens('{{ u.uid }}')">🔄 Reset</button>
+            <button class="btn-sm btn-delete" onclick="deleteUser('{{ u.uid }}','{{ u.name }}')">🗑 Hapus</button>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     {% else %}
-    <div class="empty-state">Belum ada akun. Buat akun baru di atas.</div>
+    <div class="empty-state">Belum ada akun. Pengguna bisa daftar lewat login Google.</div>
     {% endif %}
   </div>
 
 </main>
 <script>
-async function createUser() {
-  const name     = document.getElementById('new-name').value.trim();
-  const username = document.getElementById('new-username').value.trim();
-  const password = document.getElementById('new-password').value.trim();
-  const msg      = document.getElementById('create-msg');
-  if (!name || !username || !password) {
-    msg.className = 'err'; msg.textContent = 'Semua field harus diisi'; return;
-  }
-  msg.className = ''; msg.textContent = '⏳ Memproses...';
-  try {
-    const res  = await fetch('/api/admin/create-user', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({name, username, password})
-    });
-    if (res.status === 401) {
-      msg.className = 'err';
-      msg.textContent = '❌ Sesi habis. Redirect ke login...';
-      setTimeout(() => window.location.href = '/login', 1500);
-      return;
-    }
-    const json = await res.json();
-    if (json.ok) {
-      msg.className = 'ok';
-      msg.textContent = `✅ Akun "${json.user.name}" berhasil dibuat (${json.user.tokens} token)`;
-      document.getElementById('new-name').value = '';
-      document.getElementById('new-username').value = '';
-      document.getElementById('new-password').value = '';
-      addUserRow(json.user);
-    } else {
-      msg.className = 'err'; msg.textContent = '❌ ' + (json.error || 'Gagal membuat akun');
-    }
-  } catch(e) {
-    msg.className = 'err'; msg.textContent = '❌ Koneksi gagal: ' + e.message;
-  }
+function openTokenEdit(uid, cur) {
+  document.getElementById(`token-${uid}`).style.display='none';
+  const ed=document.getElementById(`token-edit-${uid}`);
+  ed.style.display='flex';
+  const inp=document.getElementById(`token-input-${uid}`);
+  inp.value=cur; inp.focus(); inp.select();
+  inp.onkeydown=e=>{if(e.key==='Enter')saveTokens(uid);if(e.key==='Escape')closeTokenEdit(uid);};
 }
-
-function addUserRow(u) {
-  const tbody = document.getElementById('user-table');
-  if (!tbody) { location.reload(); return; }
-  const tr = document.createElement('tr');
-  tr.id = `row-${u.username}`;
-  tr.innerHTML = `
-    <td><strong>${u.name}</strong></td>
-    <td style="color:var(--muted);font-family:monospace">${u.username}</td>
-    <td>
-      <div class="token-cell" id="token-cell-${u.username}">
-        <span class="token-pill" id="token-${u.username}"
-              onclick="openTokenEdit('${u.username}', ${u.tokens})"
-              title="Klik untuk ubah jumlah token">
-          🪙 ${u.tokens} token
-        </span>
-        <div class="token-edit" id="token-edit-${u.username}">
-          <input type="number" id="token-input-${u.username}" min="0" max="999" value="${u.tokens}">
-          <button class="btn-save" onclick="saveTokens('${u.username}')">✓</button>
-          <button class="btn-cancel" onclick="closeTokenEdit('${u.username}')">✕</button>
-        </div>
-      </div>
-    </td>
-    <td style="color:var(--muted);font-size:12px">${u.created_at.slice(0,10)}</td>
-    <td>
-      <button class="btn-sm btn-reset" onclick="resetTokens('${u.username}')">🔄 Reset Token</button>
-      <button class="btn-sm btn-delete" onclick="deleteUser('${u.username}','${u.name}')">🗑 Hapus</button>
-    </td>`;
-  tbody.appendChild(tr);
+function closeTokenEdit(uid){
+  document.getElementById(`token-${uid}`).style.display='';
+  document.getElementById(`token-edit-${uid}`).style.display='none';
 }
-
-function openTokenEdit(username, currentTokens) {
-  const pill = document.getElementById(`token-${username}`);
-  const edit = document.getElementById(`token-edit-${username}`);
-  const inp  = document.getElementById(`token-input-${username}`);
-  pill.style.display = 'none';
-  edit.style.display = 'flex';
-  inp.value = currentTokens;
-  inp.focus(); inp.select();
-  inp.onkeydown = e => {
-    if (e.key === 'Enter')  saveTokens(username);
-    if (e.key === 'Escape') closeTokenEdit(username);
-  };
+function updatePill(uid,tokens){
+  const p=document.getElementById(`token-${uid}`);
+  if(!p)return;
+  p.textContent=`🪙 ${tokens} token`;
+  p.className=tokens===0?'token-pill empty':'token-pill';
 }
-
-function closeTokenEdit(username) {
-  document.getElementById(`token-${username}`).style.display = '';
-  document.getElementById(`token-edit-${username}`).style.display = 'none';
+async function saveTokens(uid){
+  const inp=document.getElementById(`token-input-${uid}`);
+  const tokens=parseInt(inp.value,10);
+  if(isNaN(tokens)||tokens<0||tokens>999){inp.style.borderColor='red';setTimeout(()=>inp.style.borderColor='',1000);return;}
+  const res=await fetch('/api/admin/set-tokens',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,tokens})});
+  if(res.status===401){window.location.href='/login-admin';return;}
+  const json=await res.json();
+  if(json.ok){updatePill(uid,json.tokens);closeTokenEdit(uid);}else alert(json.error);
 }
-
-function updateTokenPill(username, tokens) {
-  const pill = document.getElementById(`token-${username}`);
-  if (!pill) return;
-  pill.textContent = `🪙 ${tokens} token`;
-  pill.className   = tokens === 0 ? 'token-pill empty' : 'token-pill';
+async function resetTokens(uid){
+  const res=await fetch('/api/admin/reset-tokens',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid})});
+  if(res.status===401){window.location.href='/login-admin';return;}
+  const json=await res.json();
+  if(json.ok)updatePill(uid,json.tokens);else alert(json.error);
 }
-
-async function saveTokens(username) {
-  const inp    = document.getElementById(`token-input-${username}`);
-  const tokens = parseInt(inp.value, 10);
-  if (isNaN(tokens) || tokens < 0 || tokens > 999) {
-    inp.style.borderColor = 'var(--danger)';
-    setTimeout(() => inp.style.borderColor = '', 1000);
-    return;
-  }
-  try {
-    const res  = await fetch('/api/admin/set-tokens', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({username, tokens})
-    });
-    if (res.status === 401) { window.location.href = '/login'; return; }
-    const json = await res.json();
-    if (json.ok) {
-      updateTokenPill(username, json.tokens);
-      closeTokenEdit(username);
-    } else { alert(json.error); }
-  } catch(e) { alert('Koneksi gagal: ' + e.message); }
-}
-
-async function resetTokens(username) {
-  try {
-    const res  = await fetch('/api/admin/reset-tokens', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({username})
-    });
-    if (res.status === 401) { window.location.href = '/login'; return; }
-    const json = await res.json();
-    if (json.ok) {
-      updateTokenPill(username, json.tokens);
-    } else { alert(json.error); }
-  } catch(e) { alert('Koneksi gagal: ' + e.message); }
-}
-
-async function deleteUser(username, name) {
-  if (!confirm(`Hapus akun "${name}" (${username})?\nAksi ini tidak bisa dibatalkan.`)) return;
-  try {
-    const res  = await fetch('/api/admin/delete-user', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({username})
-    });
-    if (res.status === 401) { window.location.href = '/login'; return; }
-    const json = await res.json();
-    if (json.ok) {
-      const row = document.getElementById(`row-${username}`);
-      if (row) row.remove();
-    } else { alert(json.error); }
-  } catch(e) { alert('Koneksi gagal: ' + e.message); }
+async function deleteUser(uid,name){
+  if(!confirm(`Hapus akun "${name}"?\nAksi ini tidak bisa dibatalkan.`))return;
+  const res=await fetch('/api/admin/delete-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid})});
+  if(res.status===401){window.location.href='/login-admin';return;}
+  const json=await res.json();
+  if(json.ok){const row=document.getElementById(`row-${uid}`);if(row)row.remove();}
+  else alert(json.error);
 }
 </script>
 </body>
