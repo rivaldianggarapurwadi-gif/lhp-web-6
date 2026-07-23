@@ -279,7 +279,7 @@ def complete_order(order_id):
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'username' not in session:
+        if 'uid' not in session:
             if request.is_json or request.path.startswith('/api/'):
                 return jsonify({'error': 'Login diperlukan', 'redirect': '/login'}), 401
             return redirect(url_for('login'))
@@ -289,14 +289,14 @@ def login_required(f):
 def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'username' not in session:
+        if 'uid' not in session:
             if request.is_json or request.path.startswith('/api/'):
-                return jsonify({'error': 'Sesi habis. Silakan login ulang.', 'redirect': '/login'}), 401
-            return redirect(url_for('login'))
+                return jsonify({'error': 'Sesi habis. Silakan login ulang.', 'redirect': '/login-admin'}), 401
+            return redirect(url_for('login_admin'))
         if session.get('role') != 'admin':
             if request.is_json or request.path.startswith('/api/'):
                 return jsonify({'error': 'Akses ditolak.'}), 403
-            return redirect(url_for('login'))
+            return redirect(url_for('login_admin'))
         return f(*args, **kwargs)
     return decorated
 
@@ -708,6 +708,10 @@ def index():
                            token_packages=TOKEN_PACKAGES,
                            midtrans_client_key=MIDTRANS_CLIENT_KEY)
 
+@app.route('/admin/login', methods=['GET'])
+def admin_login_redirect():
+    return redirect(url_for('login_admin'))
+
 # ── Login (username + password) ───────────────────────────────────────────────
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -858,6 +862,14 @@ def logout():
 @app.route('/ads.txt')
 def ads_txt():
     return send_file(os.path.join(BASE_DIR, 'static', 'ads.txt'), mimetype='text/plain')
+
+@app.route('/robots.txt')
+def robots_txt():
+    return send_file(os.path.join(BASE_DIR, 'static', 'robots.txt'), mimetype='text/plain')
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    return send_file(os.path.join(BASE_DIR, 'static', 'sitemap.xml'), mimetype='application/xml')
 
 @app.route('/api/check-username')
 def check_username_route():
