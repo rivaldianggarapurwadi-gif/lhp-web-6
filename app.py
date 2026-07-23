@@ -871,6 +871,10 @@ def robots_txt():
 def sitemap_xml():
     return send_file(os.path.join(BASE_DIR, 'static', 'sitemap.xml'), mimetype='application/xml')
 
+@app.route('/google96f628609920d657.html')
+def google_verify():
+    return send_file(os.path.join(BASE_DIR, 'static', 'google96f628609920d657.html'), mimetype='text/html')
+
 @app.route('/api/check-username')
 def check_username_route():
     u   = request.args.get('u', '').strip().lower()
