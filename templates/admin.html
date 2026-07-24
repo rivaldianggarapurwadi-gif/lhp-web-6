@@ -6,158 +6,276 @@
 <title>Admin Panel — LHP AKPOL</title>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  :root{--primary:#111;--navy:#0D2B45;--accent:#D4AF37;--white:#fff;
-        --surface:#F3F4F6;--text:#2B2B2B;--muted:#6B7280;
-        --border:#D1D5DB;--danger:#B91C1C;--success:#15803D}
+  :root{--navy:#0D2B45;--accent:#D4AF37;--white:#fff;--surface:#F3F4F6;
+        --text:#2B2B2B;--muted:#6B7280;--border:#D1D5DB;
+        --danger:#B91C1C;--success:#15803D;--info:#1D4ED8}
   body{font-family:'Segoe UI',Arial,sans-serif;background:var(--surface);color:var(--text);min-height:100vh}
-  header{background:var(--primary);color:#fff;height:60px;display:flex;align-items:center;
-         padding:0 24px;gap:14px;border-bottom:3px solid var(--accent);position:sticky;top:0;z-index:10}
+  header{background:#111;color:#fff;height:60px;display:flex;align-items:center;
+         padding:0 24px;gap:14px;border-bottom:3px solid var(--accent);position:sticky;top:0;z-index:100}
   header img{height:38px;width:38px;object-fit:contain}
-  header h1{font-size:16px;font-weight:800;letter-spacing:.5px}
-  header .badge{background:var(--accent);color:var(--primary);font-size:10px;font-weight:800;
-                padding:3px 10px;border-radius:20px;letter-spacing:.5px}
+  header h1{font-size:16px;font-weight:800}
+  .badge-admin{background:var(--accent);color:#111;font-size:10px;font-weight:800;padding:3px 10px;border-radius:20px}
   header a{margin-left:auto;color:#A8C4E8;font-size:12px;text-decoration:none}
   header a:hover{color:#fff}
-  main{max-width:900px;margin:28px auto;padding:0 16px 60px}
-  .card{background:#fff;border:1px solid var(--border);border-radius:8px;
-        margin-bottom:20px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
-  .card-header{background:var(--navy);color:#fff;padding:11px 18px;font-weight:700;
-               font-size:12px;letter-spacing:.6px;text-transform:uppercase;
-               border-left:4px solid var(--accent)}
-  table{width:100%;border-collapse:collapse}
-  th{background:#F8F9FB;padding:10px 16px;font-size:11px;font-weight:800;color:var(--navy);
-     text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--border);text-align:left}
-  td{padding:10px 16px;font-size:13px;border-bottom:1px solid #F0F0F0;vertical-align:middle}
+  main{max-width:1020px;margin:28px auto;padding:0 16px 60px}
+  .card{background:#fff;border:1px solid var(--border);border-radius:10px;margin-bottom:20px;
+        overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+  .card-header{background:var(--navy);color:#fff;padding:11px 18px;font-weight:700;font-size:12px;
+               letter-spacing:.6px;text-transform:uppercase;border-left:4px solid var(--accent);
+               display:flex;align-items:center;justify-content:space-between}
+  .card-header small{font-size:11px;font-weight:400;color:#A8C4E8;text-transform:none;letter-spacing:0}
+  .info-bar{padding:12px 18px;font-size:13px;font-weight:700}
+  .info-ok{color:var(--success)} .info-warn{color:var(--danger)}
+  /* Stats */
+  .stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;padding:16px}
+  @media(max-width:680px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center}
+  .stat-num{font-size:26px;font-weight:800;color:var(--navy);line-height:1}
+  .stat-label{font-size:10px;color:var(--muted);margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+  /* Chart */
+  .chart-wrap{padding:0 16px 16px}
+  .chart-bars{display:flex;align-items:flex-end;gap:3px;height:72px;border-bottom:1px solid var(--border)}
+  .bar{flex:1;background:var(--accent);border-radius:3px 3px 0 0;min-height:2px;position:relative;cursor:default}
+  .bar:hover{opacity:.75}
+  .bar-tip{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);
+            background:#111;color:#fff;font-size:10px;padding:3px 7px;border-radius:4px;
+            white-space:nowrap;display:none;z-index:10}
+  .bar:hover .bar-tip{display:block}
+  .chart-labels{display:flex;gap:3px;padding:4px 0 0}
+  .chart-label{flex:1;font-size:9px;color:var(--muted);text-align:center}
+  /* Table */
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;min-width:720px}
+  th{background:#F8F9FB;padding:10px 14px;font-size:11px;font-weight:800;color:var(--navy);
+     text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap}
+  td{padding:10px 14px;font-size:13px;border-bottom:1px solid #F0F0F0;vertical-align:middle}
   tr:last-child td{border-bottom:none}
   tr:hover td{background:#FAFBFC}
-  .avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:8px}
-  .token-cell{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px}
+  .g-email{font-size:11px;color:var(--muted);display:block;margin-top:1px}
+  .mono{font-family:monospace;font-size:12px;color:var(--muted)}
+  .date{font-size:11px;color:var(--muted)}
+  /* Token pill */
+  .token-cell{display:flex;align-items:center;gap:6px}
   .token-pill{background:rgba(212,175,55,.15);border:1px solid var(--accent);color:#8B6914;
               border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700;
-              cursor:pointer;transition:background .15s}
+              cursor:pointer;white-space:nowrap}
   .token-pill:hover{background:rgba(212,175,55,.3)}
-  .token-pill.empty{background:#FEF2F2;border-color:#FCA5A5;color:#B91C1C}
-  .token-edit{display:none;align-items:center;gap:4px}
-  .token-edit input{width:58px;border:1.5px solid var(--accent);border-radius:4px;
-                    padding:3px 6px;font-size:12px;font-weight:700;text-align:center}
-  .token-edit input:focus{outline:none}
-  .btn-sm{border:none;border-radius:4px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;margin-right:4px}
-  .btn-save{background:var(--success);color:#fff;border:none;border-radius:4px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer}
-  .btn-cancel{background:#E5E7EB;color:var(--text);border:none;border-radius:4px;padding:4px 7px;font-size:11px;font-weight:700;cursor:pointer}
-  .btn-reset{background:#EFF6FF;color:#1D4ED8}
-  .btn-delete{background:#FEF2F2;color:#B91C1C}
+  .token-pill.empty{background:#FEF2F2;border-color:#FCA5A5;color:var(--danger)}
+  .t-edit{display:none;align-items:center;gap:4px}
+  .t-edit input{width:56px;border:1.5px solid var(--accent);border-radius:4px;
+                padding:3px 6px;font-size:12px;font-weight:700;text-align:center}
+  .t-edit input:focus{outline:none}
+  /* Pwd */
+  .pwd-cell{display:flex;align-items:center;gap:6px}
+  .pwd-dots{color:var(--muted);letter-spacing:2px;font-size:14px}
+  .p-edit{display:none;align-items:center;gap:4px}
+  .p-edit input{width:110px;border:1.5px solid var(--border);border-radius:4px;padding:3px 8px;font-size:12px}
+  .p-edit input:focus{outline:none;border-color:var(--accent)}
+  /* Btns */
+  .btn-xs{border:none;border-radius:4px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .b-save{background:var(--success);color:#fff}.b-save:hover{background:#166534}
+  .b-cancel{background:#E5E7EB;color:var(--text)}.b-cancel:hover{background:#D1D5DB}
+  .b-reset{background:#EFF6FF;color:var(--info)}.b-reset:hover{background:#DBEAFE}
+  .b-pwd{background:#F5F3FF;color:#6D28D9}.b-pwd:hover{background:#EDE9FE}
+  .b-del{background:#FEF2F2;color:var(--danger)}.b-del:hover{background:#FEE2E2}
+  .actions{display:flex;gap:4px;flex-wrap:wrap}
   .empty-state{text-align:center;padding:40px;color:var(--muted);font-size:14px}
-  .info-bar{padding:12px 18px;font-size:13px;font-weight:700}
-  .info-ok{color:var(--success)}
-  .info-warn{color:var(--danger)}
 </style>
 </head>
 <body>
 <header>
   <img src="/static/logo.png" alt="AKPOL">
   <h1>Admin Panel — LHP AKPOL</h1>
-  <span class="badge">ADMIN</span>
+  <span class="badge-admin">ADMIN</span>
   <a href="/logout">Keluar</a>
 </header>
 <main>
 
-  {% if storage_persistent %}
-  <div class="card" style="border-left:4px solid var(--success)">
-    <div class="info-bar info-ok">✅ Penyimpanan persisten aktif — data aman saat redeploy.
-      <span style="color:var(--muted);font-weight:400;font-size:11px">({{ data_dir }})</span></div>
+{% if storage_persistent %}
+<div class="card" style="border-left:4px solid var(--success)">
+  <div class="info-bar info-ok">✅ Penyimpanan persisten aktif
+    <span style="color:var(--muted);font-weight:400;font-size:11px">({{ data_dir }})</span></div>
+</div>
+{% else %}
+<div class="card" style="border-left:4px solid var(--danger)">
+  <div class="info-bar info-warn">⚠️ Data di disk sementara — akan hilang saat redeploy. Pasang Railway Volume.</div>
+</div>
+{% endif %}
+
+<!-- Visitor Stats -->
+<div class="card">
+  <div class="card-header">📊 Statistik Pengunjung <small>auto-refresh setiap 60 detik</small></div>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-num" id="s-total">{{ visitor_stats.total }}</div>
+      <div class="stat-label">Total Kunjungan</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="s-unique">{{ visitor_stats.unique }}</div>
+      <div class="stat-label">IP Unik</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="s-today" style="color:#059669">{{ visitor_stats.today }}</div>
+      <div class="stat-label">Hari Ini</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="s-yesterday">{{ visitor_stats.yesterday }}</div>
+      <div class="stat-label">Kemarin</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="s-week" style="color:var(--info)">{{ visitor_stats.this_week }}</div>
+      <div class="stat-label">7 Hari Ini</div>
+    </div>
   </div>
-  {% else %}
-  <div class="card" style="border-left:4px solid var(--danger)">
-    <div class="info-bar info-warn">⚠️ Data di disk sementara ({{ data_dir }}) — akan HILANG saat redeploy.
-      Pasang Railway Volume ke service ini.</div>
+  {% if visitor_stats.daily %}
+  {% set max_v = namespace(val=1) %}
+  {% for d,c in visitor_stats.daily %}{% if c > max_v.val %}{% set max_v.val = c %}{% endif %}{% endfor %}
+  <div class="chart-wrap">
+    <div class="chart-bars">
+      {% for date,count in visitor_stats.daily %}
+      <div class="bar" style="height:{{ [((count/max_v.val)*70)|int, 2]|max }}px">
+        <div class="bar-tip">{{ date[5:] }}: {{ count }}×</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="chart-labels">
+      {% for date,count in visitor_stats.daily %}
+      <div class="chart-label">{{ date[8:] }}/{{ date[5:7] }}</div>
+      {% endfor %}
+    </div>
   </div>
   {% endif %}
+</div>
 
-  <div class="card">
-    <div class="card-header">👥 Daftar Akun Google ({{ users|length }} akun)</div>
-    {% if users %}
-    <table>
-      <thead><tr>
-        <th>Nama</th><th>Email</th><th>Token</th><th>Bergabung</th><th>Aksi</th>
-      </tr></thead>
-      <tbody id="user-table">
-        {% for u in users %}
-        <tr id="row-{{ u.uid }}">
-          <td>
-            {% if u.picture %}<img class="avatar" src="{{ u.picture }}" onerror="this.style.display='none'">{% endif %}
-            <strong>{{ u.name }}</strong>
-          </td>
-          <td style="color:var(--muted);font-size:12px">{{ u.email }}</td>
-          <td>
-            <div class="token-cell" id="token-cell-{{ u.uid }}">
-              <span class="token-pill {% if u.tokens == 0 %}empty{% endif %}"
-                    id="token-{{ u.uid }}"
-                    onclick="openTokenEdit('{{ u.uid }}', {{ u.tokens }})"
-                    title="Klik untuk ubah">🪙 {{ u.tokens }} token</span>
-              <div class="token-edit" id="token-edit-{{ u.uid }}">
-                <input type="number" id="token-input-{{ u.uid }}" min="0" max="999" value="{{ u.tokens }}">
-                <button class="btn-save" onclick="saveTokens('{{ u.uid }}')">✓</button>
-                <button class="btn-cancel" onclick="closeTokenEdit('{{ u.uid }}')">✕</button>
-              </div>
-            </div>
-          </td>
-          <td style="color:var(--muted);font-size:12px">{{ u.created_at[:10] if u.created_at else '—' }}</td>
-          <td>
-            <button class="btn-sm btn-reset" onclick="resetTokens('{{ u.uid }}')">🔄 Reset</button>
-            <button class="btn-sm btn-delete" onclick="deleteUser('{{ u.uid }}','{{ u.name }}')">🗑 Hapus</button>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="empty-state">Belum ada akun. Pengguna bisa daftar lewat login Google.</div>
-    {% endif %}
+<!-- User Table -->
+<div class="card">
+  <div class="card-header">👥 Daftar Akun ({{ users|length }}) <small>Klik 🪙 atau ✏️ untuk edit langsung</small></div>
+  {% if users %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>Nama</th><th>Username</th><th>Password</th><th>Token</th><th>Daftar</th><th>Aksi</th>
+    </tr></thead>
+    <tbody id="user-table">
+    {% for u in users %}
+    <tr id="row-{{ u.username }}">
+      <td>
+        {% if u.picture %}<img class="avatar" src="{{ u.picture }}" onerror="this.style.display='none'">{% endif %}
+        <strong>{{ u.name }}</strong>
+        {% if u.google_email %}<span class="g-email">{{ u.google_email }}</span>{% endif %}
+      </td>
+      <td><span class="mono">{{ u.username }}</span></td>
+      <td>
+        <div class="pwd-cell" id="pwd-cell-{{ u.username }}">
+          <span class="pwd-dots">••••••</span>
+          <button class="btn-xs b-pwd" onclick="openPwd('{{ u.username }}')">✏️ Ubah</button>
+        </div>
+        <div class="p-edit" id="p-edit-{{ u.username }}">
+          <input type="text" id="p-inp-{{ u.username }}" placeholder="Password baru (min 6)">
+          <button class="btn-xs b-save" onclick="savePwd('{{ u.username }}')">✓</button>
+          <button class="btn-xs b-cancel" onclick="closePwd('{{ u.username }}')">✕</button>
+        </div>
+      </td>
+      <td>
+        <div class="token-cell">
+          <span class="token-pill {% if u.tokens==0 %}empty{% endif %}"
+                id="tp-{{ u.username }}" onclick="openToken('{{ u.username }}',{{ u.tokens }})"
+                title="Klik untuk edit">🪙 {{ u.tokens }}</span>
+          <div class="t-edit" id="te-{{ u.username }}">
+            <input type="number" id="ti-{{ u.username }}" min="0" max="999" value="{{ u.tokens }}">
+            <button class="btn-xs b-save" onclick="saveToken('{{ u.username }}')">✓</button>
+            <button class="btn-xs b-cancel" onclick="closeToken('{{ u.username }}')">✕</button>
+          </div>
+        </div>
+      </td>
+      <td class="date">{{ u.created_at[:10] if u.created_at else '—' }}</td>
+      <td>
+        <div class="actions">
+          <button class="btn-xs b-reset" onclick="resetToken('{{ u.username }}')">🔄 Reset</button>
+          <button class="btn-xs b-del" onclick="delUser('{{ u.username }}','{{ u.name }}')">🗑 Hapus</button>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
   </div>
+  {% else %}
+  <div class="empty-state">Belum ada akun. Pengguna daftar lewat halaman login.</div>
+  {% endif %}
+</div>
 
 </main>
 <script>
-function openTokenEdit(uid, cur) {
-  document.getElementById(`token-${uid}`).style.display='none';
-  const ed=document.getElementById(`token-edit-${uid}`);
-  ed.style.display='flex';
-  const inp=document.getElementById(`token-input-${uid}`);
-  inp.value=cur; inp.focus(); inp.select();
-  inp.onkeydown=e=>{if(e.key==='Enter')saveTokens(uid);if(e.key==='Escape')closeTokenEdit(uid);};
+// Token
+function openToken(u,cur){
+  document.getElementById('tp-'+u).style.display='none';
+  document.getElementById('te-'+u).style.display='flex';
+  const i=document.getElementById('ti-'+u); i.value=cur; i.focus(); i.select();
+  i.onkeydown=e=>{if(e.key==='Enter')saveToken(u);if(e.key==='Escape')closeToken(u);};
 }
-function closeTokenEdit(uid){
-  document.getElementById(`token-${uid}`).style.display='';
-  document.getElementById(`token-edit-${uid}`).style.display='none';
+function closeToken(u){
+  document.getElementById('tp-'+u).style.display='';
+  document.getElementById('te-'+u).style.display='none';
 }
-function updatePill(uid,tokens){
-  const p=document.getElementById(`token-${uid}`);
-  if(!p)return;
-  p.textContent=`🪙 ${tokens} token`;
-  p.className=tokens===0?'token-pill empty':'token-pill';
+function setPill(u,t){
+  const p=document.getElementById('tp-'+u);
+  if(!p)return; p.textContent='🪙 '+t;
+  p.className=t===0?'token-pill empty':'token-pill';
 }
-async function saveTokens(uid){
-  const inp=document.getElementById(`token-input-${uid}`);
-  const tokens=parseInt(inp.value,10);
-  if(isNaN(tokens)||tokens<0||tokens>999){inp.style.borderColor='red';setTimeout(()=>inp.style.borderColor='',1000);return;}
-  const res=await fetch('/api/admin/set-tokens',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,tokens})});
-  if(res.status===401){window.location.href='/login-admin';return;}
-  const json=await res.json();
-  if(json.ok){updatePill(uid,json.tokens);closeTokenEdit(uid);}else alert(json.error);
+async function saveToken(u){
+  const i=document.getElementById('ti-'+u), t=parseInt(i.value,10);
+  if(isNaN(t)||t<0||t>999){i.style.borderColor='red';setTimeout(()=>i.style.borderColor='',1000);return;}
+  const r=await fetch('/api/admin/set-tokens',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:u,tokens:t})});
+  if(r.status===401){location.href='/login-admin';return;}
+  const j=await r.json();
+  if(j.ok){setPill(u,j.tokens);closeToken(u);}else alert(j.error);
 }
-async function resetTokens(uid){
-  const res=await fetch('/api/admin/reset-tokens',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid})});
-  if(res.status===401){window.location.href='/login-admin';return;}
-  const json=await res.json();
-  if(json.ok)updatePill(uid,json.tokens);else alert(json.error);
+async function resetToken(u){
+  const r=await fetch('/api/admin/reset-tokens',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:u})});
+  if(r.status===401){location.href='/login-admin';return;}
+  const j=await r.json(); if(j.ok)setPill(u,j.tokens); else alert(j.error);
 }
-async function deleteUser(uid,name){
-  if(!confirm(`Hapus akun "${name}"?\nAksi ini tidak bisa dibatalkan.`))return;
-  const res=await fetch('/api/admin/delete-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid})});
-  if(res.status===401){window.location.href='/login-admin';return;}
-  const json=await res.json();
-  if(json.ok){const row=document.getElementById(`row-${uid}`);if(row)row.remove();}
-  else alert(json.error);
+// Password
+function openPwd(u){
+  document.getElementById('pwd-cell-'+u).style.display='none';
+  document.getElementById('p-edit-'+u).style.display='flex';
+  const i=document.getElementById('p-inp-'+u); i.value=''; i.focus();
+  i.onkeydown=e=>{if(e.key==='Enter')savePwd(u);if(e.key==='Escape')closePwd(u);};
 }
+function closePwd(u){
+  document.getElementById('pwd-cell-'+u).style.display='';
+  document.getElementById('p-edit-'+u).style.display='none';
+}
+async function savePwd(u){
+  const p=document.getElementById('p-inp-'+u).value.trim();
+  if(p.length<6){alert('Password minimal 6 karakter');return;}
+  const r=await fetch('/api/admin/set-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:u,password:p})});
+  if(r.status===401){location.href='/login-admin';return;}
+  const j=await r.json();
+  if(j.ok){closePwd(u);alert('✅ Password '+u+' berhasil diubah');}else alert(j.error);
+}
+// Delete
+async function delUser(u,name){
+  if(!confirm('Hapus akun "'+name+'" ('+u+')?\nTidak bisa dibatalkan.'))return;
+  const r=await fetch('/api/admin/delete-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:u})});
+  if(r.status===401){location.href='/login-admin';return;}
+  const j=await r.json();
+  if(j.ok){const row=document.getElementById('row-'+u);if(row)row.remove();}else alert(j.error);
+}
+// Auto refresh stats
+async function refreshStats(){
+  try{
+    const j=await(await fetch('/api/admin/visitor-stats')).json();
+    document.getElementById('s-total').textContent=j.total;
+    document.getElementById('s-unique').textContent=j.unique;
+    document.getElementById('s-today').textContent=j.today;
+    document.getElementById('s-yesterday').textContent=j.yesterday;
+    document.getElementById('s-week').textContent=j.this_week;
+  }catch(e){}
+}
+setInterval(refreshStats,60000);
 </script>
 </body>
 </html>

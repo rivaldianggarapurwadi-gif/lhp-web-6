@@ -35,6 +35,7 @@ except Exception:
 
 USERS_FILE    = os.path.join(DATA_DIR, "users.json")
 ORDERS_FILE   = os.path.join(DATA_DIR, "orders.json")
+VISITORS_FILE = os.path.join(DATA_DIR, "visitors.json")
 _LEGACY_USERS = os.path.join(BASE_DIR, "users.json")
 STORAGE_IS_PERSISTENT = os.path.abspath(DATA_DIR) != os.path.abspath(BASE_DIR)
 
@@ -271,6 +272,55 @@ def complete_order(order_id):
     _save_orders(orders)
     add_tokens(orders[order_id]['username'], orders[order_id]['tokens'])
     return True
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Visitor Tracking
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _load_visitors():
+    if not os.path.exists(VISITORS_FILE):
+        return {'total': 0, 'daily': {}, 'unique_ips': []}
+    try:
+        with open(VISITORS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {'total': 0, 'daily': {}, 'unique_ips': []}
+
+def _save_visitors(v):
+    with open(VISITORS_FILE, 'w') as f:
+        json.dump(v, f, indent=2)
+
+def record_visit(ip):
+    v   = _load_visitors()
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    v['total'] = v.get('total', 0) + 1
+    v.setdefault('daily', {})[today] = v['daily'].get(today, 0) + 1
+    uniq = v.get('unique_ips', [])
+    if ip and ip not in uniq:
+        uniq.append(ip)
+        if len(uniq) > 5000:   # cap list size
+            uniq = uniq[-5000:]
+    v['unique_ips'] = uniq
+    # Keep only last 30 days
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).strftime('%Y-%m-%d')
+    v['daily'] = {d: c for d, c in v['daily'].items() if d >= cutoff}
+    _save_visitors(v)
+
+def get_visitor_stats():
+    v     = _load_visitors()
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime('%Y-%m-%d')
+    week_ago  = (datetime.now(timezone.utc) - timedelta(days=7)).strftime('%Y-%m-%d')
+    daily = v.get('daily', {})
+    week_total = sum(c for d, c in daily.items() if d >= week_ago)
+    return {
+        'total':     v.get('total', 0),
+        'unique':    len(v.get('unique_ips', [])),
+        'today':     daily.get(today, 0),
+        'yesterday': daily.get(yesterday, 0),
+        'this_week': week_total,
+        'daily':     sorted(daily.items())[-14:],  # last 14 days for chart
+    }
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Auth decorators
@@ -699,6 +749,11 @@ def index():
     if not user:
         session.clear()
         return redirect(url_for('login'))
+    # Record visit
+    try:
+        record_visit(request.headers.get('X-Forwarded-For', request.remote_addr))
+    except Exception:
+        pass
     try_weekly_regen(session['uid'])
     user = get_user(session['uid'])
     return render_template('index.html',
@@ -983,10 +1038,12 @@ def topup_status(order_id):
 @admin_required
 def admin_panel():
     users     = _load_users()
-    user_list = sorted(users.values(), key=lambda u: u.get('created_at',''))
+    user_list = sorted(users.values(), key=lambda u: u.get('created_at',''), reverse=True)
+    stats     = get_visitor_stats()
     return render_template('admin.html', users=user_list,
                            storage_persistent=STORAGE_IS_PERSISTENT,
-                           data_dir=DATA_DIR)
+                           data_dir=DATA_DIR,
+                           visitor_stats=stats)
 
 @app.route('/api/admin/delete-user', methods=['POST'])
 @admin_required
@@ -1028,6 +1085,29 @@ def admin_reset_tokens():
     users[uid]['tokens'] = TOKENS_NEW_USER
     _save_users(users)
     return jsonify({'ok': True, 'tokens': TOKENS_NEW_USER})
+
+@app.route('/api/admin/set-password', methods=['POST'])
+@admin_required
+def admin_set_password():
+    from werkzeug.security import generate_password_hash
+    data     = request.get_json() or {}
+    uid      = data.get('uid', '').strip()
+    password = data.get('password', '').strip()
+    if not uid or not password:
+        return jsonify({'error': 'UID dan password diperlukan'}), 400
+    if len(password) < 6:
+        return jsonify({'error': 'Password minimal 6 karakter'}), 400
+    users = _load_users()
+    if uid not in users:
+        return jsonify({'error': 'User tidak ditemukan'}), 404
+    users[uid]['password'] = generate_password_hash(password)
+    _save_users(users)
+    return jsonify({'ok': True})
+
+@app.route('/api/admin/visitor-stats')
+@admin_required
+def admin_visitor_stats():
+    return jsonify(get_visitor_stats())
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Routes — App (lookup + generate)
