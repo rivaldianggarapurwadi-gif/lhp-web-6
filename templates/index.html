@@ -161,6 +161,45 @@
                font-weight: 600; transition: background .15s; }
   .btn-clear:hover { background: #991B1B; }
 
+  /* ── Analisa foto ── */
+  .analyze-bar { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+                 padding:10px 20px; background:rgba(13,43,69,.04);
+                 border-bottom:1px solid var(--border); }
+  .btn-analyze { background:var(--navy); color:#fff; border:none; border-radius:6px;
+                 padding:8px 18px; font-size:12px; font-weight:700; cursor:pointer;
+                 display:flex; align-items:center; gap:7px; transition:background .15s; }
+  .btn-analyze:hover { background:#1a3d5c; }
+  .btn-analyze:disabled { background:#9CA3AF; cursor:not-allowed; }
+  .analyze-hint { font-size:11px; color:var(--muted); }
+  /* Panel konfirmasi hasil analisa */
+  .analyze-result { display:none; margin:0 20px 16px; border:1.5px solid var(--accent);
+                    border-radius:10px; overflow:hidden; }
+  .analyze-result.show { display:block; }
+  .ar-header { background:var(--navy); color:#fff; padding:10px 16px; font-size:12px;
+               font-weight:700; display:flex; align-items:center; gap:8px; }
+  .ar-body { padding:14px 16px; background:rgba(212,175,55,.05); }
+  .ar-row { display:flex; gap:10px; align-items:flex-start; margin-bottom:10px; }
+  .ar-row:last-child { margin-bottom:0; }
+  .ar-label { font-size:11px; font-weight:800; color:var(--navy); min-width:70px;
+              text-transform:uppercase; letter-spacing:.4px; padding-top:1px; }
+  .ar-val { font-size:13px; font-weight:600; color:var(--text); flex:1; }
+  .ar-val.muted { color:var(--muted); font-weight:400; font-style:italic; }
+  .ar-note { font-size:11px; color:var(--muted); margin-top:8px; padding-top:8px;
+             border-top:1px solid var(--border); }
+  .ar-actions { display:flex; gap:8px; padding:12px 16px;
+                background:#fff; border-top:1px solid var(--border); }
+  .btn-ar-use { background:var(--success); color:#fff; border:none; border-radius:6px;
+                padding:9px 20px; font-size:13px; font-weight:700; cursor:pointer; }
+  .btn-ar-use:hover { background:#166534; }
+  .btn-ar-dismiss { background:#F3F4F6; color:var(--muted); border:1px solid var(--border);
+                    border-radius:6px; padding:9px 16px; font-size:13px; font-weight:600;
+                    cursor:pointer; }
+  .btn-ar-dismiss:hover { background:#E5E7EB; }
+  .analyze-spinner { display:none; font-size:12px; color:var(--muted); align-items:center; gap:8px; }
+  .analyze-spinner.show { display:flex; }
+  .spin-sm { width:14px; height:14px; border:2px solid #D1D5DB; border-top-color:var(--navy);
+             border-radius:50%; animation:spin .7s linear infinite; }
+
   /* ── Submit area ── */
   .submit-area { padding: 20px; }
   .actions { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -385,6 +424,49 @@
   <!-- ── Dokumentasi ── -->
   <div class="card">
     <div class="card-header gold">🖼️ Dokumentasi <span class="badge">Maks. 4 Gambar</span></div>
+
+    <!-- Bar analisa foto -->
+    <div class="analyze-bar">
+      <button type="button" class="btn-analyze" id="btn-analyze" onclick="analyzePhoto()">
+        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        Analisa Timestamp Foto
+      </button>
+      <span class="analyze-hint">Upload foto dulu, lalu klik untuk ekstrak tanggal & waktu otomatis</span>
+      <div class="analyze-spinner" id="analyze-spinner">
+        <div class="spin-sm"></div> Menganalisa foto...
+      </div>
+    </div>
+
+    <!-- Panel hasil analisa -->
+    <div class="analyze-result" id="analyze-result">
+      <div class="ar-header">🔍 Hasil Analisa Timestamp</div>
+      <div class="ar-body">
+        <div class="ar-row">
+          <span class="ar-label">Tanggal</span>
+          <span class="ar-val" id="ar-tanggal">—</span>
+        </div>
+        <div class="ar-row">
+          <span class="ar-label">Waktu</span>
+          <span class="ar-val" id="ar-waktu">—</span>
+        </div>
+        <div class="ar-row">
+          <span class="ar-label">Tempat</span>
+          <span class="ar-val" id="ar-tempat">—</span>
+        </div>
+        <div class="ar-note" id="ar-note"></div>
+      </div>
+      <div class="ar-actions">
+        <button type="button" class="btn-ar-use" onclick="useAnalyzeResult()">
+          ✅ Gunakan Data Ini
+        </button>
+        <button type="button" class="btn-ar-dismiss" onclick="dismissAnalyze()">
+          Tutup
+        </button>
+      </div>
+    </div>
+
     <div class="foto-grid">
       <div class="foto-slot">
         <div class="foto-preview" id="preview-1">
@@ -802,7 +884,126 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeTopup();
 });
 
+
+// ── Analisa Timestamp Foto ───────────────────────────────────────────────────
+let _analyzeResult = null;
+
+async function analyzePhoto() {
+  // Cari foto pertama yang sudah diupload
+  let fotoFile = null;
+  for (let i = 1; i <= 4; i++) {
+    const inp = document.getElementById('foto-input-' + i);
+    if (inp && inp.files && inp.files.length > 0) {
+      fotoFile = inp.files[0];
+      break;
+    }
+  }
+  if (!fotoFile) {
+    alert('Upload minimal 1 foto dulu sebelum menganalisa timestamp.');
+    return;
+  }
+
+  const btn     = document.getElementById('btn-analyze');
+  const spinner = document.getElementById('analyze-spinner');
+  const panel   = document.getElementById('analyze-result');
+
+  btn.disabled = true;
+  spinner.classList.add('show');
+  panel.classList.remove('show');
+  _analyzeResult = null;
+
+  try {
+    const fd = new FormData();
+    fd.append('foto', fotoFile);
+
+    const res  = await fetch('/api/analyze-photo', { method: 'POST', body: fd });
+    const json = await res.json();
+
+    if (!json.ok) {
+      alert('❌ ' + (json.error || 'Gagal menganalisa foto.'));
+      return;
+    }
+
+    const r = json.result;
+    _analyzeResult = r;
+
+    // Tampilkan hasil
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (val && val !== 'null') {
+        el.textContent = val;
+        el.className = 'ar-val';
+      } else {
+        el.textContent = 'Tidak ditemukan';
+        el.className = 'ar-val muted';
+      }
+    };
+
+    setVal('ar-tanggal', r.tanggal);
+    setVal('ar-waktu',   r.waktu);
+    setVal('ar-tempat',  r.tempat);
+
+    const noteEl = document.getElementById('ar-note');
+    noteEl.textContent = r.catatan ? '📝 ' + r.catatan : '';
+
+    if (!r.ditemukan) {
+      noteEl.textContent = '⚠️ Tidak ada timestamp yang tertulis di foto ini.';
+    }
+
+    panel.classList.add('show');
+  } catch(e) {
+    alert('❌ Koneksi gagal: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('show');
+  }
+}
+
+function useAnalyzeResult() {
+  if (!_analyzeResult) return;
+  const r = _analyzeResult;
+
+  // Fill tanggal
+  if (r.tanggal && r.tanggal !== 'null') {
+    const tanggalInp = document.querySelector('input[name="Tanggal Kegiatan"]');
+    if (tanggalInp) {
+      tanggalInp.value = r.tanggal;
+      tanggalInp.dispatchEvent(new Event('input'));
+    }
+  }
+
+  // Fill waktu
+  if (r.waktu && r.waktu !== 'null') {
+    const waktuInp = document.querySelector('input[name="Waktu Kegiatan"]');
+    if (waktuInp) {
+      waktuInp.value = r.waktu;
+      waktuInp.dispatchEvent(new Event('input'));
+    }
+  }
+
+  // Fill tempat
+  if (r.tempat && r.tempat !== 'null') {
+    const tempatInp = document.querySelector('input[name="Tempat Kegiatan"]');
+    if (tempatInp) {
+      tempatInp.value = r.tempat;
+      tempatInp.dispatchEvent(new Event('input'));
+    }
+  }
+
+  dismissAnalyze();
+
+  // Scroll ke section data kegiatan
+  const kegiatan = document.querySelector('input[name="Nama Kegiatan"]');
+  if (kegiatan) kegiatan.closest('.card').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function dismissAnalyze() {
+  document.getElementById('analyze-result').classList.remove('show');
+  _analyzeResult = null;
+}
+
 </script>
+
 
 
 <!-- ── Topup Modal ── -->

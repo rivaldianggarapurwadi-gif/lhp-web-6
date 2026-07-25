@@ -66,6 +66,9 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI  = os.environ.get("GOOGLE_REDIRECT_URI",
                                       "https://yourapp.railway.app/auth/google/callback")
 
+# Anthropic (untuk analisa foto timestamp)
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+
 # Midtrans
 MIDTRANS_SERVER_KEY  = os.environ.get("MIDTRANS_SERVER_KEY", "")
 MIDTRANS_CLIENT_KEY  = os.environ.get("MIDTRANS_CLIENT_KEY", "")
@@ -1138,6 +1141,105 @@ def admin_visitor_stats():
 # ══════════════════════════════════════════════════════════════════════════════
 # Routes — App (lookup + generate)
 # ══════════════════════════════════════════════════════════════════════════════
+
+
+@app.route('/api/analyze-photo', methods=['POST'])
+@login_required
+def api_analyze_photo():
+    if not ANTHROPIC_API_KEY:
+        return jsonify({'error': 'Fitur analisa foto belum dikonfigurasi.'}), 503
+
+    file = request.files.get('foto')
+    if not file or not file.filename:
+        return jsonify({'error': 'Tidak ada foto yang dikirim.'}), 400
+
+    import base64, urllib.request, tempfile
+    ext = os.path.splitext(secure_filename(file.filename))[1].lower() or '.jpg'
+    if ext not in {'.jpg', '.jpeg', '.png', '.heic', '.heif', '.webp'}:
+        return jsonify({'error': f'Format tidak didukung ({ext}).'}), 400
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, dir=UPLOAD_FOLDER)
+    file.save(tmp.name); tmp.close()
+    read_path = tmp.name
+
+    try:
+        if ext in ('.heic', '.heif'):
+            try:
+                from PIL import Image
+                with Image.open(tmp.name) as im:
+                    conv = tmp.name + '.jpg'
+                    im.convert('RGB').save(conv, 'JPEG', quality=90)
+                    read_path = conv
+            except Exception:
+                pass
+
+        with open(read_path, 'rb') as f_img:
+            img_b64 = base64.b64encode(f_img.read()).decode()
+
+        media_map = {'.jpg':'image/jpeg','.jpeg':'image/jpeg',
+                     '.png':'image/png','.webp':'image/webp'}
+        media_type = media_map.get(os.path.splitext(read_path)[1].lower(), 'image/jpeg')
+
+        prompt = (
+            "Analisa foto ini. Cari timestamp, tanggal, waktu, dan lokasi yang TERCETAK di foto.\n\n"
+            "Balas HANYA JSON (tanpa markdown):\n"
+            "{\n"
+            '  "ditemukan": true/false,\n'
+            '  "tanggal": "HARI, DD BULAN YYYY atau null",\n'
+            '  "waktu": "HH.MM WIB atau null",\n'
+            '  "tempat": "nama tempat atau null",\n'
+            '  "catatan": "penjelasan singkat"\n'
+            "}\n\n"
+            "Contoh output jika ada: {\"ditemukan\": true, \"tanggal\": \"MINGGU, 20 JULI 2025\", "
+            "\"waktu\": \"08.30 WIB\", \"tempat\": null, \"catatan\": \"Timestamp tercetak di sudut kiri bawah\"}\n"
+            "Jika tidak ada timestamp tertulis di foto: {\"ditemukan\": false, \"tanggal\": null, "
+            "\"waktu\": null, \"tempat\": null, \"catatan\": \"Tidak ada timestamp di foto\"}"
+        )
+
+        payload = json.dumps({
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 400,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": img_b64
+                    }},
+                    {"type": "text", "text": prompt}
+                ]
+            }]
+        }).encode()
+
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=payload, method='POST')
+        req.add_header('x-api-key', ANTHROPIC_API_KEY)
+        req.add_header('anthropic-version', '2023-06-01')
+        req.add_header('Content-Type', 'application/json')
+
+        with urllib.request.urlopen(req, timeout=30) as r:
+            resp = json.loads(r.read())
+
+        text = ''.join(b.get('text','') for b in resp.get('content',[]) if b.get('type')=='text').strip()
+        text = re.sub(r'^```[a-z]*\n?', '', text)
+        text = re.sub(r'```$', '', text).strip()
+        result = json.loads(text)
+        return jsonify({'ok': True, 'result': result})
+
+    except urllib.error.HTTPError as e:
+        app.logger.error("Anthropic error %s: %s", e.code, e.read().decode()[:300])
+        return jsonify({'error': f'API error {e.code}. Cek ANTHROPIC_API_KEY.'}), 500
+    except json.JSONDecodeError:
+        return jsonify({'error': 'Gagal memproses respons AI. Coba lagi.'}), 500
+    except Exception:
+        app.logger.error("analyze-photo:\n%s", traceback.format_exc())
+        return jsonify({'error': 'Terjadi kesalahan. Coba lagi.'}), 500
+    finally:
+        for p in [tmp.name, tmp.name + '.jpg']:
+            try: os.remove(p)
+            except: pass
 
 @app.route('/api/lookup')
 @login_required
