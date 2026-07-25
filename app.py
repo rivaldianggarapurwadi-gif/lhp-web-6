@@ -514,8 +514,31 @@ def _norm(jab):
     jab = re.sub(r'DANTONTAR', 'DANTON TAR', jab)
     return re.sub(r'\s+', ' ', jab)
 
+# Konversi angka kompi ke label sesuai tingkat
+# TK I & II : angka romawi  (1→I, 2→II, ...)
+# TK III    : huruf kapital (1→A, 2→B, ...)
+_TK3_KOMPI = {1:'A', 2:'B', 3:'C', 4:'D', 5:'E'}
+
+def _kompi_label(kompi_int, tingkat):
+    if str(tingkat) == '3':
+        return _TK3_KOMPI.get(int(kompi_int), str(kompi_int))
+    return to_roman(kompi_int)
+
+def _danton_jabatan(peleton, kompi_label, tingkat):
+    """Buat string jabatan Danton sesuai format tingkat."""
+    if str(tingkat) == '3':
+        # Format TK III: 'DANTON TAR 1A' (tanpa slash)
+        return f"DANTON TAR {peleton}{kompi_label}"
+    # Format TK I & II: 'DANTON TAR 1/I'
+    return f"DANTON TAR {peleton}/{kompi_label}"
+
+def _danki_jabatan(kompi_label, tingkat):
+    """Buat string jabatan Danki sesuai format tingkat."""
+    return f"DANKI TAR {kompi_label}"
+
 def lookup_danton(peleton, kompi, tingkat='2'):
-    target = f"DANTON TAR {peleton}/{to_roman(kompi)}"
+    kompi_label = _kompi_label(kompi, tingkat)
+    target      = _danton_jabatan(peleton, kompi_label, tingkat)
     for row in _load_xlsx_for_tingkat(tingkat):
         if _norm(row.get('JABATAN','')) == target:
             return {'Nama Danton': row.get('NAMA',''),
@@ -524,7 +547,8 @@ def lookup_danton(peleton, kompi, tingkat='2'):
     return None
 
 def lookup_danki(kompi, tingkat='2'):
-    target = f"DANKI TAR {to_roman(kompi)}"
+    kompi_label = _kompi_label(kompi, tingkat)
+    target      = _danki_jabatan(kompi_label, tingkat)
     for row in _load_xlsx_for_tingkat(tingkat):
         if _norm(row.get('JABATAN','')) == target:
             return {'Nama Danki': row.get('NAMA',''),
@@ -648,7 +672,6 @@ def fill_template(data, image_paths, output_path):
     pangkat        = data['Pangkat'].upper()
     pangkat_abbr   = pangkat_singkat(pangkat)
     peleton        = data['Peleton']
-    kompi_roman    = to_roman(data['Kompi'])
     nama_kegiatan  = data['Nama Kegiatan']
     tanggal_raw    = data['Tanggal Kegiatan']
     waktu_raw      = data['Waktu Kegiatan']
@@ -667,6 +690,9 @@ def fill_template(data, image_paths, output_path):
     angkatan_str = tk_cfg['angkatan']
     tk_suffix    = tk_cfg['tk_suffix']
 
+    # Kompi label: romawi untuk TK I & II, huruf untuk TK III
+    kompi_label  = _kompi_label(data['Kompi'], tingkat)
+
     hari, tgl_num, bulan_str, tahun_str = parse_tanggal(tanggal_raw)
     waktu_clean = parse_waktu(waktu_raw)
 
@@ -681,11 +707,11 @@ def fill_template(data, image_paths, output_path):
     simple = {
         'BATALYON TARUNA TK I/60/MS':             kop_baru,
         'LAPORAN KEGIATAN TARUNA TK. I/60/MS':    header_baru,
-        'DANTONTAR 1 KOMPI III':                  f'DANTONTAR {peleton} KOMPI {kompi_roman}',
+        'DANTONTAR 1 KOMPI III':                  f'DANTONTAR {peleton} KOMPI {kompi_label}',
         'TK I/60/MS YANG MEMBUAT LAPORAN':        f'{tk_suffix} YANG MEMBUAT LAPORAN',
         '(No. Ak. Panjang)':                      no_ak,
         '(Nama lengkap taruna)':                  nama,
-        'KOMPI III':                              f'KOMPI {kompi_roman}',
+        'KOMPI III':                              f'KOMPI {kompi_label}',
         'PLETON 1':                               f'PLETON {peleton}',
         '(Judul Kegiatan)':                       nama_kegiatan,
         '(Hari, Tanggal, pukul)':                 f'{tanggal_raw}, {waktu_raw}',
@@ -698,7 +724,7 @@ def fill_template(data, image_paths, output_path):
         'ABRIGTAR':                               pangkat_abbr,
         '(No Ak ttd)':                            no_ak,
         '(Nama Lengkap)':                         nama,
-        'DANKITAR III':                           f'DANKITAR {kompi_roman}',
+        'DANKITAR III':                           f'DANKITAR {kompi_label}',
         '(Nama lengkap dan gelar dankitar)':      nama_danki,
         '(Pangkat danki)':                        pangkat_danki,
         '(NRP Danki)':                            nrp_danki,
@@ -1127,7 +1153,9 @@ def api_lookup():
     danki  = lookup_danki(kompi, tingkat)
     return jsonify({
         'danton': danton, 'danki': danki,
-        'label':  f"DANTON TAR {peleton}/{to_roman(kompi)}  |  DANKI TAR {to_roman(kompi)}"
+        'label':  (f"DANTON TAR {peleton}/{_kompi_label(kompi,'2')}  |  DANKI TAR {_kompi_label(kompi,'2')}"
+                   if tingkat != '3' else
+                   f"DANTON TAR {peleton}{_kompi_label(kompi,'3')}  |  DANKI TAR {_kompi_label(kompi,'3')}")
                   if danton and danki else None,
     })
 
