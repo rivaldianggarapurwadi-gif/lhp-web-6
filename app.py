@@ -1012,9 +1012,13 @@ def topup_create():
         return jsonify({'ok': True, 'dev_mode': True,
                         'message': f'{pkg["tokens"]} token ditambahkan (dev mode)'})
     try:
+        # Pastikan email valid — fallback kalau kosong
+        user_email = (user.get('email') or user.get('google_email') or '').strip()
+        if not user_email or '@' not in user_email:
+            user_email = f"{user.get('username', 'user')}@lhpakpol.co"
         resp = _midtrans_create_transaction(
             order_id, pkg['price'],
-            user.get('name', ''), user.get('email', ''))
+            user.get('name', ''), user_email)
         # Snap API returns 'redirect_url' for full-page redirect
         snap_token   = resp.get('token', '')
         redirect_url = resp.get('redirect_url', '')
