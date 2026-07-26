@@ -56,7 +56,7 @@ _sys.stderr.flush()
 # ── Config ────────────────────────────────────────────────────────────────────
 ADMIN_USERNAME      = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD      = os.environ.get("ADMIN_PASSWORD", "admin123")
-TOKENS_NEW_USER     = 3          # token gratis saat daftar
+TOKENS_NEW_USER     = 1          # token gratis saat daftar
 TOKENS_WEEKLY_REGEN = 1          # token regen per minggu (hanya jika token == 0)
 TOKENS_PER_DOC      = 1
 
