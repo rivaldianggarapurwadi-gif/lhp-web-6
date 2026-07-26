@@ -668,6 +668,13 @@ const TINGKAT_INFO = {
   '3': { kop: 'BATALYON TARUNA TK III/59/BD', angkatan: 'ANGKATAN KE-59, BATALYON BHAYANGKARA DHARMA' },
 };
 
+// ── Komando edit mode state ──
+const KOMANDO_FIELDS = [
+  'f-nama-danton', 'f-pangkat-danton', 'f-nrp-danton',
+  'f-nama-danki',  'f-pangkat-danki',  'f-nrp-danki'
+];
+let komandoEditMode = false;
+
 function onTingkatChange() {
   const tk  = document.getElementById('f-tingkat').value;
   const cfg = TINGKAT_INFO[tk] || TINGKAT_INFO['2'];
@@ -709,12 +716,15 @@ async function doLookup() {
       return;
     }
     const d = json.danton, dk = json.danki;
-    document.getElementById('f-nama-danton').value    = d  ? d['Nama Danton']    : '⚠ Tidak ditemukan';
-    document.getElementById('f-pangkat-danton').value = d  ? d['Pangkat Danton'] : '';
-    document.getElementById('f-nrp-danton').value     = d  ? d['NRP Danton']     : '';
-    document.getElementById('f-nama-danki').value     = dk ? dk['Nama Danki']    : '⚠ Tidak ditemukan';
-    document.getElementById('f-pangkat-danki').value  = dk ? dk['Pangkat Danki'] : '';
-    document.getElementById('f-nrp-danki').value      = dk ? dk['NRP Danki']     : '';
+    // Hanya isi autofill kalau tidak sedang mode edit manual
+    if (!komandoEditMode) {
+      document.getElementById('f-nama-danton').value    = d  ? d['Nama Danton']    : '⚠ Tidak ditemukan';
+      document.getElementById('f-pangkat-danton').value = d  ? d['Pangkat Danton'] : '';
+      document.getElementById('f-nrp-danton').value     = d  ? d['NRP Danton']     : '';
+      document.getElementById('f-nama-danki').value     = dk ? dk['Nama Danki']    : '⚠ Tidak ditemukan';
+      document.getElementById('f-pangkat-danki').value  = dk ? dk['Pangkat Danki'] : '';
+      document.getElementById('f-nrp-danki').value      = dk ? dk['NRP Danki']     : '';
+    }
 
     if (json.label) {
       status.textContent = '✅  ' + json.label;
@@ -1081,12 +1091,6 @@ function dismissAnalyze() {
 
 
 // ── Toggle edit mode komando ─────────────────────────────────────────────────
-const KOMANDO_FIELDS = [
-  'f-nama-danton', 'f-pangkat-danton', 'f-nrp-danton',
-  'f-nama-danki',  'f-pangkat-danki',  'f-nrp-danki'
-];
-let komandoEditMode = false;
-
 function toggleKomandoEdit() {
   komandoEditMode = !komandoEditMode;
   const btn  = document.getElementById('btn-edit-komando');
@@ -1121,23 +1125,7 @@ function toggleKomandoEdit() {
   }
 }
 
-// Kalau autofill lookup berhasil, reset edit mode ke locked
-const _origDoLookup = doLookup;
-async function doLookup() {
-  await _origDoLookup();
-  // Setelah lookup selesai, kalau edit mode aktif biarkan — user sengaja edit
-  // Kalau tidak aktif, pastikan tetap readonly
-  if (!komandoEditMode) {
-    KOMANDO_FIELDS.forEach(id => {
-      const inp = document.getElementById(id);
-      if (inp) {
-        inp.setAttribute('readonly', true);
-        inp.classList.add('readonly');
-        inp.classList.remove('editable-komando');
-      }
-    });
-  }
-}
+
 
 </script>
 
