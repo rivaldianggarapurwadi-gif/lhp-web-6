@@ -1328,3 +1328,74 @@ def api_generate():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Route — Preview dokumen (tanpa token, render HTML)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/preview', methods=['POST'])
+@login_required
+def api_preview():
+    """Generate HTML preview dari data form. Tidak memotong token."""
+    fields = ['Nama','No Ak','Pangkat','Tingkat','Peleton','Kompi',
+              'Nama Danton','Pangkat Danton','NRP Danton',
+              'Nama Danki','Pangkat Danki','NRP Danki',
+              'Nama Kegiatan','Tanggal Kegiatan','Waktu Kegiatan','Tempat Kegiatan']
+    data = {}
+    for f in fields:
+        val = request.form.get(f, '').strip()
+        if not val:
+            return jsonify({'error': f'Field "{f}" tidak boleh kosong'}), 400
+        data[f] = val
+    if data['Tingkat'] not in ('1','2','3'):
+        return jsonify({'error': 'Tingkat tidak valid'}), 400
+
+    user = get_user(session['uid'])
+    user_name = user.get('name', session.get('name', '')) if user else ''
+
+    tingkat      = str(data['Tingkat'])
+    tk_cfg       = TINGKAT_CONFIG.get(tingkat, TINGKAT_CONFIG['2'])
+    kompi_label  = _kompi_label(data['Kompi'], tingkat)
+    pangkat      = data['Pangkat'].upper()
+    pangkat_abbr = pangkat_singkat(pangkat)
+
+    hari, tgl_num, bulan_str, tahun_str = parse_tanggal(data['Tanggal Kegiatan'])
+    waktu_clean  = parse_waktu(data['Waktu Kegiatan'])
+
+    uraian = (
+        f"PADA HARI {hari} TANGGAL {tgl_num} BULAN {bulan_str} "
+        f"TAHUN {tahun_str} PUKUL {waktu_clean} WIB, SAYA {data['Nama']} "
+        f"TARUNA AKPOL, PANGKAT {pangkat}, NO AKADEMI {data['No Ak']}, "
+        f"{tk_cfg['angkatan']}, "
+        f"TELAH MELAKSANAKAN KEGIATAN POSITIF BERUPA {data['Nama Kegiatan'].upper()}.-"
+    )
+
+    has_foto = any(request.files.get(f'foto_{i}') and request.files.get(f'foto_{i}').filename
+                   for i in range(1, 5))
+
+    html = render_template('preview.html',
+        kop        = tk_cfg['kop'],
+        header     = tk_cfg['header'],
+        tk_suffix  = tk_cfg['tk_suffix'],
+        nama       = data['Nama'],
+        no_ak      = data['No Ak'],
+        pangkat    = pangkat,
+        pangkat_abbr = pangkat_abbr,
+        peleton    = data['Peleton'],
+        kompi      = kompi_label,
+        nama_kegiatan = data['Nama Kegiatan'],
+        tanggal    = data['Tanggal Kegiatan'],
+        waktu      = data['Waktu Kegiatan'],
+        tempat     = data['Tempat Kegiatan'],
+        uraian     = uraian,
+        nama_danton    = data['Nama Danton'],
+        pangkat_danton = data['Pangkat Danton'],
+        nrp_danton     = data['NRP Danton'],
+        nama_danki     = data['Nama Danki'],
+        pangkat_danki  = data['Pangkat Danki'],
+        nrp_danki      = data['NRP Danki'],
+        has_foto   = has_foto,
+        user_name  = user_name,
+    )
+    return jsonify({'ok': True, 'html': html})
