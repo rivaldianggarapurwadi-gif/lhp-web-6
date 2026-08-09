@@ -696,6 +696,11 @@ def fill_template(data, image_paths, output_path):
     # Kompi label: romawi untuk TK I & II, huruf untuk TK III
     kompi_label  = _kompi_label(data['Kompi'], tingkat)
 
+    # Override sementara: Danki Kompi I TK II menggunakan jabatan DANKITAR IV
+    danki_kompi_label = kompi_label
+    if tingkat == '2' and str(data['Kompi']) == '1':
+        danki_kompi_label = 'IV'
+
     hari, tgl_num, bulan_str, tahun_str = parse_tanggal(tanggal_raw)
     waktu_clean = parse_waktu(waktu_raw)
 
@@ -727,7 +732,7 @@ def fill_template(data, image_paths, output_path):
         'ABRIGTAR':                               pangkat_abbr,
         '(No Ak ttd)':                            no_ak,
         '(Nama Lengkap)':                         nama,
-        'DANKITAR III':                           f'DANKITAR {kompi_label}',
+        'DANKITAR III':                           f'DANKITAR {danki_kompi_label}',
         '(Nama lengkap dan gelar dankitar)':      nama_danki,
         '(Pangkat danki)':                        pangkat_danki,
         '(NRP Danki)':                            nrp_danki,
