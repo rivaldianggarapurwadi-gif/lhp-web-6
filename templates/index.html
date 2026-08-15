@@ -1193,7 +1193,7 @@ function buildPreviewHTML(data, fotoUrls) {
   const kompi_int = parseInt(data.kompi) || 1;
   const kompiLabel = tk === '3' ? (KOMPI_III[kompi_int] || 'A') : (ROMAN[kompi_int] || 'I');
   // Override sementara: Danki Kompi I TK II → tampilkan sebagai DANKITAR IV
-  const dankiLabel = (tk === '2' && kompi_int === 1) ? 'IV' : kompiLabel;
+  const dankiLabel = (tk === '2' && kompi_int === 1) ? 'B' : kompiLabel;
   const abbr = PANGKAT_ABBR[data.pangkat] || data.pangkat;
 
   // Buat thumbnail foto (dari object URL, max 3)
