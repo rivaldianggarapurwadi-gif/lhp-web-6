@@ -699,7 +699,7 @@ def fill_template(data, image_paths, output_path):
     # Override sementara: Danki Kompi I TK II menggunakan jabatan DANKITAR B
     danki_kompi_label = kompi_label
     if tingkat == '2' and str(data['Kompi']) == '1':
-        danki_kompi_label = 'B'
+        danki_kompi_label = 'II'
 
     hari, tgl_num, bulan_str, tahun_str = parse_tanggal(tanggal_raw)
     waktu_clean = parse_waktu(waktu_raw)
