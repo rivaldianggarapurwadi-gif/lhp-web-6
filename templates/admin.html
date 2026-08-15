@@ -105,6 +105,49 @@
 </div>
 {% endif %}
 
+<!-- Buat Akun Baru -->
+<div class="card">
+  <div class="card-header">➕ Buat Akun Baru <small>Akun dibuat tanpa perlu Google OAuth</small></div>
+  <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:12px;align-items:end"
+       id="create-form-grid">
+    <div>
+      <div style="font-size:10px;font-weight:800;color:var(--navy);text-transform:uppercase;
+                  letter-spacing:.5px;margin-bottom:4px">Nama Lengkap</div>
+      <input type="text" id="new-name" placeholder="Nama lengkap"
+             style="width:100%;border:1.5px solid var(--border);border-radius:6px;
+                    padding:8px 10px;font-size:13px;background:var(--surface)">
+    </div>
+    <div>
+      <div style="font-size:10px;font-weight:800;color:var(--navy);text-transform:uppercase;
+                  letter-spacing:.5px;margin-bottom:4px">Username</div>
+      <input type="text" id="new-username" placeholder="username"
+             style="width:100%;border:1.5px solid var(--border);border-radius:6px;
+                    padding:8px 10px;font-size:13px;background:var(--surface)">
+    </div>
+    <div>
+      <div style="font-size:10px;font-weight:800;color:var(--navy);text-transform:uppercase;
+                  letter-spacing:.5px;margin-bottom:4px">Password</div>
+      <input type="text" id="new-password" placeholder="Min. 4 karakter"
+             style="width:100%;border:1.5px solid var(--border);border-radius:6px;
+                    padding:8px 10px;font-size:13px;background:var(--surface)">
+    </div>
+    <div>
+      <div style="font-size:10px;font-weight:800;color:var(--navy);text-transform:uppercase;
+                  letter-spacing:.5px;margin-bottom:4px">Token</div>
+      <input type="number" id="new-tokens" value="1" min="0" max="999"
+             style="width:72px;border:1.5px solid var(--border);border-radius:6px;
+                    padding:8px 10px;font-size:13px;background:var(--surface)">
+    </div>
+    <button onclick="createUser()"
+            style="background:var(--accent);color:#111;border:none;border-radius:6px;
+                   padding:9px 20px;font-size:13px;font-weight:800;cursor:pointer;
+                   white-space:nowrap;height:38px">
+      Buat Akun
+    </button>
+  </div>
+  <div id="create-msg" style="padding:0 20px 12px;font-size:12px;font-weight:600;min-height:20px"></div>
+</div>
+
 <!-- Visitor Stats -->
 <div class="card">
   <div class="card-header">📊 Statistik Pengunjung <small>auto-refresh setiap 60 detik</small></div>
@@ -278,6 +321,86 @@ async function refreshStats(){
   }catch(e){}
 }
 setInterval(refreshStats,60000);
+
+// ── Create user ───────────────────────────────────────────────────────────────
+async function createUser() {
+  const name     = document.getElementById('new-name').value.trim();
+  const username = document.getElementById('new-username').value.trim().toLowerCase();
+  const password = document.getElementById('new-password').value.trim();
+  const tokens   = parseInt(document.getElementById('new-tokens').value) || 1;
+  const msg      = document.getElementById('create-msg');
+
+  if (!name || !username || !password) {
+    msg.style.color = 'var(--danger)'; msg.textContent = '❌ Semua field harus diisi'; return;
+  }
+  msg.style.color = 'var(--muted)'; msg.textContent = '⏳ Memproses...';
+
+  try {
+    const res  = await fetch('/api/admin/create-user', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, username, password, tokens})
+    });
+    if (res.status === 401) { window.location.href = '/login-admin'; return; }
+    const json = await res.json();
+    if (json.ok) {
+      msg.style.color = 'var(--success)';
+      msg.textContent = `✅ Akun "${json.user.name}" (${json.user.username}) berhasil dibuat — ${json.user.tokens} token`;
+      document.getElementById('new-name').value = '';
+      document.getElementById('new-username').value = '';
+      document.getElementById('new-password').value = '';
+      document.getElementById('new-tokens').value = '1';
+      // Tambah baris ke tabel tanpa reload
+      addUserRow(json.user);
+    } else {
+      msg.style.color = 'var(--danger)';
+      msg.textContent = '❌ ' + (json.error || 'Gagal membuat akun');
+    }
+  } catch(e) {
+    msg.style.color = 'var(--danger)'; msg.textContent = '❌ Koneksi gagal: ' + e.message;
+  }
+}
+
+function addUserRow(u) {
+  const tbody = document.getElementById('user-table');
+  if (!tbody) { location.reload(); return; }
+  const tr = document.createElement('tr');
+  tr.id = 'row-' + u.username;
+  tr.innerHTML = `
+    <td><strong>${u.name}</strong><span class="g-email">${u.username}@lhpakpol.co</span></td>
+    <td><span class="mono">${u.username}</span></td>
+    <td>
+      <div class="pwd-cell" id="pwd-cell-${u.username}">
+        <span class="pwd-dots">••••••</span>
+        <button class="btn-xs b-pwd" onclick="openPwd('${u.username}')">✏️ Ubah</button>
+      </div>
+      <div class="p-edit" id="p-edit-${u.username}">
+        <input type="text" id="p-inp-${u.username}" placeholder="Password baru (min 4)">
+        <button class="btn-xs b-save" onclick="savePwd('${u.username}')">✓</button>
+        <button class="btn-xs b-cancel" onclick="closePwd('${u.username}')">✕</button>
+      </div>
+    </td>
+    <td>
+      <div class="token-cell">
+        <span class="token-pill ${u.tokens===0?'empty':''}" id="tp-${u.username}"
+              onclick="openToken('${u.username}',${u.tokens})">🪙 ${u.tokens}</span>
+        <div class="t-edit" id="te-${u.username}">
+          <input type="number" id="ti-${u.username}" min="0" max="999" value="${u.tokens}">
+          <button class="btn-xs b-save" onclick="saveToken('${u.username}')">✓</button>
+          <button class="btn-xs b-cancel" onclick="closeToken('${u.username}')">✕</button>
+        </div>
+      </div>
+    </td>
+    <td class="date">${u.created_at ? u.created_at.slice(0,10) : '—'}</td>
+    <td>
+      <div class="actions">
+        <button class="btn-xs b-reset" onclick="resetToken('${u.username}')">🔄 Reset</button>
+        <button class="btn-xs b-del" onclick="delUser('${u.username}','${u.name}')">🗑 Hapus</button>
+      </div>
+    </td>`;
+  tbody.insertBefore(tr, tbody.firstChild);
+}
+
 </script>
+
 </body>
 </html>

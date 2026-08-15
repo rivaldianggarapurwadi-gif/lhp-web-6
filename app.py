@@ -1083,6 +1083,51 @@ def admin_panel():
                            data_dir=DATA_DIR,
                            visitor_stats=stats)
 
+@app.route('/api/admin/create-user', methods=['POST'])
+@admin_required
+def admin_create_user():
+    from werkzeug.security import generate_password_hash
+    data     = request.get_json() or {}
+    name     = data.get('name', '').strip()
+    username = data.get('username', '').strip().lower()
+    password = data.get('password', '').strip()
+    tokens   = int(data.get('tokens', TOKENS_NEW_USER))
+
+    if not name or not username or not password:
+        return jsonify({'error': 'Semua field harus diisi'}), 400
+    if not re.match(r'^[a-z0-9._-]{3,30}$', username):
+        return jsonify({'error': 'Username hanya huruf kecil, angka, titik, underscore (3–30 karakter)'}), 400
+    if len(password) < 4:
+        return jsonify({'error': 'Password minimal 4 karakter'}), 400
+
+    users = _load_users()
+    if username in users:
+        return jsonify({'error': 'Username sudah digunakan'}), 400
+
+    now = datetime.now(timezone.utc).isoformat()
+    users[username] = {
+        'uid':          username,
+        'username':     username,
+        'name':         name,
+        'password':     generate_password_hash(password),
+        'google_id':    f'admin_created_{username}',
+        'google_email': f'{username}@lhpakpol.co',
+        'email':        f'{username}@lhpakpol.co',
+        'picture':      '',
+        'tokens':       tokens,
+        'created_at':   now,
+        'last_regen':   now,
+        'created_by':   'admin',
+    }
+    _save_users(users)
+    app.logger.info("Admin created user: %s", username)
+    return jsonify({'ok': True, 'user': {
+        'username':   username,
+        'name':       name,
+        'tokens':     tokens,
+        'created_at': now,
+    }})
+
 @app.route('/api/admin/delete-user', methods=['POST'])
 @admin_required
 def admin_delete_user():
