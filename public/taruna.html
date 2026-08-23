@@ -5,52 +5,64 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ceko -- Taruna</title>
 <style>
+  /* Deliberately not the Ceko palette -- warm olive/amber instead of cool
+     blue, a stencilled header instead of a dashboard one, so which account
+     type you're looking at is obvious before you've read a word of copy. */
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
   body {
     margin: 0; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #0f1115; color: #e6e8eb;
+    background: #14140e; color: #ece6d3;
   }
   header {
-    padding: 10px 16px; border-bottom: 1px solid #2a2d34; display: flex;
-    align-items: center; gap: 12px; font-size: 13px; color: #9aa1ac;
+    padding: 14px 16px; border-bottom: 2px solid #4a4326; display: flex;
+    align-items: center; gap: 12px; font-size: 13px; color: #a89a68;
+    background: linear-gradient(180deg, #1c1a10, #14140e);
   }
-  header b { color: #e6e8eb; }
+  header .badge-mark {
+    font-family: ui-monospace, "SF Mono", monospace; font-weight: 700; font-size: 11px;
+    letter-spacing: .12em; color: #14140e; background: #d1a730;
+    border-radius: 4px; padding: 3px 8px;
+  }
+  header b { color: #ece6d3; }
   #status-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; display: inline-block; }
-  #status-dot.ok { background: #3ddc84; }
-  #status-dot.bad { background: #e5534b; }
+  #status-dot.ok { background: #7fae4a; }
+  #status-dot.bad { background: #c1502e; }
   main { max-width: 980px; margin: 0 auto; padding: 20px 16px; }
-  .hint { color: #9aa1ac; font-size: 13px; margin: 0 0 16px; }
-  .hint code { background: #1b1e24; padding: 1px 5px; border-radius: 3px; }
+  .hint { color: #a89a68; font-size: 13px; margin: 0 0 16px; }
+  .hint code { background: #221f13; padding: 1px 5px; border-radius: 3px; }
   .warning {
-    background: #35201d; border: 1px solid #8a2b25; color: #ffb4a8;
+    background: #241d0c; border: 1px solid #6b5620; color: #e8cf8f;
     border-radius: 8px; padding: 12px 14px; font-size: 13px; margin-bottom: 16px;
   }
-  section { background: #161920; border: 1px solid #2a2d34; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-  h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: #9aa1ac; }
+  section { background: #1c1a10; border: 1px solid #3a3420; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  h2 {
+    margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .1em;
+    color: #c9a94a; font-family: ui-monospace, "SF Mono", monospace;
+  }
   input, button, textarea {
-    font: inherit; background: #0f1115; color: #e6e8eb; border: 1px solid #2a2d34;
-    border-radius: 6px; padding: 7px 10px;
+    font: inherit; background: #14140e; color: #ece6d3; border: 1px solid #3a3420;
+    border-radius: 4px; padding: 7px 10px;
   }
   input { width: 200px; }
   button {
-    background: #2f6fed; border-color: #2f6fed; color: white; cursor: pointer; font-weight: 500;
+    background: #b3872b; border-color: #b3872b; color: #14140e; cursor: pointer; font-weight: 600;
   }
-  button.secondary { background: transparent; color: #e6e8eb; border-color: #3a3f4a; }
-  button.pending-btn { background: #b8860b; border-color: #b8860b; }
+  button.secondary { background: transparent; color: #ece6d3; border-color: #4a4326; }
+  button.pending-btn { background: #8a6d1f; border-color: #8a6d1f; color: #f5e9c4; }
   button:disabled { opacity: .5; cursor: default; }
-  button:hover:not(:disabled) { filter: brightness(1.1); }
+  button:hover:not(:disabled) { filter: brightness(1.15); }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-  .error { color: #ff8a80; font-size: 13px; margin-top: 6px; min-height: 1em; }
-  .muted { color: #9aa1ac; font-size: 12px; }
+  .error { color: #e8967a; font-size: 13px; margin-top: 6px; min-height: 1em; }
+  .muted { color: #a89a68; font-size: 12px; }
   .tag-pill {
-    font-family: ui-monospace, monospace; background: #1b1e24; border: 1px solid #2a2d34;
+    font-family: ui-monospace, monospace; background: #221f13; border: 1px solid #3a3420;
     border-radius: 4px; padding: 2px 8px; letter-spacing: .05em;
   }
   ul.list { list-style: none; margin: 0; padding: 0; }
   ul.list li {
     display: flex; justify-content: space-between; align-items: center; gap: 8px;
-    padding: 8px 0; border-bottom: 1px solid #1e2128;
+    padding: 8px 0; border-bottom: 1px solid #2a2716;
   }
   ul.list li:last-child { border-bottom: none; }
   #app { display: none; }
@@ -59,17 +71,17 @@
   .layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
   #conv-header { font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
   #messages { height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
-  .msg { max-width: 75%; padding: 6px 10px; border-radius: 10px; background: #1b1e24; align-self: flex-start; }
-  .msg.mine { align-self: flex-end; background: #1e3a6e; }
-  .msg .meta { font-size: 11px; color: #9aa1ac; margin-top: 2px; }
+  .msg { max-width: 75%; padding: 6px 10px; border-radius: 8px; background: #221f13; align-self: flex-start; }
+  .msg.mine { align-self: flex-end; background: #3a2f10; }
+  .msg .meta { font-size: 11px; color: #a89a68; margin-top: 2px; }
   #compose { display: flex; gap: 8px; }
   #compose textarea { flex: 1; resize: none; height: 40px; }
   .conv-item { cursor: pointer; }
-  .conv-item.active { color: #6ea1ff; }
-  .badge { background: #2f6fed; color: white; border-radius: 10px; padding: 0 6px; font-size: 11px; }
-  .badge.pending { background: #b8860b; }
+  .conv-item.active { color: #d1a730; }
+  .badge { background: #b3872b; color: #14140e; border-radius: 10px; padding: 0 6px; font-size: 11px; font-weight: 600; }
+  .badge.pending { background: #8a6d1f; color: #f5e9c4; }
   #pending-banner {
-    background: #2a2306; border: 1px solid #b8860b; border-radius: 6px;
+    background: #241d0c; border: 1px solid #8a6d1f; border-radius: 6px;
     padding: 10px 12px; margin-bottom: 10px; font-size: 13px; display: none;
   }
 </style>
@@ -78,7 +90,8 @@
 
 <header>
   <span id="status-dot"></span>
-  <span>Ceko -- <b>Taruna</b> -- <b id="instance-name">connecting...</b></span>
+  <span class="badge-mark">TARUNA</span>
+  <span>Ceko cadet access -- <b id="instance-name">connecting...</b></span>
   <span id="whoami" class="muted" style="margin-left:auto"></span>
   <button id="logout-btn" class="secondary" style="display:none">Log out</button>
 </header>
