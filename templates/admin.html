@@ -6,81 +6,130 @@
 <title>Admin Panel — LHP AKPOL</title>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  :root{--navy:#0D2B45;--accent:#D4AF37;--white:#fff;--surface:#F3F4F6;
-        --text:#2B2B2B;--muted:#6B7280;--border:#D1D5DB;
-        --danger:#B91C1C;--success:#15803D;--info:#1D4ED8}
-  body{font-family:'Segoe UI',Arial,sans-serif;background:var(--surface);color:var(--text);min-height:100vh}
-  header{background:#111;color:#fff;height:60px;display:flex;align-items:center;
-         padding:0 24px;gap:14px;border-bottom:3px solid var(--accent);position:sticky;top:0;z-index:100}
-  header img{height:38px;width:38px;object-fit:contain}
-  header h1{font-size:16px;font-weight:800}
-  .badge-admin{background:var(--accent);color:#111;font-size:10px;font-weight:800;padding:3px 10px;border-radius:20px}
-  header a{margin-left:auto;color:#A8C4E8;font-size:12px;text-decoration:none}
-  header a:hover{color:#fff}
-  main{max-width:1020px;margin:28px auto;padding:0 16px 60px}
-  .card{background:#fff;border:1px solid var(--border);border-radius:10px;margin-bottom:20px;
-        overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
-  .card-header{background:var(--navy);color:#fff;padding:11px 18px;font-weight:700;font-size:12px;
-               letter-spacing:.6px;text-transform:uppercase;border-left:4px solid var(--accent);
-               display:flex;align-items:center;justify-content:space-between}
-  .card-header small{font-size:11px;font-weight:400;color:#A8C4E8;text-transform:none;letter-spacing:0}
-  .info-bar{padding:12px 18px;font-size:13px;font-weight:700}
-  .info-ok{color:var(--success)} .info-warn{color:var(--danger)}
-  /* Stats */
-  .stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;padding:16px}
-  @media(max-width:680px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
-  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center}
-  .stat-num{font-size:26px;font-weight:800;color:var(--navy);line-height:1}
-  .stat-label{font-size:10px;color:var(--muted);margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-  /* Chart */
-  .chart-wrap{padding:0 16px 16px}
-  .chart-bars{display:flex;align-items:flex-end;gap:3px;height:72px;border-bottom:1px solid var(--border)}
-  .bar{flex:1;background:var(--accent);border-radius:3px 3px 0 0;min-height:2px;position:relative;cursor:default}
-  .bar:hover{opacity:.75}
-  .bar-tip{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);
-            background:#111;color:#fff;font-size:10px;padding:3px 7px;border-radius:4px;
-            white-space:nowrap;display:none;z-index:10}
+  :root{--ink:#1d1d1f;--deep-gray:#474747;--mid-gray:#707070;--hairline:#d6d6d6;
+        --cool-wash:#e8e8ed;--canvas:#f5f5f7;--paper:#fff;--nav-elev:#fafafc;
+        --blue:#0071e3;--blue-hover:#0077ed;--link:#0066cc;
+        --ember:#b64400;--danger:#b64400;--success:#1d7f4c;--info:#0066cc;
+        --accent:#0071e3;--navy:#1d1d1f;--border:#d6d6d6;--surface:#f5f5f7;--white:#fff;
+        --text:#1d1d1f;--muted:#707070;
+        --font-display:'SF Pro Display',-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;
+        --font-text:'SF Pro Text',-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif}
+  html{-webkit-font-smoothing:antialiased}
+  body{font-family:var(--font-text);background:var(--canvas);color:var(--ink);
+       font-size:17px;line-height:1.47;letter-spacing:-.022em;min-height:100vh;
+       font-feature-settings:"numr"}
+
+  header{position:sticky;top:0;z-index:60;height:52px;background:rgba(250,250,252,.82);
+         backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+         border-bottom:1px solid rgba(0,0,0,.06);
+         display:flex;align-items:center;padding:0 24px;gap:12px}
+  header img{height:26px;width:26px;object-fit:contain}
+  header h1{font-family:var(--font-display);font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .badge-admin{background:var(--cool-wash);color:var(--deep-gray);font-size:11px;
+               font-weight:500;padding:4px 12px;border-radius:36px;letter-spacing:.02em}
+  header a{margin-left:auto;color:var(--deep-gray);font-size:12px;text-decoration:none}
+  header a:hover{color:var(--ink)}
+
+  main{max-width:1100px;margin:0 auto;padding:40px 24px 96px}
+
+  .card{background:var(--paper);border-radius:28px;margin-bottom:20px;overflow:hidden}
+  .card-header{font-family:var(--font-display);font-size:24px;font-weight:600;
+               letter-spacing:.007em;color:var(--ink);padding:32px 32px 0;
+               display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .card-header small{font-size:14px;font-weight:400;color:var(--mid-gray);letter-spacing:-.01em}
+  .info-bar{padding:22px 32px;font-size:17px;letter-spacing:-.01em}
+  .info-ok{color:var(--success)} .info-warn{color:var(--ember)}
+
+  .stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;padding:26px 32px 8px}
+  @media(max-width:820px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+  .stat-card{background:var(--canvas);border-radius:20px;padding:22px 18px}
+  .stat-num{font-family:var(--font-display);font-size:34px;font-weight:600;
+            color:var(--ink);line-height:1;letter-spacing:-.02em}
+  .stat-label{font-size:13px;color:var(--mid-gray);margin-top:6px;letter-spacing:-.01em}
+
+  .chart-wrap{padding:20px 32px 32px}
+  .chart-bars{display:flex;align-items:flex-end;gap:4px;height:76px;
+              border-bottom:1px solid var(--hairline)}
+  .bar{flex:1;background:var(--ink);border-radius:4px 4px 0 0;min-height:2px;
+       position:relative;opacity:.82;transition:opacity .18s}
+  .bar:hover{opacity:1}
+  .bar-tip{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+           background:var(--ink);color:#fff;font-size:11px;padding:4px 9px;border-radius:8px;
+           white-space:nowrap;display:none;z-index:10}
   .bar:hover .bar-tip{display:block}
-  .chart-labels{display:flex;gap:3px;padding:4px 0 0}
-  .chart-label{flex:1;font-size:9px;color:var(--muted);text-align:center}
-  /* Table */
-  .table-wrap{overflow-x:auto}
-  table{width:100%;border-collapse:collapse;min-width:720px}
-  th{background:#F8F9FB;padding:10px 14px;font-size:11px;font-weight:800;color:var(--navy);
-     text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--border);text-align:left;white-space:nowrap}
-  td{padding:10px 14px;font-size:13px;border-bottom:1px solid #F0F0F0;vertical-align:middle}
+  .chart-labels{display:flex;gap:4px;padding:8px 0 0}
+  .chart-label{flex:1;font-size:10px;color:var(--mid-gray);text-align:center}
+
+  .table-wrap{overflow-x:auto;padding:8px 0 12px}
+  table{width:100%;border-collapse:collapse;min-width:740px}
+  th{padding:16px 20px;font-size:13px;font-weight:400;color:var(--mid-gray);
+     border-bottom:1px solid var(--hairline);text-align:left;white-space:nowrap;letter-spacing:-.01em}
+  th:first-child,td:first-child{padding-left:32px}
+  th:last-child,td:last-child{padding-right:32px}
+  td{padding:16px 20px;font-size:17px;border-bottom:1px solid var(--canvas);vertical-align:middle}
   tr:last-child td{border-bottom:none}
-  tr:hover td{background:#FAFBFC}
-  .avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px}
-  .g-email{font-size:11px;color:var(--muted);display:block;margin-top:1px}
-  .mono{font-family:monospace;font-size:12px;color:var(--muted)}
-  .date{font-size:11px;color:var(--muted)}
-  /* Token pill */
-  .token-cell{display:flex;align-items:center;gap:6px}
-  .token-pill{background:rgba(212,175,55,.15);border:1px solid var(--accent);color:#8B6914;
-              border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700;
-              cursor:pointer;white-space:nowrap}
-  .token-pill:hover{background:rgba(212,175,55,.3)}
-  .token-pill.empty{background:#FEF2F2;border-color:#FCA5A5;color:var(--danger)}
-  .t-edit{display:none;align-items:center;gap:4px}
-  .t-edit input{width:56px;border:1.5px solid var(--accent);border-radius:4px;
-                padding:3px 6px;font-size:12px;font-weight:700;text-align:center}
+  tr:hover td{background:var(--nav-elev)}
+  .avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;
+          vertical-align:middle;margin-right:9px}
+  .g-email{font-size:13px;color:var(--mid-gray);display:block;margin-top:2px}
+  .mono{font-size:15px;color:var(--mid-gray)}
+  .date{font-size:14px;color:var(--mid-gray)}
+
+  .token-cell{display:flex;align-items:center;gap:8px}
+  .token-pill{background:var(--cool-wash);color:var(--ink);border-radius:980px;
+              padding:5px 14px;font-size:15px;cursor:pointer;white-space:nowrap;
+              transition:background .18s;letter-spacing:-.01em}
+  .token-pill:hover{background:#dcdce2}
+  .token-pill.empty{background:#fff4ed;color:var(--ember)}
+  .t-edit{display:none;align-items:center;gap:6px}
+  .t-edit input{width:64px;border:1px solid var(--blue);border-radius:10px;padding:6px 8px;
+                font-family:var(--font-text);font-size:15px;text-align:center;
+                box-shadow:0 0 0 3px rgba(0,113,227,.12)}
   .t-edit input:focus{outline:none}
-  /* Pwd */
-  .pwd-cell{display:flex;align-items:center;gap:6px}
-  .pwd-dots{color:var(--muted);letter-spacing:2px;font-size:14px}
-  .p-edit{display:none;align-items:center;gap:4px}
-  .p-edit input{width:110px;border:1.5px solid var(--border);border-radius:4px;padding:3px 8px;font-size:12px}
-  .p-edit input:focus{outline:none;border-color:var(--accent)}
-  /* Btns */
-  .btn-xs{border:none;border-radius:4px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
-  .b-save{background:var(--success);color:#fff}.b-save:hover{background:#166534}
-  .b-cancel{background:#E5E7EB;color:var(--text)}.b-cancel:hover{background:#D1D5DB}
-  .b-reset{background:#EFF6FF;color:var(--info)}.b-reset:hover{background:#DBEAFE}
-  .b-pwd{background:#F5F3FF;color:#6D28D9}.b-pwd:hover{background:#EDE9FE}
-  .b-del{background:#FEF2F2;color:var(--danger)}.b-del:hover{background:#FEE2E2}
-  .actions{display:flex;gap:4px;flex-wrap:wrap}
-  .empty-state{text-align:center;padding:40px;color:var(--muted);font-size:14px}
+
+  .pwd-cell{display:flex;align-items:center;gap:8px}
+  .pwd-dots{color:var(--mid-gray);letter-spacing:2px;font-size:15px}
+  .p-edit{display:none;align-items:center;gap:6px}
+  .p-edit input{width:140px;border:1px solid var(--hairline);border-radius:10px;
+                padding:6px 10px;font-family:var(--font-text);font-size:15px}
+  .p-edit input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,113,227,.12)}
+
+  .btn-xs{border:none;border-radius:980px;padding:6px 14px;font-size:14px;
+          font-family:var(--font-text);letter-spacing:-.01em;cursor:pointer;white-space:nowrap;
+          background:transparent;color:var(--link)}
+  .btn-xs:hover{text-decoration:underline}
+  .b-save{background:var(--blue);color:#fff}
+  .b-save:hover{background:var(--blue-hover);text-decoration:none}
+  .b-cancel{background:var(--cool-wash);color:var(--deep-gray)}
+  .b-cancel:hover{background:#dcdce2;text-decoration:none}
+  .b-reset,.b-pwd{color:var(--link)}
+  .b-del{color:var(--ember)}
+  .actions{display:flex;gap:6px;flex-wrap:wrap}
+
+  .empty-state{text-align:center;padding:56px 32px;color:var(--mid-gray);font-size:17px}
+
+  /* create-user form */
+  #create-form-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto auto;
+                    gap:14px;align-items:end;padding:26px 32px 8px}
+  @media(max-width:900px){ #create-form-grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:560px){ #create-form-grid{grid-template-columns:1fr}}
+  #create-form-grid > div > div:first-child{font-size:14px;color:var(--mid-gray);
+                                            margin-bottom:7px;letter-spacing:-.01em}
+  #create-form-grid input{width:100%;border:1px solid var(--hairline);border-radius:12px;
+                          padding:12px 14px;font-family:var(--font-text);font-size:17px;
+                          letter-spacing:-.022em;color:var(--ink);background:var(--paper);
+                          transition:border-color .18s,box-shadow .18s}
+  #create-form-grid input:focus{outline:none;border-color:var(--blue);
+                                box-shadow:0 0 0 4px rgba(0,113,227,.12)}
+  #create-form-grid button{background:var(--blue);color:#fff;border:none;border-radius:980px;
+                           padding:12px 24px;font-family:var(--font-text);font-size:17px;
+                           letter-spacing:-.022em;cursor:pointer;white-space:nowrap;
+                           transition:background .2s}
+  #create-form-grid button:hover{background:var(--blue-hover)}
+  #create-msg{padding:0 32px 26px;font-size:14px;min-height:22px;letter-spacing:-.01em}
+
+  :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 <link rel="icon" type="image/png" href="/static/logo.png">
 <link rel="apple-touch-icon" href="/static/logo.png">
@@ -88,89 +137,71 @@
 <body>
 <header>
   <img src="/static/logo.png" alt="AKPOL">
-  <h1>Admin Panel — LHP AKPOL</h1>
-  <span class="badge-admin">ADMIN</span>
+  <h1>Panel admin</h1>
+  <span class="badge-admin">Admin</span>
   <a href="/logout">Keluar</a>
 </header>
 <main>
 
 {% if storage_persistent %}
-<div class="card" style="border-left:4px solid var(--success)">
-  <div class="info-bar info-ok">✅ Penyimpanan persisten aktif
+<div class="card">
+  <div class="info-bar info-ok">Penyimpanan persisten aktif
     <span style="color:var(--muted);font-weight:400;font-size:11px">({{ data_dir }})</span></div>
 </div>
 {% else %}
-<div class="card" style="border-left:4px solid var(--danger)">
-  <div class="info-bar info-warn">⚠️ Data di disk sementara — akan hilang saat redeploy. Pasang Railway Volume.</div>
+<div class="card">
+  <div class="info-bar info-warn">Data tersimpan di disk sementara dan akan hilang saat redeploy. Pasang Railway Volume untuk menyimpannya permanen.</div>
 </div>
 {% endif %}
 
-<!-- Buat Akun Baru -->
+<!-- Buat akun -->
 <div class="card">
-  <div class="card-header">➕ Buat Akun Baru <small>Akun dibuat tanpa perlu Google OAuth</small></div>
-  <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:12px;align-items:end"
-       id="create-form-grid">
+  <div class="card-header">Buat akun<small>Tanpa perlu Google</small></div>
+  <div id="create-form-grid">
     <div>
-      <div style="font-size:10px;font-weight:800;color:var(--navy);text-transform:uppercase;
-                  letter-spacing:.5px;margin-bottom:4px">Nama Lengkap</div>
-      <input type="text" id="new-name" placeholder="Nama lengkap"
-             style="width:100%;border:1.5px solid var(--border);border-radius:6px;
-                    padding:8px 10px;font-size:13px;background:var(--surface)">
+      <div>Nama lengkap</div>
+      <input type="text" id="new-name" placeholder="Nama taruna">
     </div>
     <div>
-      <div style="font-size:10px;font-weight:800;color:var(--navy);text-transform:uppercase;
-                  letter-spacing:.5px;margin-bottom:4px">Username</div>
-      <input type="text" id="new-username" placeholder="username"
-             style="width:100%;border:1.5px solid var(--border);border-radius:6px;
-                    padding:8px 10px;font-size:13px;background:var(--surface)">
+      <div>Username</div>
+      <input type="text" id="new-username" placeholder="username">
     </div>
     <div>
-      <div style="font-size:10px;font-weight:800;color:var(--navy);text-transform:uppercase;
-                  letter-spacing:.5px;margin-bottom:4px">Password</div>
-      <input type="text" id="new-password" placeholder="Min. 4 karakter"
-             style="width:100%;border:1.5px solid var(--border);border-radius:6px;
-                    padding:8px 10px;font-size:13px;background:var(--surface)">
+      <div>Password</div>
+      <input type="text" id="new-password" placeholder="Minimal 4 karakter">
     </div>
     <div>
-      <div style="font-size:10px;font-weight:800;color:var(--navy);text-transform:uppercase;
-                  letter-spacing:.5px;margin-bottom:4px">Token</div>
-      <input type="number" id="new-tokens" value="1" min="0" max="999"
-             style="width:72px;border:1.5px solid var(--border);border-radius:6px;
-                    padding:8px 10px;font-size:13px;background:var(--surface)">
+      <div>Token</div>
+      <input type="number" id="new-tokens" value="1" min="0" max="999" style="width:88px">
     </div>
-    <button onclick="createUser()"
-            style="background:var(--accent);color:#111;border:none;border-radius:6px;
-                   padding:9px 20px;font-size:13px;font-weight:800;cursor:pointer;
-                   white-space:nowrap;height:38px">
-      Buat Akun
-    </button>
+    <button onclick="createUser()">Buat akun</button>
   </div>
-  <div id="create-msg" style="padding:0 20px 12px;font-size:12px;font-weight:600;min-height:20px"></div>
+  <div id="create-msg"></div>
 </div>
 
 <!-- Visitor Stats -->
 <div class="card">
-  <div class="card-header">📊 Statistik Pengunjung <small>auto-refresh setiap 60 detik</small></div>
+  <div class="card-header">Pengunjung<small>Diperbarui tiap menit</small></div>
   <div class="stats-grid">
     <div class="stat-card">
       <div class="stat-num" id="s-total">{{ visitor_stats.total }}</div>
-      <div class="stat-label">Total Kunjungan</div>
+      <div class="stat-label">Total kunjungan</div>
     </div>
     <div class="stat-card">
       <div class="stat-num" id="s-unique">{{ visitor_stats.unique }}</div>
-      <div class="stat-label">IP Unik</div>
+      <div class="stat-label">IP unik</div>
     </div>
     <div class="stat-card">
-      <div class="stat-num" id="s-today" style="color:#059669">{{ visitor_stats.today }}</div>
-      <div class="stat-label">Hari Ini</div>
+      <div class="stat-num" id="s-today">{{ visitor_stats.today }}</div>
+      <div class="stat-label">Hari ini</div>
     </div>
     <div class="stat-card">
       <div class="stat-num" id="s-yesterday">{{ visitor_stats.yesterday }}</div>
       <div class="stat-label">Kemarin</div>
     </div>
     <div class="stat-card">
-      <div class="stat-num" id="s-week" style="color:var(--info)">{{ visitor_stats.this_week }}</div>
-      <div class="stat-label">7 Hari Ini</div>
+      <div class="stat-num" id="s-week">{{ visitor_stats.this_week }}</div>
+      <div class="stat-label">7 hari terakhir</div>
     </div>
   </div>
   {% if visitor_stats.daily %}
@@ -180,7 +211,7 @@
     <div class="chart-bars">
       {% for date,count in visitor_stats.daily %}
       <div class="bar" style="height:{{ [((count/max_v.val)*70)|int, 2]|max }}px">
-        <div class="bar-tip">{{ date[5:] }}: {{ count }}×</div>
+        <div class="bar-tip">{{ date[5:] }} — {{ count }} kunjungan</div>
       </div>
       {% endfor %}
     </div>
@@ -195,12 +226,12 @@
 
 <!-- User Table -->
 <div class="card">
-  <div class="card-header">👥 Daftar Akun ({{ users|length }}) <small>Klik 🪙 atau ✏️ untuk edit langsung</small></div>
+  <div class="card-header">Akun terdaftar<small>{{ users|length }} akun · klik token atau password untuk mengubah</small></div>
   {% if users %}
   <div class="table-wrap">
   <table>
     <thead><tr>
-      <th>Nama</th><th>Username</th><th>Password</th><th>Token</th><th>Daftar</th><th>Aksi</th>
+      <th>Nama</th><th>Username</th><th>Password</th><th>Token</th><th>Bergabung</th><th></th>
     </tr></thead>
     <tbody id="user-table">
     {% for u in users %}
@@ -214,10 +245,10 @@
       <td>
         <div class="pwd-cell" id="pwd-cell-{{ u.username }}">
           <span class="pwd-dots">••••••</span>
-          <button class="btn-xs b-pwd" onclick="openPwd('{{ u.username }}')">✏️ Ubah</button>
+          <button class="btn-xs b-pwd" onclick="openPwd('{{ u.username }}')">Ubah</button>
         </div>
         <div class="p-edit" id="p-edit-{{ u.username }}">
-          <input type="text" id="p-inp-{{ u.username }}" placeholder="Password baru (min 6)">
+          <input type="text" id="p-inp-{{ u.username }}" placeholder="Password baru">
           <button class="btn-xs b-save" onclick="savePwd('{{ u.username }}')">✓</button>
           <button class="btn-xs b-cancel" onclick="closePwd('{{ u.username }}')">✕</button>
         </div>
@@ -226,7 +257,7 @@
         <div class="token-cell">
           <span class="token-pill {% if u.tokens==0 %}empty{% endif %}"
                 id="tp-{{ u.username }}" onclick="openToken('{{ u.username }}',{{ u.tokens }})"
-                title="Klik untuk edit">🪙 {{ u.tokens }}</span>
+                title="Klik untuk mengubah">{{ u.tokens }} token</span>
           <div class="t-edit" id="te-{{ u.username }}">
             <input type="number" id="ti-{{ u.username }}" min="0" max="999" value="{{ u.tokens }}">
             <button class="btn-xs b-save" onclick="saveToken('{{ u.username }}')">✓</button>
@@ -237,8 +268,8 @@
       <td class="date">{{ u.created_at[:10] if u.created_at else '—' }}</td>
       <td>
         <div class="actions">
-          <button class="btn-xs b-reset" onclick="resetToken('{{ u.username }}')">🔄 Reset</button>
-          <button class="btn-xs b-del" onclick="delUser('{{ u.username }}','{{ u.name }}')">🗑 Hapus</button>
+          <button class="btn-xs b-reset" onclick="resetToken('{{ u.username }}')">Reset</button>
+          <button class="btn-xs b-del" onclick="delUser('{{ u.username }}','{{ u.name }}')">Hapus</button>
         </div>
       </td>
     </tr>
@@ -247,7 +278,7 @@
   </table>
   </div>
   {% else %}
-  <div class="empty-state">Belum ada akun. Pengguna daftar lewat halaman login.</div>
+  <div class="empty-state">Belum ada akun. Buat akun di atas, atau tunggu pengguna mendaftar lewat halaman utama.</div>
   {% endif %}
 </div>
 
@@ -266,7 +297,7 @@ function closeToken(u){
 }
 function setPill(u,t){
   const p=document.getElementById('tp-'+u);
-  if(!p)return; p.textContent='🪙 '+t;
+  if(!p)return; p.textContent=t+' token';
   p.className=t===0?'token-pill empty':'token-pill';
 }
 async function saveToken(u){
@@ -295,15 +326,15 @@ function closePwd(u){
 }
 async function savePwd(u){
   const p=document.getElementById('p-inp-'+u).value.trim();
-  if(p.length<6){alert('Password minimal 6 karakter');return;}
+  if(p.length<6){alert('Password minimal 6 karakter.');return;}
   const r=await fetch('/api/admin/set-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:u,password:p})});
   if(r.status===401){location.href='/login-admin';return;}
   const j=await r.json();
-  if(j.ok){closePwd(u);alert('✅ Password '+u+' berhasil diubah');}else alert(j.error);
+  if(j.ok){closePwd(u);alert('Password '+u+' berhasil diubah.');}else alert(j.error);
 }
 // Delete
 async function delUser(u,name){
-  if(!confirm('Hapus akun "'+name+'" ('+u+')?\nTidak bisa dibatalkan.'))return;
+  if(!confirm('Hapus akun '+name+' ('+u+')? Tindakan ini tidak bisa dibatalkan.'))return;
   const r=await fetch('/api/admin/delete-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:u})});
   if(r.status===401){location.href='/login-admin';return;}
   const j=await r.json();
@@ -331,9 +362,9 @@ async function createUser() {
   const msg      = document.getElementById('create-msg');
 
   if (!name || !username || !password) {
-    msg.style.color = 'var(--danger)'; msg.textContent = '❌ Semua field harus diisi'; return;
+    msg.style.color = 'var(--ember)'; msg.textContent = 'Semua kolom harus diisi.'; return;
   }
-  msg.style.color = 'var(--muted)'; msg.textContent = '⏳ Memproses...';
+  msg.style.color = 'var(--muted)'; msg.textContent = 'Memproses';
 
   try {
     const res  = await fetch('/api/admin/create-user', {
@@ -344,7 +375,7 @@ async function createUser() {
     const json = await res.json();
     if (json.ok) {
       msg.style.color = 'var(--success)';
-      msg.textContent = `✅ Akun "${json.user.name}" (${json.user.username}) berhasil dibuat — ${json.user.tokens} token`;
+      msg.textContent = `Akun ${json.user.name} dibuat dengan ${json.user.tokens} token.`;
       document.getElementById('new-name').value = '';
       document.getElementById('new-username').value = '';
       document.getElementById('new-password').value = '';
@@ -352,11 +383,11 @@ async function createUser() {
       // Tambah baris ke tabel tanpa reload
       addUserRow(json.user);
     } else {
-      msg.style.color = 'var(--danger)';
-      msg.textContent = '❌ ' + (json.error || 'Gagal membuat akun');
+      msg.style.color = 'var(--ember)';
+      msg.textContent = json.error || 'Akun gagal dibuat.';
     }
   } catch(e) {
-    msg.style.color = 'var(--danger)'; msg.textContent = '❌ Koneksi gagal: ' + e.message;
+    msg.style.color = 'var(--ember)'; msg.textContent = 'Tidak bisa terhubung. Coba lagi.';
   }
 }
 
@@ -371,10 +402,10 @@ function addUserRow(u) {
     <td>
       <div class="pwd-cell" id="pwd-cell-${u.username}">
         <span class="pwd-dots">••••••</span>
-        <button class="btn-xs b-pwd" onclick="openPwd('${u.username}')">✏️ Ubah</button>
+        <button class="btn-xs b-pwd" onclick="openPwd('${u.username}')">Ubah</button>
       </div>
       <div class="p-edit" id="p-edit-${u.username}">
-        <input type="text" id="p-inp-${u.username}" placeholder="Password baru (min 4)">
+        <input type="text" id="p-inp-${u.username}" placeholder="Password baru">
         <button class="btn-xs b-save" onclick="savePwd('${u.username}')">✓</button>
         <button class="btn-xs b-cancel" onclick="closePwd('${u.username}')">✕</button>
       </div>
@@ -382,7 +413,7 @@ function addUserRow(u) {
     <td>
       <div class="token-cell">
         <span class="token-pill ${u.tokens===0?'empty':''}" id="tp-${u.username}"
-              onclick="openToken('${u.username}',${u.tokens})">🪙 ${u.tokens}</span>
+              onclick="openToken('${u.username}',${u.tokens})">${u.tokens} token</span>
         <div class="t-edit" id="te-${u.username}">
           <input type="number" id="ti-${u.username}" min="0" max="999" value="${u.tokens}">
           <button class="btn-xs b-save" onclick="saveToken('${u.username}')">✓</button>
@@ -393,8 +424,8 @@ function addUserRow(u) {
     <td class="date">${u.created_at ? u.created_at.slice(0,10) : '—'}</td>
     <td>
       <div class="actions">
-        <button class="btn-xs b-reset" onclick="resetToken('${u.username}')">🔄 Reset</button>
-        <button class="btn-xs b-del" onclick="delUser('${u.username}','${u.name}')">🗑 Hapus</button>
+        <button class="btn-xs b-reset" onclick="resetToken('${u.username}')">Reset</button>
+        <button class="btn-xs b-del" onclick="delUser('${u.username}','${u.name}')">Hapus</button>
       </div>
     </td>`;
   tbody.insertBefore(tr, tbody.firstChild);

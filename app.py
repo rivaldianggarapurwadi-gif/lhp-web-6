@@ -69,14 +69,13 @@ GOOGLE_REDIRECT_URI  = os.environ.get("GOOGLE_REDIRECT_URI",
 # Anthropic (untuk analisa foto timestamp)
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
-# Midtrans
-MIDTRANS_SERVER_KEY  = os.environ.get("MIDTRANS_SERVER_KEY", "")
-MIDTRANS_CLIENT_KEY  = os.environ.get("MIDTRANS_CLIENT_KEY", "")
-MIDTRANS_IS_PROD     = os.environ.get("MIDTRANS_ENV", "sandbox") == "production"
-MIDTRANS_BASE_URL    = ("https://app.midtrans.com" if MIDTRANS_IS_PROD
-                        else "https://app.sandbox.midtrans.com")
-MIDTRANS_API_URL     = ("https://api.midtrans.com" if MIDTRANS_IS_PROD
-                        else "https://api.sandbox.midtrans.com")
+# Duitku
+DUITKU_MERCHANT_CODE = os.environ.get("DUITKU_MERCHANT_CODE", "")
+DUITKU_API_KEY       = os.environ.get("DUITKU_API_KEY", "")
+DUITKU_IS_PROD       = os.environ.get("DUITKU_ENV", "sandbox") == "production"
+DUITKU_BASE_URL      = ("https://passport.duitku.com/webapi/api/merchant"
+                        if DUITKU_IS_PROD
+                        else "https://sandbox.duitku.com/webapi/api/merchant")
 
 # Token packages
 TOKEN_PACKAGES = [
@@ -396,45 +395,43 @@ def _google_userinfo(access_token):
 # Midtrans helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _midtrans_create_transaction(order_id, amount, name, email):
-    """Buat Snap token via Midtrans Snap API."""
-    import urllib.request, base64
-    snap_url = ("https://app.midtrans.com/snap/v1/transactions"
-                if MIDTRANS_IS_PROD
-                else "https://app.sandbox.midtrans.com/snap/v1/transactions")
-    auth  = base64.b64encode(f"{MIDTRANS_SERVER_KEY}:".encode()).decode()
-    parts = name.strip().split(' ', 1)
-    first_name = parts[0]
-    last_name  = parts[1] if len(parts) > 1 else ''
-    payload = json.dumps({
-        "transaction_details": {
-            "order_id":     order_id,
-            "gross_amount": int(amount)
-        },
-        "customer_details": {
-            "first_name": first_name,
-            "last_name":  last_name,
-            "email":      email,
-        },
-        "credit_card": {"secure": True},
+def _duitku_create_transaction(order_id, amount, name, email, description):
+    """Buat transaksi via Duitku API. Returns dict dengan 'paymentUrl'."""
+    import urllib.request
+    # Signature: MD5(merchantCode + amount + merchantOrderId + apiKey)
+    raw_sig  = f"{DUITKU_MERCHANT_CODE}{int(amount)}{order_id}{DUITKU_API_KEY}"
+    signature = hashlib.md5(raw_sig.encode()).hexdigest()
+    payload  = json.dumps({
+        "merchantCode":    DUITKU_MERCHANT_CODE,
+        "paymentAmount":   int(amount),
+        "merchantOrderId": order_id,
+        "productDetails":  description,
+        "customerVaName":  name,
+        "email":           email,
+        "paymentMethod":   "NN",  # Semua metode tersedia
+        "returnUrl":       "https://lhpakpol.co/",
+        "callbackUrl":     "https://lhpakpol.co/api/topup/notification",
+        "signature":       signature,
+        "expiryPeriod":    1440,  # 24 jam dalam menit
     }).encode()
-    req = urllib.request.Request(snap_url, data=payload, method='POST')
-    req.add_header('Authorization', f'Basic {auth}')
-    req.add_header('Content-Type',  'application/json')
-    req.add_header('Accept',        'application/json')
+    req = urllib.request.Request(
+        f"{DUITKU_BASE_URL}/createInvoice",
+        data=payload, method='POST')
+    req.add_header('Content-Type', 'application/json')
     with urllib.request.urlopen(req, timeout=15) as r:
         return json.loads(r.read())
 
-def _midtrans_verify_notif(notif: dict) -> bool:
-    """Verify Midtrans notification signature."""
-    if not MIDTRANS_SERVER_KEY:
+def _duitku_verify_callback(params: dict) -> bool:
+    """Verify Duitku callback signature."""
+    if not DUITKU_API_KEY:
         return True  # dev mode
-    raw    = (notif.get('order_id','') +
-              notif.get('status_code','') +
-              notif.get('gross_amount','') +
-              MIDTRANS_SERVER_KEY)
-    sig    = hashlib.sha512(raw.encode()).hexdigest()
-    return hmac.compare_digest(sig, notif.get('signature_key',''))
+    # MD5(merchantCode + amount + merchantOrderId + apiKey)
+    raw = (params.get('merchantCode','') +
+           params.get('amount','') +
+           params.get('merchantOrderId','') +
+           DUITKU_API_KEY)
+    expected = hashlib.md5(raw.encode()).hexdigest()
+    return hmac.compare_digest(expected, params.get('signature',''))
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Utility helpers (carry over)
@@ -795,7 +792,7 @@ def index():
                            user_tokens=user.get('tokens', 0),
                            user_picture=user.get('picture',''),
                            token_packages=TOKEN_PACKAGES,
-                           midtrans_client_key=MIDTRANS_CLIENT_KEY)
+                           duitku_configured=bool(DUITKU_MERCHANT_CODE))
 
 @app.route('/admin/login', methods=['GET'])
 def admin_login_redirect():
@@ -1011,54 +1008,52 @@ def topup_create():
     if err:
         return jsonify({'error': err}), 400
 
-    if not MIDTRANS_SERVER_KEY:
-        # Dev mode — auto-complete without Midtrans
+    if not DUITKU_MERCHANT_CODE:
+        # Dev mode — auto-complete without Duitku
         complete_order(order_id)
         return jsonify({'ok': True, 'dev_mode': True,
                         'message': f'{pkg["tokens"]} token ditambahkan (dev mode)'})
     try:
-        # Pastikan email valid — fallback kalau kosong
         user_email = (user.get('email') or user.get('google_email') or '').strip()
         if not user_email or '@' not in user_email:
             user_email = f"{user.get('username', 'user')}@lhpakpol.co"
-        resp = _midtrans_create_transaction(
+        resp = _duitku_create_transaction(
             order_id, pkg['price'],
-            user.get('name', ''), user_email)
-        # Snap API returns 'redirect_url' for full-page redirect
-        snap_token   = resp.get('token', '')
-        redirect_url = resp.get('redirect_url', '')
-        if not redirect_url and not snap_token:
-            app.logger.error("Midtrans resp missing url/token: %s", resp)
-            return jsonify({'error': 'Respons Midtrans tidak valid. Coba lagi.'}), 500
-        return jsonify({'ok': True, 'payment_url': redirect_url,
-                        'snap_token': snap_token, 'order_id': order_id})
+            user.get('name', ''), user_email,
+            f"{pkg['label']} — LHP AKPOL")
+        # Duitku returns paymentUrl
+        payment_url = resp.get('paymentUrl', '')
+        if not payment_url:
+            app.logger.error("Duitku resp: %s", resp)
+            return jsonify({'error': resp.get('message', 'Gagal membuat transaksi. Coba lagi.')}), 500
+        return jsonify({'ok': True, 'payment_url': payment_url, 'order_id': order_id})
     except Exception:
-        app.logger.error("Midtrans error:\n%s", traceback.format_exc())
+        app.logger.error("Duitku error:\n%s", traceback.format_exc())
         return jsonify({'error': 'Gagal membuat transaksi. Coba lagi.'}), 500
 
 @app.route('/api/topup/notification', methods=['POST'])
 def topup_notification():
-    """Midtrans webhook — called by Midtrans server after payment."""
-    notif = request.get_json() or {}
-    if not _midtrans_verify_notif(notif):
-        app.logger.warning("Invalid Midtrans signature: %s", notif.get('order_id'))
-        return jsonify({'ok': False}), 403
+    """Duitku callback — called by Duitku server after payment."""
+    # Duitku kirim callback sebagai POST form-encoded
+    params = request.form.to_dict() if request.form else (request.get_json() or {})
 
-    order_id      = notif.get('order_id', '')
-    txn_status    = notif.get('transaction_status', '')
-    fraud_status  = notif.get('fraud_status', '')
+    if not _duitku_verify_callback(params):
+        app.logger.warning("Invalid Duitku callback signature")
+        return 'Bad signature', 403
 
-    if txn_status in ('capture', 'settlement'):
-        if fraud_status in ('accept', '') or txn_status == 'settlement':
-            if complete_order(order_id):
-                app.logger.info("Order paid: %s", order_id)
-    elif txn_status in ('cancel', 'deny', 'expire', 'failure'):
+    order_id    = params.get('merchantOrderId', '')
+    result_code = params.get('resultCode', '')   # '00' = success
+
+    if result_code == '00':
+        if complete_order(order_id):
+            app.logger.info("Duitku order paid: %s", order_id)
+    elif result_code in ('01', '02'):
         orders = _load_orders()
         if order_id in orders and orders[order_id]['status'] == 'pending':
-            orders[order_id]['status'] = txn_status
+            orders[order_id]['status'] = 'failed'
             _save_orders(orders)
 
-    return jsonify({'ok': True})
+    return 'OK'
 
 @app.route('/api/topup/status/<order_id>')
 @login_required
