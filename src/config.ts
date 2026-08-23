@@ -21,4 +21,9 @@ export const config = {
   // must be set per-instance rather than guessed from the request.
   publicUrl: process.env.PUBLIC_URL ?? `http://localhost:${port}`,
   corsOrigin: process.env.CORS_ORIGIN ?? null, // null = reflect the request Origin
+  // Push is additive, not load-bearing -- unset in local dev, and the app
+  // still runs fine with it silently disabled. See push.ts.
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? null,
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? null,
+  vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:admin@example.com",
 };

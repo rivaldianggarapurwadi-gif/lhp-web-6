@@ -10,6 +10,7 @@ import {
   getPendingReleaseSeq,
 } from "../message-service.js";
 import { localStorage, type Storage } from "../storage.js";
+import { pushToOfflineParticipants } from "../push.js";
 import { asyncHandler, requireAuth, ApiError } from "./middleware.js";
 
 const CONVERSATION_SUMMARY_SQL = `
@@ -222,6 +223,11 @@ export function createConversationRouter(
       // Lets the other side's client show a notification that its pending
       // backlog was just requested -- see index.html for how this is used.
       io.to(`conv:${conversationId}`).emit("pending:requested", { conversationId, userId: me });
+      void pushToOfflineParticipants(io, pool, redis, conversationId, me, {
+        title: "Pending messages requested",
+        body: "A contact just asked to receive messages you sent while they were offline.",
+        conversationId,
+      });
       res.json({ ok: true });
     })
   );
@@ -256,6 +262,11 @@ export function createConversationRouter(
       });
 
       io.to(`conv:${message.conversationId}`).emit("message:new", message);
+      void pushToOfflineParticipants(io, pool, redis, message.conversationId, me, {
+        title: "New message",
+        body: message.content || "(attachment)",
+        conversationId: message.conversationId,
+      });
       res.status(message.deduplicated ? 200 : 201).json({ message });
     })
   );

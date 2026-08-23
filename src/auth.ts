@@ -30,11 +30,14 @@ export async function authenticate(token: string) {
     session_version: number;
     disabled_at: Date | null;
     is_admin: boolean;
-  }>(`SELECT id, session_version, disabled_at, is_admin FROM users WHERE id = $1`, [claims.sub]);
+    account_kind: "ceko" | "taruna";
+  }>(`SELECT id, session_version, disabled_at, is_admin, account_kind FROM users WHERE id = $1`, [
+    claims.sub,
+  ]);
 
   const user = rows[0];
   if (!user) throw new Error("UNAUTHORIZED");
   if (user.disabled_at) throw new Error("UNAUTHORIZED");
   if (user.session_version !== claims.sv) throw new Error("UNAUTHORIZED");
-  return { userId: user.id, exp: claims.exp, isAdmin: user.is_admin };
+  return { userId: user.id, exp: claims.exp, isAdmin: user.is_admin, accountKind: user.account_kind };
 }

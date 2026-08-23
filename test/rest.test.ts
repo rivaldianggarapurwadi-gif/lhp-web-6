@@ -481,3 +481,60 @@ test("pending: a plain Ceko-Ceko conversation is never gated", async () => {
   assert.equal(history.json.pending, false);
   assert.equal(history.json.messages.length, 1, "never gated -- visible immediately, same as always");
 });
+
+// ---------------------------------------------------------------------------
+// Push subscriptions
+// ---------------------------------------------------------------------------
+
+test("push: vapid-public-key is reachable without auth", async () => {
+  const res = await req("/push/vapid-public-key");
+  assert.equal(res.status, 200);
+  assert.ok("publicKey" in res.json);
+});
+
+test("push: a ceko account can subscribe and unsubscribe", async () => {
+  const u = await makeUser({ kind: "ceko" });
+  const login = await req("/auth/login", { method: "POST", body: { tag: u.tag, password: u.password } });
+
+  const subscription = {
+    endpoint: "https://example.com/push/" + randomUUID(),
+    keys: { p256dh: "fake-p256dh-key", auth: "fake-auth-secret" },
+  };
+  const subscribe = await req("/push/subscribe", { method: "POST", token: login.json.accessToken, body: subscription });
+  assert.equal(subscribe.status, 204);
+
+  const { rows } = await pool.query(`SELECT * FROM push_subscriptions WHERE user_id = $1`, [u.id]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].endpoint, subscription.endpoint);
+
+  const unsubscribe = await req("/push/subscribe", {
+    method: "DELETE", token: login.json.accessToken, body: { endpoint: subscription.endpoint },
+  });
+  assert.equal(unsubscribe.status, 204);
+
+  const { rows: afterDelete } = await pool.query(`SELECT * FROM push_subscriptions WHERE user_id = $1`, [u.id]);
+  assert.equal(afterDelete.length, 0);
+});
+
+test("push: a taruna account cannot subscribe -- no standing record on a shared device", async () => {
+  const u = await makeUser({ kind: "taruna" });
+  const login = await req("/auth/login", { method: "POST", body: { tag: u.tag, password: u.password } });
+
+  const res = await req("/push/subscribe", {
+    method: "POST", token: login.json.accessToken,
+    body: { endpoint: "https://example.com/push/" + randomUUID(), keys: { p256dh: "x", auth: "y" } },
+  });
+  assert.equal(res.status, 403);
+  assert.equal(res.json.error.code, "NOT_SUPPORTED");
+
+  const { rows } = await pool.query(`SELECT * FROM push_subscriptions WHERE user_id = $1`, [u.id]);
+  assert.equal(rows.length, 0);
+});
+
+test("push: malformed subscription body is rejected", async () => {
+  const u = await makeUser({ kind: "ceko" });
+  const login = await req("/auth/login", { method: "POST", body: { tag: u.tag, password: u.password } });
+
+  const res = await req("/push/subscribe", { method: "POST", token: login.json.accessToken, body: { endpoint: "not-enough" } });
+  assert.equal(res.status, 422);
+});

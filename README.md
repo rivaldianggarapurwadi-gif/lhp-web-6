@@ -111,6 +111,28 @@ Taruna stays hidden through a wipe and a DM re-creation until
 conversation is completely unaffected
 by the new `pending_release_seq` column (it just stays `NULL`).
 
+### Push notifications
+
+Ceko accounts get real Web Push -- a notification that arrives even with
+the tab closed, not just the in-page one that only fires over a live
+socket. `public/sw.js` is the service worker; `src/push.ts` wraps
+`web-push`; `GET /push/vapid-public-key`, `POST /push/subscribe`, and
+`DELETE /push/subscribe` are the REST surface for it. Sending only ever
+targets participants with zero connected sockets at that instant --
+whoever's live gets the in-page notification off the same event instead,
+so nobody gets double-notified. Taruna accounts are refused at
+`POST /push/subscribe` (403 `NOT_SUPPORTED`): a subscription is a standing
+record tying a device to an account, exactly what a Taruna session is
+built never to leave.
+
+Requires `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` (generate
+via `node -e "console.log(require('web-push').generateVAPIDKeys())"`).
+Unset in local dev, push is just silently disabled -- the server logs one
+warning at startup and nothing else changes. `test/rest.test.ts` covers
+the subscribe/unsubscribe endpoints against real Postgres; actual delivery
+needs a real browser's notification-permission grant and a real push
+service (FCM/Mozilla), neither of which `node --test` can exercise.
+
 ## Layout
 
 ```

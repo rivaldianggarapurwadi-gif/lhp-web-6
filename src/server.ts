@@ -18,6 +18,14 @@ async function main() {
     process.exit(1);
   }
 
+  // Push is additive (see push.ts) -- unlike JWT_SECRET this doesn't need to
+  // block startup, but a deploy that meant to have it working should know
+  // it's silently off rather than finding out when a user reports missing
+  // notifications.
+  if (!config.vapidPublicKey || !config.vapidPrivateKey) {
+    console.warn("VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set -- push notifications are disabled.");
+  }
+
   const http = createServer();
 
   // Constructed without a server yet -- io.attach(http) happens further

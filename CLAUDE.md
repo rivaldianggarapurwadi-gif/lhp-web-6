@@ -77,6 +77,12 @@ These are load-bearing. Each one is enforced by a test that will fail loudly.
     or partial gate lets an edit to an already-pending (still-hidden)
     message leak it early through the mutation cursor.
 
+15. **A Taruna account can never create a push subscription.**
+    `POST /push/subscribe` checks `account_kind` before touching the
+    database, not after. A subscription is a standing record tying a
+    device to an account -- exactly what a Taruna session exists to avoid
+    leaving behind.
+
 ## Layout
 
 ```
@@ -90,13 +96,15 @@ src/message-service.ts               the ONLY place a message is written or auth
 src/message-store.ts                 client reconciliation, shared with the browser
 src/socket.ts                        auth middleware, rooms, message:send, sync, presence, typing
 src/presence.ts                      heartbeat/sweep/online-check, narrow-fan-out contact lookup
+src/push.ts                          Web Push (VAPID) -- Ceko only, sends only to offline participants
 src/server.ts                        http + socket.io + redis adapter + the Express app + presence sweep loop
 src/auth.ts                          JWT + session_version revocation check
 src/refresh-token.ts                 rotation, with theft-shaped reuse detection
 src/tag.ts, password.ts, cookies.ts, rate-limit.ts, storage.ts   REST building blocks
-src/http/                            REST routers: auth, admin, social, conversations, uploads
+src/http/                            REST routers: auth, admin, social, conversations, uploads, push
 src/create-admin.ts                  bootstraps the first admin account (accounts are admin-created)
 public/index.html                    throwaway Ceko test harness, served at "/" -- not the real UI
+public/sw.js                         service worker for push, registered by index.html only
 public/taruna.html                   throwaway Taruna test harness, served at "/taruna.html"
 public/admin.html                    account management for both: create/edit/disable/promote/re-kind users
 test/e2e.test.ts                     11 tests against a live two-instance cluster
@@ -112,13 +120,18 @@ cross-instance fan-out, the REST surface (auth + refresh rotation, admin
 user creation, contacts/blocks, idempotent DM creation, presigned uploads
 against a local-disk mock), presence (Redis ZSET + heartbeat + sweeper,
 narrow fan-out to contacts only, debounced disconnect), typing beyond
-the raw relay (participant check + rate limit), and two account kinds --
-Ceko (persistent session, full history) and Taruna (wiped membership/
-contacts on every login, no refresh token issued, so a page refresh or tab
-close ends the session; a message sent to an offline Taruna sits in its
-conversation as normal and becomes visible again only once the Taruna
-re-adds that contact, recreates the DM, and explicitly requests the
-pending backlog).
+the raw relay (participant check + rate limit), two account kinds --
+Ceko (persistent session, full history) and Taruna (wiped conversation
+membership on every login -- contacts survive, see invariant 13 -- no
+refresh token issued, so a page refresh or tab close ends the session; a
+message sent to an offline Taruna sits in its conversation as normal and
+becomes visible again once the Taruna recreates the DM and explicitly
+requests the pending backlog) -- and real Web Push for Ceko accounts
+(a service worker + VAPID, so a notification arrives even with the tab
+closed; verified through actual `webpush.sendNotification` dispatch
+against a real cryptographic subscription shape, since the last hop --
+the OS popup itself -- needs a real browser's permission grant that
+automated tooling can't produce).
 
 **Designed but not built:** calls (LiveKit token vending, ring-timeout
 reconciliation), real object storage in place of the local-disk upload mock,

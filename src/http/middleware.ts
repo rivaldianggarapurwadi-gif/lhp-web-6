@@ -8,7 +8,7 @@ declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
-      auth?: { userId: string; exp: number; isAdmin: boolean };
+      auth?: { userId: string; exp: number; isAdmin: boolean; accountKind: "ceko" | "taruna" };
     }
   }
 }

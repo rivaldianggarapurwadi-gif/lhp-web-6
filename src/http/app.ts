@@ -11,6 +11,7 @@ import { createAdminRouter } from "./admin-routes.js";
 import { createSocialRouter } from "./social-routes.js";
 import { createConversationRouter } from "./conversation-routes.js";
 import { createUploadRouter } from "./upload-routes.js";
+import { createPushRouter } from "./push-routes.js";
 
 // dist/src/http/app.js -> repo root -> public/. Same three-levels-up shape
 // as migrate.ts's path to migrations/, one deeper since this file lives
@@ -39,6 +40,7 @@ export function createApp(pool: Pool, redis: Redis, io: Server): Express {
   app.use(createAdminRouter(pool, io));
   app.use(createSocialRouter(pool, redis, io));
   app.use(createConversationRouter(pool, redis, io));
+  app.use(createPushRouter(pool));
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: "NOT_FOUND", message: "No such route" } });
