@@ -1,0 +1,114 @@
+import { Router } from "express";
+import { randomBytes } from "node:crypto";
+import type { Pool } from "pg";
+import type { Server } from "socket.io";
+import { hashPassword } from "../password.js";
+import { generateUniqueTag } from "../tag.js";
+import { revokeAllForUser } from "../refresh-token.js";
+import { asyncHandler, requireAuth, requireAdmin, ApiError } from "./middleware.js";
+
+export function createAdminRouter(pool: Pool, io: Server): Router {
+  const router = Router();
+
+  router.post(
+    "/admin/users",
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const { username, password } = req.body ?? {};
+      if (typeof username !== "string" || username.trim().length === 0) {
+        throw new ApiError(422, "INVALID_REQUEST", "username is required");
+      }
+
+      const tag = await generateUniqueTag(pool);
+      // An admin-chosen password is supported, but if none is given, mint a
+      // one-time random one server-side and hand it back exactly once --
+      // it is never stored anywhere but the hash.
+      const generatedPassword: string | null =
+        typeof password === "string" && password.length > 0 ? null : randomBytes(9).toString("base64url");
+      const passwordHash = await hashPassword(generatedPassword ?? password);
+
+      const { rows } = await pool.query(
+        `INSERT INTO users (username, tag, password_hash, created_by)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, username, tag, is_admin, created_at`,
+        [username.trim(), tag, passwordHash, req.auth!.userId]
+      );
+
+      res.status(201).json({ user: rows[0], generatedPassword });
+    })
+  );
+
+  router.get(
+    "/admin/users",
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+      const before = typeof req.query.before === "string" ? req.query.before : null;
+      const limit = Math.min(Number(req.query.limit ?? 50) || 50, 200);
+
+      const { rows } = await pool.query(
+        `SELECT id, username, tag, is_admin, disabled_at, created_at
+           FROM users
+          WHERE ($1 = '' OR username ILIKE '%' || $1 || '%' OR tag ILIKE '%' || $1 || '%')
+            AND ($2::timestamptz IS NULL OR created_at < $2::timestamptz)
+          ORDER BY created_at DESC
+          LIMIT $3`,
+        [q, before, limit]
+      );
+      res.json({ users: rows });
+    })
+  );
+
+  router.patch(
+    "/admin/users/:id",
+    requireAuth,
+    requireAdmin,
+    asyncHandler(async (req, res) => {
+      const id = String(req.params.id);
+      const { disabled, newPassword } = req.body ?? {};
+
+      const { rows: existing } = await pool.query(`SELECT id FROM users WHERE id = $1`, [id]);
+      if (!existing[0]) throw new ApiError(404, "NOT_FOUND", "No such user");
+
+      // Disabling or resetting a password both need to kill every live
+      // session immediately, not just future logins -- bump session_version
+      // (invalidates outstanding access tokens on their next check) and
+      // revoke refresh tokens (stops silent renewal), then drop the live
+      // sockets right now rather than waiting for their next re-auth check.
+      const sessionInvalidatingChange = disabled === true || typeof newPassword === "string";
+
+      const sets: string[] = [];
+      const values: unknown[] = [id];
+      if (typeof disabled === "boolean") {
+        sets.push(`disabled_at = ${disabled ? "now()" : "NULL"}`);
+      }
+      if (typeof newPassword === "string" && newPassword.length > 0) {
+        values.push(await hashPassword(newPassword));
+        sets.push(`password_hash = $${values.length}`);
+      }
+      if (sessionInvalidatingChange) {
+        sets.push(`session_version = session_version + 1`);
+      }
+      if (sets.length === 0) {
+        throw new ApiError(422, "INVALID_REQUEST", "Nothing to update");
+      }
+
+      const { rows } = await pool.query(
+        `UPDATE users SET ${sets.join(", ")} WHERE id = $1
+         RETURNING id, username, tag, is_admin, disabled_at, created_at`,
+        values
+      );
+
+      if (sessionInvalidatingChange) {
+        await revokeAllForUser(pool, id);
+        io.in(`user:${id}`).disconnectSockets(true);
+      }
+
+      res.json({ user: rows[0] });
+    })
+  );
+
+  return router;
+}
