@@ -37,6 +37,9 @@ DATABASE_URL=postgres://ceko:ceko@localhost:5432/ceko \
 Then open `http://localhost:3001/` for a throwaway test harness (login,
 contacts, DMs) -- not the real client, just enough to click around in. The
 real UI is still "designed but not built" per `CLAUDE.md`.
+`http://localhost:3001/admin.html` is the account-management page for that
+first admin: create users, edit usernames, promote/demote admins,
+disable/enable, reset passwords.
 
 ## What the suite proves
 

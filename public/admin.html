@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ceko -- admin</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0f1115; color: #e6e8eb;
+  }
+  header {
+    padding: 10px 16px; border-bottom: 1px solid #2a2d34; display: flex;
+    align-items: center; gap: 12px; font-size: 13px; color: #9aa1ac;
+  }
+  header b { color: #e6e8eb; }
+  header a { color: #6ea1ff; text-decoration: none; }
+  main { max-width: 1080px; margin: 0 auto; padding: 20px 16px; }
+  .hint { color: #9aa1ac; font-size: 13px; margin: 0 0 16px; }
+  .hint code { background: #1b1e24; padding: 1px 5px; border-radius: 3px; }
+  section { background: #161920; border: 1px solid #2a2d34; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: #9aa1ac; }
+  input, button {
+    font: inherit; background: #0f1115; color: #e6e8eb; border: 1px solid #2a2d34;
+    border-radius: 6px; padding: 6px 9px;
+  }
+  input { width: 180px; }
+  button { background: #2f6fed; border-color: #2f6fed; color: white; cursor: pointer; font-weight: 500; }
+  button.secondary { background: transparent; color: #e6e8eb; border-color: #3a3f4a; }
+  button.danger { background: #8a2b25; border-color: #8a2b25; }
+  button.tiny { padding: 3px 8px; font-size: 12px; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:hover:not(:disabled) { filter: brightness(1.12); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .error { color: #ff8a80; font-size: 13px; margin-top: 6px; min-height: 1em; }
+  .ok-msg { color: #7fe0a8; font-size: 13px; margin-top: 6px; min-height: 1em; }
+  .tag-pill {
+    font-family: ui-monospace, monospace; background: #1b1e24; border: 1px solid #2a2d34;
+    border-radius: 4px; padding: 2px 8px; letter-spacing: .05em; font-size: 12px;
+  }
+  #login-box { max-width: 360px; }
+  #app { display: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #1e2128; vertical-align: middle; }
+  th { color: #9aa1ac; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  td input.username-edit { width: 130px; padding: 4px 7px; }
+  .badge { font-size: 11px; border-radius: 4px; padding: 1px 6px; }
+  .badge.admin { background: #2f6fed33; color: #8fb4ff; border: 1px solid #2f6fed66; }
+  .badge.disabled { background: #8a2b2533; color: #ff9a90; border: 1px solid #8a2b2566; }
+  .badge.active { background: #1f7a4a33; color: #7fe0a8; border: 1px solid #1f7a4a66; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .created-note {
+    margin-top: 10px; padding: 10px 12px; background: #12331f; border: 1px solid #1f7a4a;
+    border-radius: 6px; font-size: 13px;
+  }
+  .created-note b { color: #7fe0a8; }
+</style>
+</head>
+<body>
+
+<header>
+  <span id="status-dot" style="width:8px;height:8px;border-radius:50%;background:#555;display:inline-block"></span>
+  <span>Ceko admin -- <b id="instance-name">connecting...</b></span>
+  <a href="/">&larr; back to test harness</a>
+  <span id="whoami" class="hint" style="margin:0 0 0 auto"></span>
+  <button id="logout-btn" class="secondary" style="display:none">Log out</button>
+</header>
+
+<main>
+  <p class="hint">
+    Admin-only account management -- create and edit users freely. Requires an
+    admin account; see <code>npm run create-admin</code> if you don't have one yet.
+  </p>
+
+  <section id="login-box">
+    <h2>Log in as admin</h2>
+    <div class="row">
+      <input id="login-tag" placeholder="TAG" maxlength="6" autocomplete="off" style="text-transform:uppercase">
+      <input id="login-password" placeholder="password" type="password">
+      <button id="login-btn">Log in</button>
+    </div>
+    <div class="error" id="login-error"></div>
+  </section>
+
+  <div id="app">
+    <section>
+      <h2>Create account</h2>
+      <div class="row">
+        <input id="create-username" placeholder="username">
+        <input id="create-password" placeholder="password (blank = generate)" type="text">
+        <button id="create-btn">Create</button>
+      </div>
+      <div class="error" id="create-error"></div>
+      <div id="create-result"></div>
+    </section>
+
+    <section>
+      <h2>Accounts</h2>
+      <div class="row">
+        <input id="search-box" placeholder="search username or tag">
+        <button id="search-btn" class="secondary">Search</button>
+        <button id="refresh-btn" class="secondary">Refresh</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Tag</th><th>Username</th><th>Status</th><th>Created</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="user-rows"></tbody>
+        </table>
+      </div>
+      <div class="error" id="list-error"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let accessToken = null, me = null;
+
+  fetch("/health").then((r) => r.json()).then((d) => {
+    $("instance-name").textContent = d.instance;
+    $("status-dot").style.background = "#3ddc84";
+  }).catch(() => {
+    $("instance-name").textContent = "unreachable";
+    $("status-dot").style.background = "#e5534b";
+  });
+
+  async function api(path, opts = {}) {
+    const headers = { "content-type": "application/json", ...(opts.headers || {}) };
+    if (accessToken) headers.authorization = "Bearer " + accessToken;
+    const res = await fetch(path, { ...opts, headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : null;
+    if (!res.ok) throw new Error((data && data.error && data.error.message) || res.statusText);
+    return data;
+  }
+
+  $("login-btn").onclick = async () => {
+    $("login-error").textContent = "";
+    try {
+      const tag = $("login-tag").value.trim().toUpperCase();
+      const password = $("login-password").value;
+      const data = await api("/auth/login", { method: "POST", body: { tag, password } });
+      if (!data.user.isAdmin) throw new Error("That account isn't an admin.");
+      accessToken = data.accessToken;
+      me = data.user;
+      onLoggedIn();
+    } catch (e) {
+      $("login-error").textContent = e.message;
+    }
+  };
+
+  $("logout-btn").onclick = async () => {
+    try { await api("/auth/logout", { method: "POST" }); } catch {}
+    location.reload();
+  };
+
+  function onLoggedIn() {
+    $("login-box").style.display = "none";
+    $("app").style.display = "block";
+    $("logout-btn").style.display = "inline-block";
+    $("whoami").innerHTML = me.username + " -- <span class='tag-pill'>" + me.tag + "</span>";
+    loadUsers();
+  }
+
+  $("create-btn").onclick = async () => {
+    $("create-error").textContent = "";
+    $("create-result").innerHTML = "";
+    try {
+      const username = $("create-username").value.trim();
+      const password = $("create-password").value;
+      const data = await api("/admin/users", { method: "POST", body: { username, password: password || undefined } });
+      $("create-username").value = "";
+      $("create-password").value = "";
+      const passLine = data.generatedPassword
+        ? "generated password: <b>" + data.generatedPassword + "</b> (shown once)"
+        : "password set as given";
+      $("create-result").innerHTML =
+        "<div class='created-note'>Created <b>" + escapeHtml(data.user.username) +
+        "</b> -- tag <span class='tag-pill'>" + data.user.tag + "</span><br>" + passLine + "</div>";
+      loadUsers();
+    } catch (e) {
+      $("create-error").textContent = e.message;
+    }
+  };
+
+  $("search-btn").onclick = () => loadUsers();
+  $("refresh-btn").onclick = () => loadUsers();
+  $("search-box").addEventListener("keydown", (e) => { if (e.key === "Enter") loadUsers(); });
+
+  async function loadUsers() {
+    $("list-error").textContent = "";
+    try {
+      const q = $("search-box").value.trim();
+      const data = await api("/admin/users" + (q ? "?q=" + encodeURIComponent(q) : ""));
+      renderUsers(data.users);
+    } catch (e) {
+      $("list-error").textContent = e.message;
+    }
+  }
+
+  function renderUsers(users) {
+    const tbody = $("user-rows");
+    tbody.innerHTML = "";
+    for (const u of users) {
+      const tr = document.createElement("tr");
+
+      const tagTd = document.createElement("td");
+      tagTd.innerHTML = "<span class='tag-pill'>" + u.tag + "</span>";
+      tr.appendChild(tagTd);
+
+      const nameTd = document.createElement("td");
+      const nameInput = document.createElement("input");
+      nameInput.className = "username-edit";
+      nameInput.value = u.username;
+      nameTd.appendChild(nameInput);
+      tr.appendChild(nameTd);
+
+      const statusTd = document.createElement("td");
+      statusTd.innerHTML =
+        (u.disabled_at ? "<span class='badge disabled'>disabled</span>" : "<span class='badge active'>active</span>") +
+        (u.is_admin ? " <span class='badge admin'>admin</span>" : "");
+      tr.appendChild(statusTd);
+
+      const createdTd = document.createElement("td");
+      createdTd.textContent = new Date(u.created_at).toLocaleDateString();
+      tr.appendChild(createdTd);
+
+      const actionsTd = document.createElement("td");
+      actionsTd.className = "actions";
+
+      const saveBtn = actionButton("Save name", "tiny secondary", async () => {
+        await patchUser(u.id, { username: nameInput.value.trim() });
+      });
+      actionsTd.appendChild(saveBtn);
+
+      const toggleDisabled = actionButton(
+        u.disabled_at ? "Enable" : "Disable",
+        "tiny " + (u.disabled_at ? "secondary" : "danger"),
+        async () => { await patchUser(u.id, { disabled: !u.disabled_at }); }
+      );
+      actionsTd.appendChild(toggleDisabled);
+
+      const toggleAdmin = actionButton(
+        u.is_admin ? "Revoke admin" : "Make admin",
+        "tiny secondary",
+        async () => { await patchUser(u.id, { isAdmin: !u.is_admin }); }
+      );
+      actionsTd.appendChild(toggleAdmin);
+
+      const resetBtn = actionButton("Reset password", "tiny secondary", async () => {
+        const newPassword = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+        await patchUser(u.id, { newPassword });
+        alert("New password for " + u.username + ": " + newPassword + "\n(shown once)");
+      });
+      actionsTd.appendChild(resetBtn);
+
+      tr.appendChild(actionsTd);
+      tbody.appendChild(tr);
+    }
+  }
+
+  function actionButton(label, className, onClick) {
+    const btn = document.createElement("button");
+    btn.className = className;
+    btn.textContent = label;
+    btn.onclick = async () => {
+      btn.disabled = true;
+      $("list-error").textContent = "";
+      try {
+        await onClick();
+        await loadUsers();
+      } catch (e) {
+        $("list-error").textContent = e.message;
+        btn.disabled = false;
+      }
+    };
+    return btn;
+  }
+
+  function patchUser(id, body) {
+    return api("/admin/users/" + id, { method: "PATCH", body });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+})();
+</script>
+</body>
+</html>

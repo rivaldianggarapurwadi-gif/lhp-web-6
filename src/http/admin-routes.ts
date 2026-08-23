@@ -67,10 +67,20 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
     requireAdmin,
     asyncHandler(async (req, res) => {
       const id = String(req.params.id);
-      const { disabled, newPassword } = req.body ?? {};
+      const { disabled, newPassword, username, isAdmin } = req.body ?? {};
 
       const { rows: existing } = await pool.query(`SELECT id FROM users WHERE id = $1`, [id]);
       if (!existing[0]) throw new ApiError(404, "NOT_FOUND", "No such user");
+
+      // isAdmin is read fresh from the DB on every request (see
+      // authenticate() in auth.ts, called on every requireAuth), never
+      // cached in the token -- so demoting/promoting takes effect
+      // immediately without needing a session bump. Refusing to demote
+      // yourself avoids an admin locking themselves out with no other
+      // admin able to undo it.
+      if (isAdmin === false && id === req.auth!.userId) {
+        throw new ApiError(422, "CANNOT_SELF_DEMOTE", "Cannot remove your own admin rights");
+      }
 
       // Disabling or resetting a password both need to kill every live
       // session immediately, not just future logins -- bump session_version
@@ -87,6 +97,13 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
       if (typeof newPassword === "string" && newPassword.length > 0) {
         values.push(await hashPassword(newPassword));
         sets.push(`password_hash = $${values.length}`);
+      }
+      if (typeof username === "string" && username.trim().length > 0) {
+        values.push(username.trim());
+        sets.push(`username = $${values.length}`);
+      }
+      if (typeof isAdmin === "boolean") {
+        sets.push(`is_admin = ${isAdmin ? "TRUE" : "FALSE"}`);
       }
       if (sessionInvalidatingChange) {
         sets.push(`session_version = session_version + 1`);

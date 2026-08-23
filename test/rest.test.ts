@@ -143,6 +143,29 @@ test("admin: non-admin cannot reach admin routes", async () => {
   assert.equal(res.status, 403);
 });
 
+test("admin: can edit username and promote/demote, but cannot self-demote", async () => {
+  const admin = await makeUser({ admin: true });
+  const target = await makeUser();
+  const adminLogin = await req("/auth/login", { method: "POST", body: { tag: admin.tag, password: admin.password } });
+
+  const renamed = await req(`/admin/users/${target.id}`, {
+    method: "PATCH", token: adminLogin.json.accessToken, body: { username: "renamed-by-admin" },
+  });
+  assert.equal(renamed.status, 200);
+  assert.equal(renamed.json.user.username, "renamed-by-admin");
+
+  const promoted = await req(`/admin/users/${target.id}`, {
+    method: "PATCH", token: adminLogin.json.accessToken, body: { isAdmin: true },
+  });
+  assert.equal(promoted.json.user.is_admin, true);
+
+  const selfDemote = await req(`/admin/users/${admin.id}`, {
+    method: "PATCH", token: adminLogin.json.accessToken, body: { isAdmin: false },
+  });
+  assert.equal(selfDemote.status, 422);
+  assert.equal(selfDemote.json.error.code, "CANNOT_SELF_DEMOTE");
+});
+
 test("lookup: malformed tag is rejected before it ever reaches the database", async () => {
   const u = await makeUser();
   const login = await req("/auth/login", { method: "POST", body: { tag: u.tag, password: u.password } });
