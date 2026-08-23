@@ -44,12 +44,22 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
       }
 
       const ip = req.ip ?? "unknown";
-      const { allowed, retryAfterSeconds } = await checkRateLimit(redis, `login:${ip}`, [
-        { name: "burst", windowSeconds: 60, max: 10 },
-        { name: "sustained", windowSeconds: 3600, max: 50 },
+      // Two separate buckets on purpose. Keying only on IP punishes every
+      // account behind a shared IP (an office NAT, or this test suite
+      // hitting ~15 different accounts from one machine) for one account's
+      // failed attempts. login:ip:tag is the actual brute-force guard on a
+      // single account; login-ip:ip is a much looser backstop against
+      // spraying attempts across many accounts from one source.
+      let limit = await checkRateLimit(redis, `login:${ip}:${normalizeTag(tag)}`, [
+        { name: "burst", windowSeconds: 60, max: 8 },
       ]);
-      if (!allowed) {
-        res.setHeader("Retry-After", String(retryAfterSeconds));
+      if (limit.allowed) {
+        limit = await checkRateLimit(redis, `login-ip:${ip}`, [
+          { name: "sustained", windowSeconds: 3600, max: 300 },
+        ]);
+      }
+      if (!limit.allowed) {
+        res.setHeader("Retry-After", String(limit.retryAfterSeconds));
         throw new ApiError(429, "RATE_LIMITED", "Too many attempts");
       }
 
