@@ -101,21 +101,36 @@
   </section>
 
   <div id="app">
-    <section id="notify-box" style="display:none">
+    <section>
       <h2>Notifications</h2>
+
+      <h4 style="margin:0 0 8px;font-size:13px;color:#e6e8eb">Email</h4>
       <p class="hint" style="margin-bottom:10px">
-        On iPhone, push only works from a home-screen install: Share &rarr;
-        Add to Home Screen, then open Ceko from that icon (not from Safari)
-        before enabling notifications below.
+        Works everywhere, no permission prompt, no install -- the most
+        reliable of the two if push is giving you trouble on a phone.
       </p>
-      <div class="row" id="notify-ask-row">
-        <button id="enable-notify-btn">Enable notifications</button>
-        <span class="error" id="notify-error"></span>
+      <div class="row">
+        <input id="email-input" placeholder="you@example.com" style="width:220px">
+        <button id="save-email-btn" class="secondary">Save</button>
+        <span class="error" id="email-error"></span>
       </div>
-      <p class="hint" id="notify-denied-row" style="display:none;margin:0">
-        Notifications are blocked for this site. Enable them from your
-        browser's site settings, then reload this page.
-      </p>
+
+      <div id="notify-box" style="display:none;margin-top:16px">
+        <h4 style="margin:0 0 8px;font-size:13px;color:#e6e8eb">Push</h4>
+        <p class="hint" style="margin-bottom:10px">
+          On iPhone, push only works from a home-screen install: Share &rarr;
+          Add to Home Screen, then open Ceko from that icon (not from Safari)
+          before enabling notifications below.
+        </p>
+        <div class="row" id="notify-ask-row">
+          <button id="enable-notify-btn">Enable notifications</button>
+          <span class="error" id="notify-error"></span>
+        </div>
+        <p class="hint" id="notify-denied-row" style="display:none;margin:0">
+          Notifications are blocked for this site. Enable them from your
+          browser's site settings, then reload this page.
+        </p>
+      </div>
     </section>
 
     <section>
@@ -224,6 +239,16 @@
     location.reload();
   };
 
+  $("save-email-btn").onclick = async () => {
+    $("email-error").textContent = "";
+    try {
+      const email = $("email-input").value.trim();
+      await api("/me", { method: "PATCH", body: { email: email || null } });
+    } catch (e) {
+      $("email-error").textContent = e.message;
+    }
+  };
+
   // Direct result of a tap, unlike the login-time attempt this replaced --
   // this is what actually gets Chrome's native prompt to show on Android.
   $("enable-notify-btn").onclick = async () => {
@@ -286,6 +311,8 @@
     $("app").style.display = "block";
     $("logout-btn").style.display = "inline-block";
     $("whoami").innerHTML = me.username + " -- your tag: <span class='tag-pill'>" + me.tag + "</span>";
+
+    api("/me").then((data) => { $("email-input").value = data.user.email || ""; }).catch(() => {});
 
     // Ceko accounts get notifications; a Taruna's whole point is to leave
     // nothing behind on a shared device, so its harness (taruna.html) never

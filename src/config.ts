@@ -26,4 +26,7 @@ export const config = {
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? null,
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? null,
   vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:admin@example.com",
+  // Same additive-not-load-bearing pattern as push. See email.ts.
+  resendApiKey: process.env.RESEND_API_KEY ?? null,
+  emailFrom: process.env.EMAIL_FROM ?? "Ceko <onboarding@resend.dev>",
 };

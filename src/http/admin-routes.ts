@@ -52,7 +52,7 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
       const limit = Math.min(Number(req.query.limit ?? 50) || 50, 200);
 
       const { rows } = await pool.query(
-        `SELECT id, username, tag, is_admin, account_kind, disabled_at, created_at
+        `SELECT id, username, tag, email, is_admin, account_kind, disabled_at, created_at
            FROM users
           WHERE ($1 = '' OR username ILIKE '%' || $1 || '%' OR tag ILIKE '%' || $1 || '%')
             AND ($2::timestamptz IS NULL OR created_at < $2::timestamptz)
@@ -70,10 +70,13 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
     requireAdmin,
     asyncHandler(async (req, res) => {
       const id = String(req.params.id);
-      const { disabled, newPassword, username, isAdmin, accountKind } = req.body ?? {};
+      const { disabled, newPassword, username, isAdmin, accountKind, email } = req.body ?? {};
 
       if (accountKind !== undefined && accountKind !== "ceko" && accountKind !== "taruna") {
         throw new ApiError(422, "INVALID_REQUEST", "accountKind must be 'ceko' or 'taruna'");
+      }
+      if (email !== undefined && email !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new ApiError(422, "INVALID_REQUEST", "email is not a valid address");
       }
 
       const { rows: existing } = await pool.query(`SELECT id FROM users WHERE id = $1`, [id]);
@@ -115,6 +118,10 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
       if (typeof isAdmin === "boolean") {
         sets.push(`is_admin = ${isAdmin ? "TRUE" : "FALSE"}`);
       }
+      if (email !== undefined) {
+        values.push(email);
+        sets.push(`email = $${values.length}`);
+      }
       if (accountKind !== undefined) {
         values.push(accountKind);
         sets.push(`account_kind = $${values.length}`);
@@ -128,7 +135,7 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
 
       const { rows } = await pool.query(
         `UPDATE users SET ${sets.join(", ")} WHERE id = $1
-         RETURNING id, username, tag, is_admin, account_kind, disabled_at, created_at`,
+         RETURNING id, username, tag, email, is_admin, account_kind, disabled_at, created_at`,
         values
       );
 

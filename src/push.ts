@@ -1,9 +1,6 @@
 import webpush from "web-push";
 import type { Pool } from "pg";
-import type { Redis } from "ioredis";
-import type { Server } from "socket.io";
 import { config } from "./config.js";
-import { getParticipantIds } from "./message-service.js";
 
 /**
  * Additive, not load-bearing: everything here is a no-op when VAPID keys
@@ -71,35 +68,6 @@ export async function sendPushToUser(pool: Pool, userId: string, payload: PushPa
           console.error("[push] send failed", err?.statusCode, err?.message);
         }
       }
-    })
-  );
-}
-
-/**
- * Called after the live socket fan-out, not instead of it. A participant
- * with a socket connected right now gets the in-page notification off that
- * same event -- pushing to them too would double-notify. Only whoever has
- * zero connected sockets at this instant is actually unreachable any other
- * way, which is exactly who push exists for.
- */
-export async function pushToOfflineParticipants(
-  io: Server,
-  pool: Pool,
-  redis: Redis,
-  conversationId: string,
-  senderId: string,
-  payload: PushPayload
-): Promise<void> {
-  if (!enabled) return;
-
-  const participantIds = await getParticipantIds(pool, redis, conversationId);
-  const others = participantIds.filter((id) => id !== senderId);
-
-  await Promise.all(
-    others.map(async (userId) => {
-      const sockets = await io.in(`user:${userId}`).fetchSockets();
-      if (sockets.length > 0) return;
-      await sendPushToUser(pool, userId, payload);
     })
   );
 }

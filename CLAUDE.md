@@ -91,12 +91,16 @@ migrations/002_realtime.sql          seq, client_message_id, dm_key, blocks, las
 migrations/003_message_mutations.sql mutated_at + trigger (the second sync cursor)
 migrations/004_rest_surface.sql      refresh_tokens (rotation + reuse detection)
 migrations/005_account_kinds.sql     account_kind, conversation_participants.pending_release_seq
+migrations/006_push_subscriptions.sql push_subscriptions
+migrations/007_user_email.sql        users.email (notification address, not a credential)
 src/taruna.ts                        the per-login wipe for Taruna accounts
 src/message-service.ts               the ONLY place a message is written or authorised
 src/message-store.ts                 client reconciliation, shared with the browser
 src/socket.ts                        auth middleware, rooms, message:send, sync, presence, typing
 src/presence.ts                      heartbeat/sweep/online-check, narrow-fan-out contact lookup
-src/push.ts                          Web Push (VAPID) -- Ceko only, sends only to offline participants
+src/push.ts                          Web Push (VAPID) -- Ceko only
+src/email.ts                         email via Resend -- Ceko only
+src/notify.ts                        shared orchestrator: push + email, offline participants only
 src/server.ts                        http + socket.io + redis adapter + the Express app + presence sweep loop
 src/auth.ts                          JWT + session_version revocation check
 src/refresh-token.ts                 rotation, with theft-shaped reuse detection
@@ -126,12 +130,19 @@ membership on every login -- contacts survive, see invariant 13 -- no
 refresh token issued, so a page refresh or tab close ends the session; a
 message sent to an offline Taruna sits in its conversation as normal and
 becomes visible again once the Taruna recreates the DM and explicitly
-requests the pending backlog) -- and real Web Push for Ceko accounts
-(a service worker + VAPID, so a notification arrives even with the tab
-closed; verified through actual `webpush.sendNotification` dispatch
-against a real cryptographic subscription shape, since the last hop --
-the OS popup itself -- needs a real browser's permission grant that
-automated tooling can't produce).
+requests the pending backlog), real Web Push for Ceko accounts
+(a service worker + VAPID + a PWA manifest, so a notification arrives even
+with the tab closed -- iOS Safari refuses to show push from an ordinary
+tab at all, only an installed home-screen app, and Chrome silently
+suppresses its own permission prompt unless it's the direct result of a
+dedicated tap, which is why `index.html` has an explicit "Enable
+notifications" button rather than auto-requesting; verified through actual
+`webpush.sendNotification` dispatch against a real cryptographic
+subscription shape, since the last hop -- the OS popup itself -- needs a
+real browser's permission grant that automated tooling can't produce), and
+an email notification channel (`src/email.ts` via Resend) as a second,
+install-free, permission-prompt-free channel to the same offline
+participants.
 
 **Designed but not built:** calls (LiveKit token vending, ring-timeout
 reconciliation), real object storage in place of the local-disk upload mock,

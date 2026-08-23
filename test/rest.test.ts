@@ -538,3 +538,33 @@ test("push: malformed subscription body is rejected", async () => {
   const res = await req("/push/subscribe", { method: "POST", token: login.json.accessToken, body: { endpoint: "not-enough" } });
   assert.equal(res.status, 422);
 });
+
+// ---------------------------------------------------------------------------
+// Email address on /me (notification channel, not a login credential)
+// ---------------------------------------------------------------------------
+
+test("me: can set, read back, and clear an email address", async () => {
+  const u = await makeUser({ kind: "ceko" });
+  const login = await req("/auth/login", { method: "POST", body: { tag: u.tag, password: u.password } });
+
+  const set = await req("/me", { method: "PATCH", token: login.json.accessToken, body: { email: "notify@example.com" } });
+  assert.equal(set.status, 200);
+  assert.equal(set.json.user.email, "notify@example.com");
+
+  const read = await req("/me", { token: login.json.accessToken });
+  assert.equal(read.json.user.email, "notify@example.com");
+
+  const cleared = await req("/me", { method: "PATCH", token: login.json.accessToken, body: { email: null } });
+  assert.equal(cleared.json.user.email, null);
+});
+
+test("me: malformed email is rejected", async () => {
+  const u = await makeUser({ kind: "ceko" });
+  const login = await req("/auth/login", { method: "POST", body: { tag: u.tag, password: u.password } });
+
+  const res = await req("/me", { method: "PATCH", token: login.json.accessToken, body: { email: "not-an-email" } });
+  assert.equal(res.status, 422);
+
+  const { rows } = await pool.query(`SELECT email FROM users WHERE id = $1`, [u.id]);
+  assert.equal(rows[0].email, null, "the malformed value must not have been saved");
+});

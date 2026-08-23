@@ -151,11 +151,30 @@ service (FCM/Mozilla), neither of which `node --test` can exercise.
   notifications" button under the Notifications section, which calls
   `requestPermission()` straight from its own click handler.
 
+### Email notifications
+
+A second, independent channel to the same offline participants --
+`src/email.ts` via [Resend](https://resend.com), triggered from the same
+`notifyOfflineParticipants()` in `src/notify.ts` that push is. No install,
+no permission prompt, no iOS/Android quirks, so it's the one to reach for
+if push is giving trouble on a phone. `PATCH /me` accepts an `email` field
+(loosely validated -- it's a notification address, not a login credential);
+`index.html`'s Notifications section has a plain input + Save button for
+it, pre-filled from `GET /me` on login.
+
+Requires `RESEND_API_KEY` (and optionally `EMAIL_FROM`, default
+`Ceko <onboarding@resend.dev>` -- Resend's shared test sender, fine to
+start with, swap for a verified domain for real deliverability). Unset in
+local dev, same as push: one startup warning, otherwise silently disabled.
+`test/rest.test.ts` covers the `/me` email field (set/read/clear,
+malformed-format rejection) against real Postgres; actual delivery needs a
+real Resend account, which `node --test` can't provide.
+
 ## Layout
 
 ```
 migrations/   001 (yours) + 002 realtime + 003 mutation cursor + 004 refresh
-              tokens + 005 account kinds
+              tokens + 005 account kinds + 006 push + 007 user email
 src/
   message-service.ts   the send path, backfill, and participant auth --
                         the only place a message is written or authorised
@@ -163,13 +182,17 @@ src/
   socket.ts            auth middleware, rooms, message:send, sync, presence, typing
   presence.ts           heartbeat/sweep/online-check
   taruna.ts             the per-login wipe for Taruna accounts
+  push.ts / email.ts    Web Push (VAPID) / email (Resend) -- both Ceko only
+  notify.ts             shared orchestrator: offline participants only
   server.ts            http + socket.io + redis adapter + the Express app
   auth.ts              token signing and the session_version check
   refresh-token.ts     rotation with reuse detection
   tag.ts / password.ts / cookies.ts / rate-limit.ts / storage.ts
-  http/                REST routers: auth, admin, social, conversations, uploads
+  http/                REST routers: auth, admin, social, conversations, uploads, push
   create-admin.ts      bootstraps the first admin account
 public/index.html       Ceko test harness, served at "/"
+public/manifest.json     PWA manifest -- required for push to work on iOS
+public/sw.js             service worker for push
 public/taruna.html       Taruna test harness, served at "/taruna.html"
 public/admin.html        account management, including account-kind switch
 test/e2e.test.ts        socket suite, two instances

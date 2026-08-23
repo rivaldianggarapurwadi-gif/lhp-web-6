@@ -25,6 +25,9 @@ async function main() {
   if (!config.vapidPublicKey || !config.vapidPrivateKey) {
     console.warn("VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set -- push notifications are disabled.");
   }
+  if (!config.resendApiKey) {
+    console.warn("RESEND_API_KEY not set -- email notifications are disabled.");
+  }
 
   const http = createServer();
 

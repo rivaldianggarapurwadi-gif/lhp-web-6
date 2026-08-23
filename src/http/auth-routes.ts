@@ -177,7 +177,7 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
     requireAuth,
     asyncHandler(async (req, res) => {
       const { rows } = await pool.query(
-        `SELECT id, username, tag, avatar_url, is_admin, account_kind, created_at FROM users WHERE id = $1`,
+        `SELECT id, username, tag, email, avatar_url, is_admin, account_kind, created_at FROM users WHERE id = $1`,
         [req.auth!.userId]
       );
       if (!rows[0]) throw new ApiError(404, "NOT_FOUND", "User not found");
@@ -189,17 +189,24 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
     "/me",
     requireAuth,
     asyncHandler(async (req, res) => {
-      const { username, avatarUrl } = req.body ?? {};
+      const { username, avatarUrl, email } = req.body ?? {};
       if (username !== undefined && (typeof username !== "string" || username.trim().length === 0)) {
         throw new ApiError(422, "INVALID_REQUEST", "username must be a non-empty string");
+      }
+      // Deliberately loose (just "has an @ and something on both sides") --
+      // this is a notification address, not a login credential, so the real
+      // validation that matters is whether mail actually arrives there.
+      if (email !== undefined && email !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new ApiError(422, "INVALID_REQUEST", "email is not a valid address");
       }
       const { rows } = await pool.query(
         `UPDATE users
             SET username = COALESCE($2, username),
-                avatar_url = COALESCE($3, avatar_url)
+                avatar_url = COALESCE($3, avatar_url),
+                email = CASE WHEN $4::boolean THEN $5 ELSE email END
           WHERE id = $1
-        RETURNING id, username, tag, avatar_url, is_admin, account_kind, created_at`,
-        [req.auth!.userId, username ?? null, avatarUrl ?? null]
+        RETURNING id, username, tag, email, avatar_url, is_admin, account_kind, created_at`,
+        [req.auth!.userId, username ?? null, avatarUrl ?? null, email !== undefined, email ?? null]
       );
       res.json({ user: rows[0] });
     })
