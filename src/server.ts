@@ -2,13 +2,22 @@ import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { Redis } from "ioredis";
-import { config } from "./config.js";
+import { config, DEV_JWT_SECRET } from "./config.js";
 import { pool } from "./db.js";
 import { attachSocketHandlers, runPresenceSweep } from "./socket.js";
 import { createApp } from "./http/app.js";
 import { SWEEP_INTERVAL_MS } from "./presence.js";
 
 async function main() {
+  // Refuse to boot with a public-facing deployment signing tokens on a
+  // secret that's checked into every README and Docker image ever built
+  // from this repo. Better to fail loudly at startup than silently issue
+  // forgeable access tokens in production.
+  if (config.nodeEnv === "production" && config.jwtSecret === DEV_JWT_SECRET) {
+    console.error("JWT_SECRET must be set to a real secret when NODE_ENV=production.");
+    process.exit(1);
+  }
+
   const http = createServer();
 
   // Constructed without a server yet -- io.attach(http) happens further

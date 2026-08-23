@@ -2,11 +2,13 @@ import { resolve } from "node:path";
 
 const port = Number(process.env.PORT ?? 3001);
 
+export const DEV_JWT_SECRET = "dev-only-not-a-real-secret";
+
 export const config = {
   pgUrl: process.env.DATABASE_URL ?? "postgres://ceko:ceko@localhost:5432/ceko",
   redisUrl: process.env.REDIS_URL ?? "redis://localhost:6379",
   port,
-  jwtSecret: process.env.JWT_SECRET ?? "dev-only-not-a-real-secret",
+  jwtSecret: process.env.JWT_SECRET ?? DEV_JWT_SECRET,
   accessTokenTtlSeconds: Number(process.env.ACCESS_TTL ?? 900),
   refreshTokenTtlSeconds: Number(process.env.REFRESH_TTL ?? 60 * 60 * 24 * 30),
   instanceId: process.env.INSTANCE_ID ?? "api-1",
