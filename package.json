@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "migrate": "node dist/migrate.js",
-    "start": "node dist/server.js",
+    "migrate": "node dist/src/migrate.js",
+    "start": "node dist/src/server.js",
     "create-admin": "node dist/src/create-admin.js",
     "test:e2e": "node --test dist/test/e2e.test.js",
     "test:rest": "node --test dist/test/rest.test.js",
