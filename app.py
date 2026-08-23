@@ -726,6 +726,8 @@ def fill_template(data, image_paths, output_path):
         '(Nama lengkap dan gelar dantontar)':     nama_danton,
         '(Pangkat danton)':                       pangkat_danton,
         '(NRP Danton)':                           nrp_danton,
+        # HARUS sebelum 'ABRIGTAR' — kalau tidak, '(ABRIGTARakhir)' ikut terpotong
+        '(ABRIGTARakhir)':                        pangkat_abbr,
         'ABRIGTAR':                               pangkat_abbr,
         '(No Ak ttd)':                            no_ak,
         '(Nama Lengkap)':                         nama,
@@ -736,7 +738,6 @@ def fill_template(data, image_paths, output_path):
         '(tempat ttd)':                           'Semarang',
         '(tanggal buat laporan ttd)':             tanggal_raw,
         '(Nama Lengkap ttd)':                     nama,
-        '(BRIGTARakhir)':                         pangkat_abbr,
         '(No. Ak. Panjang ttd)':                  no_ak,
     }
 

@@ -1042,10 +1042,32 @@ function getField(name) {
 function buildPreviewHTML(data, fotoUrls) {
   const WM = 'LHPAKPOL.CO';
   const TINGKAT_CFG = {
-    '1': {kop:'BATALYON TARUNA TK I/61/X',   header:'LAPORAN KEGIATAN TARUNA TK. I/61/X',   suffix:'TK I/61/X'},
-    '2': {kop:'BATALYON TARUNA TK II/60/MS',  header:'LAPORAN KEGIATAN TARUNA TK. II/60/MS',  suffix:'TK II/60/MS'},
-    '3': {kop:'BATALYON TARUNA TK III/59/BD', header:'LAPORAN KEGIATAN TARUNA TK. III/59/BD', suffix:'TK III/59/BD'},
+    '1': {kop:'BATALYON TARUNA TK I/61/X',   header:'LAPORAN KEGIATAN TARUNA TK. I/61/X',
+          suffix:'TK I/61/X',   angkatan:'ANGKATAN KE-61, BATALYON X'},
+    '2': {kop:'BATALYON TARUNA TK II/60/MS',  header:'LAPORAN KEGIATAN TARUNA TK. II/60/MS',
+          suffix:'TK II/60/MS',  angkatan:'ANGKATAN KE-60, BATALYON MANGGALA SATYA'},
+    '3': {kop:'BATALYON TARUNA TK III/59/BD', header:'LAPORAN KEGIATAN TARUNA TK. III/59/BD',
+          suffix:'TK III/59/BD', angkatan:'ANGKATAN KE-59, BATALYON BHAYANGKARA DHARMA'},
   };
+  // Mirror parse_tanggal() / parse_waktu() di app.py supaya pratinjau sama persis
+  const MONTHS_ID=['','JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI',
+                   'JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
+  const MONTHS_SHORT={jan:1,feb:2,mar:3,apr:4,mei:5,jun:6,jul:7,agu:8,sep:9,okt:10,nov:11,des:12};
+  function parseTanggal(str){
+    const raw=(str||'').trim();
+    const parts=raw.split(',');
+    const hari=parts.length>1?parts[0].trim().toUpperCase():'';
+    const datePart=(parts.length>1?parts.slice(1).join(','):raw).trim();
+    const tk=datePart.split(/\s+/);
+    const tgl=tk[0]||'';
+    const bulanRaw=(tk[1]||'').toLowerCase().replace(/\.$/,'');
+    const tahun=tk[2]||'';
+    const idx=MONTHS_SHORT[bulanRaw.slice(0,3)]||0;
+    return {hari, tgl, bulan: idx?MONTHS_ID[idx]:bulanRaw.toUpperCase(), tahun};
+  }
+  function parseWaktu(str){
+    return (str||'').trim().replace(/\s*(WIB|WITA|WIT)\s*$/i,'').replace(/:/g,'.').trim();
+  }
   const KOMPI_III = {1:'A',2:'B',3:'C',4:'D',5:'E'};
   const ROMAN = ['','I','II','III','IV','V','VI','VII','VIII','IX','X'];
   const PANGKAT_ABBR = {
@@ -1060,6 +1082,14 @@ function buildPreviewHTML(data, fotoUrls) {
   // Override sementara: Danki Kompi I TK II → tampilkan sebagai DANKITAR IV
   const dankiLabel = (tk === '2' && kompi_int === 1) ? 'II' : kompiLabel;
   const abbr = PANGKAT_ABBR[data.pangkat] || data.pangkat;
+
+  const _t = parseTanggal(data.tanggal);
+  const _w = parseWaktu(data.waktu);
+  const uraianText =
+    `--------PADA HARI ${_t.hari} TANGGAL ${_t.tgl} BULAN ${_t.bulan} TAHUN ${_t.tahun} ` +
+    `PUKUL ${_w} WIB, SAYA ${data.nama} TARUNA AKPOL, PANGKAT ${data.pangkat}, ` +
+    `NO AKADEMI ${data.noAk}, ${cfg.angkatan}, ` +
+    `TELAH MELAKSANAKAN KEGIATAN POSITIF BERUPA ${data.namaKegiatan.toUpperCase()}.-`;
 
   // Buat thumbnail foto (dari object URL, max 3)
   const fotoHTML = fotoUrls.length > 0
@@ -1117,12 +1147,15 @@ hr.kop{border:none;border-top:3px solid #000;margin:4px 0 8px}
 .sec-label{font-size:10pt;font-weight:bold;margin-bottom:6px}
 .foto-wrap{border:1px solid #ccc;padding:6px;min-height:100px;
   display:flex;flex-wrap:wrap;align-items:center;background:#fafafa}
-.ttd-row{display:flex;justify-content:space-between;gap:20px;margin-top:16px}
+.ttd-row{display:flex;justify-content:space-between;gap:24px;margin-top:18px}
 .ttd-blk{flex:1;text-align:center;font-size:9.5pt}
+.ttd-know{margin-top:22px;text-align:center;width:48%;font-size:9.5pt}
+.ttd-place{font-size:9.5pt;margin-bottom:2px}
 .ttd-title{font-weight:bold;margin-bottom:4px}
 .ttd-space{height:58px}
 .ttd-name{font-weight:bold;border-top:1px solid #000;padding-top:3px;
-  display:inline-block;min-width:160px}
+  display:inline-block;min-width:170px}
+.ttd-rank{font-size:9pt}
 .notice{font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;
   font-size:12px;color:#707070;text-align:center;padding:14px;letter-spacing:-.01em}
 </style></head><body>
@@ -1163,9 +1196,7 @@ hr.kop{border:none;border-top:3px solid #000;margin:4px 0 8px}
 
 <div style="margin-top:12px">
   <div class="sec-label">URAIAN KEGIATAN</div>
-  <div class="uraian">PADA HARI ${data.tanggal.split(',')[0]||''} ${data.tanggal} PUKUL ${data.waktu} WIB,
-  SAYA ${data.nama} TARUNA AKPOL, PANGKAT ${data.pangkat}, NO AKADEMI ${data.noAk},
-  TELAH MELAKSANAKAN KEGIATAN POSITIF BERUPA ${data.namaKegiatan.toUpperCase()}.-</div>
+  <div class="uraian">${uraianText}</div>
 </div>
 
 <div class="sec-label">DOKUMENTASI</div>
@@ -1173,19 +1204,27 @@ hr.kop{border:none;border-top:3px solid #000;margin:4px 0 8px}
 
 <div class="ttd-row">
   <div class="ttd-blk">
-    <div class="ttd-title">DANTONTAR ${data.peleton} KOMPI ${kompiLabel}<br>${cfg.suffix} YANG MEMBUAT LAPORAN</div>
+    <div class="ttd-place">&nbsp;</div>
+    <div class="ttd-title">DANTONTAR ${data.peleton} KOMPI ${kompiLabel} ${cfg.suffix}</div>
     <div class="ttd-space"></div>
-    <div class="ttd-name">${data.namaDanton}</div><br>
-    <div style="font-size:9pt">${abbr} NRP ${data.noAk}</div>
-    <div style="font-size:9pt">${data.nama}</div>
+    <div class="ttd-name">${data.namaDanton}</div>
+    <div class="ttd-rank">${data.pangkatDanton} NRP ${data.nrpDanton}</div>
   </div>
   <div class="ttd-blk">
-    <div class="ttd-title">DANKITAR ${dankiLabel}<br>${cfg.suffix}</div>
+    <div class="ttd-place">Semarang, ${data.tanggal}</div>
+    <div class="ttd-title">YANG MEMBUAT LAPORAN</div>
     <div class="ttd-space"></div>
-    <div class="ttd-name">${data.namaDanki}</div><br>
-    <div style="font-size:9pt">${data.pangkatDanki} NRP ${data.nrpDanki}</div>
-    <div style="font-size:9pt">${data.pangkatDanton} NRP ${data.nrpDanton}</div>
+    <div class="ttd-name">${data.nama}</div>
+    <div class="ttd-rank">${abbr} NO. AK ${data.noAk}</div>
   </div>
+</div>
+
+<div class="ttd-know">
+  <div class="ttd-place">Mengetahui,</div>
+  <div class="ttd-title">DANKITAR ${dankiLabel} ${cfg.suffix}</div>
+  <div class="ttd-space"></div>
+  <div class="ttd-name">${data.namaDanki}</div>
+  <div class="ttd-rank">${data.pangkatDanki} NRP ${data.nrpDanki}</div>
 </div>
 </div></div>
 <div class="notice">Pratinjau. Watermark tidak muncul pada dokumen yang diunduh.</div>
