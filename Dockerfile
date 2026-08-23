@@ -6,5 +6,6 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY test ./test
 COPY migrations ./migrations
+COPY public ./public
 RUN npx tsc -p tsconfig.json
 CMD ["node", "dist/src/server.js"]

@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ceko -- test harness</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0f1115; color: #e6e8eb;
+  }
+  header {
+    padding: 10px 16px; border-bottom: 1px solid #2a2d34; display: flex;
+    align-items: center; gap: 12px; font-size: 13px; color: #9aa1ac;
+  }
+  header b { color: #e6e8eb; }
+  #status-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; display: inline-block; }
+  #status-dot.ok { background: #3ddc84; }
+  #status-dot.bad { background: #e5534b; }
+  main { max-width: 980px; margin: 0 auto; padding: 20px 16px; }
+  .hint { color: #9aa1ac; font-size: 13px; margin: 0 0 16px; }
+  .hint code { background: #1b1e24; padding: 1px 5px; border-radius: 3px; }
+  section { background: #161920; border: 1px solid #2a2d34; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: #9aa1ac; }
+  input, button, textarea {
+    font: inherit; background: #0f1115; color: #e6e8eb; border: 1px solid #2a2d34;
+    border-radius: 6px; padding: 7px 10px;
+  }
+  input { width: 200px; }
+  button {
+    background: #2f6fed; border-color: #2f6fed; color: white; cursor: pointer; font-weight: 500;
+  }
+  button.secondary { background: transparent; color: #e6e8eb; border-color: #3a3f4a; }
+  button:disabled { opacity: .5; cursor: default; }
+  button:hover:not(:disabled) { filter: brightness(1.1); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .error { color: #ff8a80; font-size: 13px; margin-top: 6px; min-height: 1em; }
+  .muted { color: #9aa1ac; font-size: 12px; }
+  .tag-pill {
+    font-family: ui-monospace, monospace; background: #1b1e24; border: 1px solid #2a2d34;
+    border-radius: 4px; padding: 2px 8px; letter-spacing: .05em;
+  }
+  ul.list { list-style: none; margin: 0; padding: 0; }
+  ul.list li {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 8px 0; border-bottom: 1px solid #1e2128;
+  }
+  ul.list li:last-child { border-bottom: none; }
+  #app { display: none; }
+  #login-box { max-width: 360px; }
+  #conversations { max-width: 260px; }
+  .layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
+  #conv-header { font-weight: 600; margin-bottom: 8px; }
+  #messages { height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .msg { max-width: 75%; padding: 6px 10px; border-radius: 10px; background: #1b1e24; align-self: flex-start; }
+  .msg.mine { align-self: flex-end; background: #1e3a6e; }
+  .msg .meta { font-size: 11px; color: #9aa1ac; margin-top: 2px; }
+  #compose { display: flex; gap: 8px; }
+  #compose textarea { flex: 1; resize: none; height: 40px; }
+  .conv-item { cursor: pointer; }
+  .conv-item.active { color: #6ea1ff; }
+  .badge { background: #2f6fed; color: white; border-radius: 10px; padding: 0 6px; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<header>
+  <span id="status-dot"></span>
+  <span>Ceko test harness -- <b id="instance-name">connecting...</b></span>
+  <span id="whoami" class="muted" style="margin-left:auto"></span>
+  <button id="logout-btn" class="secondary" style="display:none">Log out</button>
+</header>
+
+<main>
+  <p class="hint">
+    Throwaway UI for exercising the REST + socket API -- not the real client (see
+    <code>CLAUDE.md</code>, "designed but not built"). No account yet? Run
+    <code>npm run create-admin -- yourname</code> against this instance's database first.
+  </p>
+
+  <section id="login-box">
+    <h2>Log in</h2>
+    <div class="row">
+      <input id="login-tag" placeholder="TAG" maxlength="6" autocomplete="off" style="text-transform:uppercase">
+      <input id="login-password" placeholder="password" type="password">
+      <button id="login-btn">Log in</button>
+    </div>
+    <div class="error" id="login-error"></div>
+  </section>
+
+  <div id="app">
+    <section>
+      <h2>Add a contact</h2>
+      <div class="row">
+        <input id="add-tag" placeholder="their TAG" maxlength="6" style="text-transform:uppercase">
+        <button id="add-contact-btn">Send request</button>
+        <span class="error" id="add-contact-error"></span>
+      </div>
+      <div id="incoming-requests"></div>
+    </section>
+
+    <section>
+      <h2>Conversations</h2>
+      <div class="layout">
+        <div id="conversations">
+          <ul class="list" id="conv-list"></ul>
+          <div class="row" style="margin-top:10px">
+            <input id="dm-tag" placeholder="contact TAG" maxlength="6" style="width:120px;text-transform:uppercase">
+            <button id="dm-btn" class="secondary">New DM</button>
+          </div>
+          <div class="error" id="dm-error"></div>
+        </div>
+        <div id="conv-panel">
+          <div id="conv-header" class="muted">Pick a conversation</div>
+          <div id="messages"></div>
+          <div id="compose">
+            <textarea id="compose-text" placeholder="Message... (Enter to send)"></textarea>
+            <button id="send-btn">Send</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let accessToken = null, me = null, socket = null;
+  let conversations = [];
+  let activeConvId = null;
+  const messagesByConv = {};
+
+  fetch("/health").then((r) => r.json()).then((d) => {
+    $("instance-name").textContent = d.instance;
+    $("status-dot").classList.add("ok");
+  }).catch(() => {
+    $("instance-name").textContent = "unreachable";
+    $("status-dot").classList.add("bad");
+  });
+
+  async function api(path, opts = {}) {
+    const headers = { "content-type": "application/json", ...(opts.headers || {}) };
+    if (accessToken) headers.authorization = "Bearer " + accessToken;
+    const res = await fetch(path, { ...opts, headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : null;
+    if (!res.ok) throw new Error((data && data.error && data.error.message) || res.statusText);
+    return data;
+  }
+
+  $("login-btn").onclick = async () => {
+    $("login-error").textContent = "";
+    try {
+      const tag = $("login-tag").value.trim().toUpperCase();
+      const password = $("login-password").value;
+      const data = await api("/auth/login", { method: "POST", body: { tag, password } });
+      accessToken = data.accessToken;
+      me = data.user;
+      onLoggedIn();
+    } catch (e) {
+      $("login-error").textContent = e.message;
+    }
+  };
+
+  $("logout-btn").onclick = async () => {
+    try { await api("/auth/logout", { method: "POST" }); } catch {}
+    location.reload();
+  };
+
+  function onLoggedIn() {
+    $("login-box").style.display = "none";
+    $("app").style.display = "block";
+    $("logout-btn").style.display = "inline-block";
+    $("whoami").innerHTML = me.username + " -- your tag: <span class='tag-pill'>" + me.tag + "</span>";
+
+    socket = io({ transports: ["websocket"], auth: { token: accessToken } });
+    socket.on("message:new", (msg) => {
+      if (!messagesByConv[msg.conversationId]) messagesByConv[msg.conversationId] = [];
+      messagesByConv[msg.conversationId].push(msg);
+      if (msg.conversationId === activeConvId) renderMessages();
+      refreshConversations();
+    });
+    socket.on("connect_error", (e) => console.error("socket:", e.message));
+
+    refreshConversations();
+    refreshIncomingRequests();
+    setInterval(refreshIncomingRequests, 5000);
+  }
+
+  async function refreshConversations() {
+    const data = await api("/conversations");
+    conversations = data.conversations;
+    const list = $("conv-list");
+    list.innerHTML = "";
+    for (const c of conversations) {
+      const li = document.createElement("li");
+      li.className = "conv-item" + (c.id === activeConvId ? " active" : "");
+      const label = c.type === "group" ? c.name : otherParticipantLabel(c);
+      li.innerHTML = "<span>" + escapeHtml(label) + "</span>" +
+        (c.unread > 0 ? "<span class='badge'>" + c.unread + "</span>" : "");
+      li.onclick = () => openConversation(c.id);
+      list.appendChild(li);
+    }
+  }
+
+  function otherParticipantLabel(c) {
+    const other = (c.participants || []).find((p) => p.id !== me.id);
+    return other ? other.username + " (" + other.tag + ")" : "DM";
+  }
+
+  async function openConversation(id) {
+    activeConvId = id;
+    refreshConversations();
+    const conv = conversations.find((c) => c.id === id);
+    $("conv-header").textContent = conv ? (conv.type === "group" ? conv.name : otherParticipantLabel(conv)) : "";
+    const data = await api("/conversations/" + id + "/messages?limit=100");
+    messagesByConv[id] = data.messages;
+    renderMessages();
+    api("/conversations/" + id + "/read", { method: "POST", body: { seq: conv ? conv.last_seq : 0 } }).catch(() => {});
+  }
+
+  function renderMessages() {
+    const box = $("messages");
+    box.innerHTML = "";
+    for (const m of messagesByConv[activeConvId] || []) {
+      const div = document.createElement("div");
+      div.className = "msg" + (m.sender_id === me.id || m.senderId === me.id ? " mine" : "");
+      div.innerHTML = escapeHtml(m.content || "") +
+        "<div class='meta'>seq " + m.seq + "</div>";
+      box.appendChild(div);
+    }
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function sendMessage() {
+    const text = $("compose-text").value.trim();
+    if (!text || !activeConvId || !socket) return;
+    socket.emit("message:send", {
+      conversationId: activeConvId,
+      clientMessageId: crypto.randomUUID(),
+      type: "text",
+      content: text,
+    }, (res) => {
+      if (!res.ok) { alert(res.error.message); return; }
+      if (!messagesByConv[activeConvId]) messagesByConv[activeConvId] = [];
+      if (!messagesByConv[activeConvId].some((m) => m.id === res.data.id)) {
+        messagesByConv[activeConvId].push(res.data);
+      }
+      renderMessages();
+    });
+    $("compose-text").value = "";
+  }
+  $("send-btn").onclick = sendMessage;
+  $("compose-text").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  $("dm-btn").onclick = async () => {
+    $("dm-error").textContent = "";
+    try {
+      const tag = $("dm-tag").value.trim().toUpperCase();
+      const looked = await api("/users/lookup?tag=" + encodeURIComponent(tag));
+      const conv = await api("/conversations", { method: "POST", body: { type: "dm", userId: looked.user.id } });
+      await refreshConversations();
+      openConversation(conv.conversation.id);
+      $("dm-tag").value = "";
+    } catch (e) {
+      $("dm-error").textContent = e.message;
+    }
+  };
+
+  $("add-contact-btn").onclick = async () => {
+    $("add-contact-error").textContent = "";
+    try {
+      const tag = $("add-tag").value.trim().toUpperCase();
+      await api("/contacts", { method: "POST", body: { tag } });
+      $("add-tag").value = "";
+      refreshIncomingRequests();
+    } catch (e) {
+      $("add-contact-error").textContent = e.message;
+    }
+  };
+
+  async function refreshIncomingRequests() {
+    const data = await api("/contacts/requests?direction=incoming").catch(() => ({ requests: [] }));
+    const box = $("incoming-requests");
+    if (data.requests.length === 0) { box.innerHTML = ""; return; }
+    box.innerHTML = "<div class='muted' style='margin:10px 0 4px'>Incoming requests</div>";
+    const list = document.createElement("ul");
+    list.className = "list";
+    for (const r of data.requests) {
+      const li = document.createElement("li");
+      li.innerHTML = "<span>" + escapeHtml(r.username) + " <span class='tag-pill'>" + r.tag + "</span></span>";
+      const btn = document.createElement("button");
+      btn.textContent = "Accept";
+      btn.onclick = async () => {
+        await api("/contacts/" + r.id + "/accept", { method: "POST" });
+        refreshIncomingRequests();
+      };
+      li.appendChild(btn);
+      list.appendChild(li);
+    }
+    box.appendChild(list);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+})();
+</script>
+</body>
+</html>

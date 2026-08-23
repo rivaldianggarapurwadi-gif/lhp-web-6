@@ -34,6 +34,10 @@ DATABASE_URL=postgres://ceko:ceko@localhost:5432/ceko \
   npm run create-admin -- alice
 ```
 
+Then open `http://localhost:3001/` for a throwaway test harness (login,
+contacts, DMs) -- not the real client, just enough to click around in. The
+real UI is still "designed but not built" per `CLAUDE.md`.
+
 ## What the suite proves
 
 | Test | What breaks without it |

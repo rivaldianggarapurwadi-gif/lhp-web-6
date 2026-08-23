@@ -76,6 +76,7 @@ src/refresh-token.ts                 rotation, with theft-shaped reuse detection
 src/tag.ts, password.ts, cookies.ts, rate-limit.ts, storage.ts   REST building blocks
 src/http/                            REST routers: auth, admin, social, conversations, uploads
 src/create-admin.ts                  bootstraps the first admin account (accounts are admin-created)
+public/index.html                    throwaway browser test harness, served at "/" -- not the real UI
 test/e2e.test.ts                     11 tests against a live two-instance cluster
 test/rest.test.ts                    REST integration tests, one instance
 test/rest-unit.test.ts               password/tag/cookie logic, no infra needed
