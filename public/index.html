@@ -62,6 +62,8 @@
   .conv-item { cursor: pointer; }
   .conv-item.active { color: #6ea1ff; }
   .badge { background: #2f6fed; color: white; border-radius: 10px; padding: 0 6px; font-size: 11px; }
+  .presence-dot { width: 8px; height: 8px; border-radius: 50%; background: #3a3f4a; display: inline-block; margin-right: 8px; }
+  .presence-dot.online { background: #3ddc84; }
 </style>
 </head>
 <body>
@@ -100,6 +102,11 @@
         <span class="error" id="add-contact-error"></span>
       </div>
       <div id="incoming-requests"></div>
+    </section>
+
+    <section>
+      <h2>Contacts</h2>
+      <ul class="list" id="contact-list"></ul>
     </section>
 
     <section>
@@ -185,11 +192,42 @@
       if (msg.conversationId === activeConvId) renderMessages();
       refreshConversations();
     });
+    socket.on("presence", (p) => {
+      // Live push while connected -- refreshContacts() below covers the
+      // initial load, same push+pull split the server uses.
+      onlineContacts[p.userId] = p.isOnline;
+      renderContacts();
+    });
     socket.on("connect_error", (e) => console.error("socket:", e.message));
 
     refreshConversations();
     refreshIncomingRequests();
+    refreshContacts();
     setInterval(refreshIncomingRequests, 5000);
+  }
+
+  let contacts = [];
+  const onlineContacts = {};
+
+  async function refreshContacts() {
+    const data = await api("/contacts").catch(() => ({ contacts: [] }));
+    contacts = data.contacts;
+    for (const c of contacts) onlineContacts[c.user_id] = c.isOnline;
+    renderContacts();
+  }
+
+  function renderContacts() {
+    const list = $("contact-list");
+    list.innerHTML = "";
+    for (const c of contacts) {
+      const li = document.createElement("li");
+      const online = !!onlineContacts[c.user_id];
+      li.innerHTML =
+        "<span><span class='presence-dot" + (online ? " online" : "") + "'></span>" +
+        escapeHtml(c.username) + " <span class='tag-pill'>" + c.tag + "</span></span>" +
+        "<span class='muted'>" + (online ? "online" : "offline") + "</span>";
+      list.appendChild(li);
+    }
   }
 
   async function refreshConversations() {
@@ -281,6 +319,7 @@
       await api("/contacts", { method: "POST", body: { tag } });
       $("add-tag").value = "";
       refreshIncomingRequests();
+      refreshContacts(); // no-op unless this was a mutual auto-accept
     } catch (e) {
       $("add-contact-error").textContent = e.message;
     }
@@ -301,6 +340,7 @@
       btn.onclick = async () => {
         await api("/contacts/" + r.id + "/accept", { method: "POST" });
         refreshIncomingRequests();
+        refreshContacts();
       };
       li.appendChild(btn);
       list.appendChild(li);

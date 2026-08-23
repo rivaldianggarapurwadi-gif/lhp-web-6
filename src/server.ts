@@ -4,8 +4,9 @@ import { createAdapter } from "@socket.io/redis-adapter";
 import { Redis } from "ioredis";
 import { config } from "./config.js";
 import { pool } from "./db.js";
-import { attachSocketHandlers } from "./socket.js";
+import { attachSocketHandlers, runPresenceSweep } from "./socket.js";
 import { createApp } from "./http/app.js";
+import { SWEEP_INTERVAL_MS } from "./presence.js";
 
 async function main() {
   const http = createServer();
@@ -37,10 +38,15 @@ async function main() {
   http.on("request", app);
   io.attach(http);
 
+  // Every instance runs this; presence.ts's lock ensures only one of them
+  // actually performs a given tick's eviction and fan-out.
+  const sweepTimer = setInterval(() => void runPresenceSweep(io, cache), SWEEP_INTERVAL_MS);
+
   await new Promise<void>((resolve) => http.listen(config.port, resolve));
   console.log(`[${config.instanceId}] listening on ${config.port}`);
 
   const shutdown = async () => {
+    clearInterval(sweepTimer);
     await io.close();
     await Promise.all([pub.quit(), sub.quit(), cache.quit()]);
     process.exit(0);

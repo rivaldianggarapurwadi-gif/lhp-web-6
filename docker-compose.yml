@@ -44,6 +44,12 @@ services:
       # wherever the test suite runs (the host), not the container's own view
       # of itself.
       PUBLIC_URL: http://localhost:3001
+      # Production defaults (30s/90s/12s) would make the presence tests take
+      # over a minute; these keep the suite fast without changing what ships.
+      PRESENCE_HEARTBEAT_MS: "500"
+      PRESENCE_ONLINE_WINDOW_MS: "2000"
+      PRESENCE_SWEEP_INTERVAL_MS: "1000"
+      PRESENCE_OFFLINE_DEBOUNCE_MS: "800"
     ports: ["3001:3001"]
     depends_on:
       migrate: { condition: service_completed_successfully }
@@ -58,6 +64,10 @@ services:
       PORT: 3002
       INSTANCE_ID: api-2
       PUBLIC_URL: http://localhost:3002
+      PRESENCE_HEARTBEAT_MS: "500"
+      PRESENCE_ONLINE_WINDOW_MS: "2000"
+      PRESENCE_SWEEP_INTERVAL_MS: "1000"
+      PRESENCE_OFFLINE_DEBOUNCE_MS: "800"
     ports: ["3002:3002"]
     depends_on:
       migrate: { condition: service_completed_successfully }

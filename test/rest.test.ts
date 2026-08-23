@@ -75,6 +75,19 @@ function openSocket(userId: string): Promise<Socket> {
   });
 }
 
+function waitForEvent<T = any>(socket: Socket, event: string, matches: (p: T) => boolean, ms = 5000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`never saw ${event} matching predicate`)), ms);
+    const on = (p: T) => {
+      if (!matches(p)) return;
+      clearTimeout(t);
+      socket.off(event, on);
+      resolve(p);
+    };
+    socket.on(event, on);
+  });
+}
+
 after(async () => {
   for (const s of sockets) s.disconnect();
   await pool.end();
@@ -313,4 +326,44 @@ test("uploads: a message cannot reference a key that was never uploaded", async 
   });
   assert.equal(send.status, 422);
   assert.equal(send.json.error.code, "ATTACHMENT_NOT_UPLOADED");
+});
+
+test("presence: a contact's connect/disconnect is pushed live and reflected on the next pull", async () => {
+  const a = await makeUser();
+  const b = await makeUser();
+  await makeContacts(a.id, b.id);
+  const bLogin = await req("/auth/login", { method: "POST", body: { tag: b.tag, password: b.password } });
+
+  // Bob is already watching when Alice connects, so he should see her come online.
+  const bobSocket = await openSocket(b.id);
+  const sawOnline = waitForEvent(bobSocket, "presence", (p: any) => p.userId === a.id && p.isOnline === true);
+  const aliceSocket = await openSocket(a.id);
+  await sawOnline;
+
+  const whilePresent = await req("/contacts", { token: bLogin.json.accessToken });
+  assert.equal(whilePresent.json.contacts.find((c: any) => c.user_id === a.id).isOnline, true);
+
+  // Disconnecting is the debounced path (socket.ts's debounceOfflineIfLastSocket),
+  // not the sweep -- the test env's short PRESENCE_OFFLINE_DEBOUNCE_MS makes this
+  // fast enough to assert on directly instead of waiting for a sweep tick.
+  const sawOffline = waitForEvent(bobSocket, "presence", (p: any) => p.userId === a.id && p.isOnline === false);
+  aliceSocket.disconnect();
+  await sawOffline;
+
+  const afterDisconnect = await req("/contacts", { token: bLogin.json.accessToken });
+  assert.equal(afterDisconnect.json.contacts.find((c: any) => c.user_id === a.id).isOnline, false);
+});
+
+test("presence: a non-contact's connect/disconnect is never pushed", async () => {
+  const a = await makeUser();
+  const stranger = await makeUser(); // deliberately not made a contact of a
+
+  const aSocket = await openSocket(a.id);
+  const sawAnything = waitForEvent(aSocket, "presence", () => true, 800).then(
+    () => true,
+    () => false
+  );
+  const strangerSocket = await openSocket(stranger.id);
+  assert.equal(await sawAnything, false, "a stranger connecting must not reach a's socket");
+  strangerSocket.disconnect();
 });

@@ -60,6 +60,10 @@ These are load-bearing. Each one is enforced by a test that will fail loudly.
 11. **The Redis adapter's pub/sub clients must be separate connections** from
     the participant cache. A subscriber-mode client cannot issue commands.
 
+12. **Presence only ever fans out to accepted contacts.** Broadcasting a
+    connect/disconnect to every user is O(users²) and is how a chat server
+    melts under real load, not just a privacy leak.
+
 ## Layout
 
 ```
@@ -69,8 +73,9 @@ migrations/003_message_mutations.sql mutated_at + trigger (the second sync curso
 migrations/004_rest_surface.sql      refresh_tokens (rotation + reuse detection)
 src/message-service.ts               the ONLY place a message is written or authorised
 src/message-store.ts                 client reconciliation, shared with the browser
-src/socket.ts                        auth middleware, rooms, message:send, sync
-src/server.ts                        http + socket.io + redis adapter + the Express app
+src/socket.ts                        auth middleware, rooms, message:send, sync, presence, typing
+src/presence.ts                      heartbeat/sweep/online-check, narrow-fan-out contact lookup
+src/server.ts                        http + socket.io + redis adapter + the Express app + presence sweep loop
 src/auth.ts                          JWT + session_version revocation check
 src/refresh-token.ts                 rotation, with theft-shaped reuse detection
 src/tag.ts, password.ts, cookies.ts, rate-limit.ts, storage.ts   REST building blocks
@@ -87,14 +92,15 @@ test/rest-unit.test.ts               password/tag/cookie logic, no infra needed
 
 **Built and tested:** schema, send path, backfill with both cursors, sync,
 socket auth with `session_version` revocation, client store (16 unit tests),
-cross-instance fan-out, and the REST surface (auth + refresh rotation, admin
+cross-instance fan-out, the REST surface (auth + refresh rotation, admin
 user creation, contacts/blocks, idempotent DM creation, presigned uploads
-against a local-disk mock).
+against a local-disk mock), presence (Redis ZSET + heartbeat + sweeper,
+narrow fan-out to contacts only, debounced disconnect), and typing beyond
+the raw relay (participant check + rate limit).
 
-**Designed but not built:** presence (Redis ZSET + heartbeat + sweeper,
-narrow fan-out to contacts only), typing beyond the raw relay, calls (LiveKit
-token vending, ring-timeout reconciliation), real object storage in place of
-the local-disk upload mock, and all UI. The design note covers each.
+**Designed but not built:** calls (LiveKit token vending, ring-timeout
+reconciliation), real object storage in place of the local-disk upload mock,
+and all UI beyond the throwaway test harness. The design note covers each.
 
 ## Testing discipline used here
 

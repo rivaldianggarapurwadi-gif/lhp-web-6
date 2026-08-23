@@ -4,6 +4,7 @@ import type { Redis } from "ioredis";
 import type { Server } from "socket.io";
 import { normalizeTag, isValidTagFormat } from "../tag.js";
 import { checkRateLimit } from "../rate-limit.js";
+import { getOnlineUserIds } from "../presence.js";
 import { asyncHandler, requireAuth, ApiError } from "./middleware.js";
 
 /** Blocked in either direction hides the target exactly like a nonexistent
@@ -67,7 +68,12 @@ export function createSocialRouter(pool: Pool, redis: Redis, io: Server): Router
           ORDER BY c.responded_at DESC NULLS LAST`,
         [req.auth!.userId]
       );
-      res.json({ contacts: rows });
+      // The live "presence" socket event covers changes while connected;
+      // this covers the initial load, same push+pull split the message sync
+      // path already uses for the same reason -- a client that was never
+      // connected to see the push still needs the current truth on load.
+      const online = await getOnlineUserIds(redis, rows.map((r) => r.user_id));
+      res.json({ contacts: rows.map((r) => ({ ...r, isOnline: online.has(r.user_id) })) });
     })
   );
 

@@ -63,8 +63,15 @@ socket, blocked/unknown tag lookups are indistinguishable, mutual pending
 contact requests auto-accept instead of duplicating, DM creation is
 idempotent via `dm_key`, the REST fallback send dedupes on
 `clientMessageId` exactly like the socket path, read receipts are
-monotonic, and a message cannot reference an attachment that was never
-actually uploaded.
+monotonic, a message cannot reference an attachment that was never
+actually uploaded, a contact's connect/disconnect is pushed live and
+reflected on the next REST pull, and presence never reaches a
+non-contact's socket.
+
+Presence's production timings (30s heartbeat, 90s online window, 12s
+offline debounce) are overridable via `PRESENCE_*` env vars --
+`docker-compose.yml` tunes them down for `api-1`/`api-2` so the suite
+above runs in seconds instead of minutes without changing what ships.
 
 ## Layout
 

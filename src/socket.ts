@@ -9,6 +9,14 @@ import {
   SendError,
   BACKFILL_LIMIT,
 } from "./message-service.js";
+import {
+  heartbeat,
+  removePresence,
+  getContactIds,
+  sweepStalePresence,
+  HEARTBEAT_INTERVAL_MS,
+  OFFLINE_DEBOUNCE_MS,
+} from "./presence.js";
 
 interface SocketData {
   userId: string;
@@ -51,6 +59,14 @@ export function attachSocketHandlers(io: Server, redis: Redis) {
     const userId = (socket.data as SocketData).userId;
 
     void joinRooms(socket, userId);
+
+    void heartbeat(redis, userId);
+    void announcePresenceIfFirstSocket(io, redis, userId);
+    const heartbeatTimer = setInterval(() => void heartbeat(redis, userId), HEARTBEAT_INTERVAL_MS);
+    socket.on("disconnect", () => {
+      clearInterval(heartbeatTimer);
+      void debounceOfflineIfLastSocket(io, redis, userId);
+    });
 
     socket.on("message:send", (payload: any, ack: Ack<any>) =>
       guard(ack, async () => {
@@ -103,17 +119,71 @@ export function attachSocketHandlers(io: Server, redis: Redis) {
         .catch((e) => console.error("[read]", e));
     });
 
-    socket.on("typing:start", (p: any) =>
-      socket.to(`conv:${p.conversationId}`).emit("typing", {
-        conversationId: p.conversationId, userId, isTyping: true,
-      })
-    );
-    socket.on("typing:stop", (p: any) =>
-      socket.to(`conv:${p.conversationId}`).emit("typing", {
-        conversationId: p.conversationId, userId, isTyping: false,
-      })
-    );
+    socket.on("typing:start", (p: any) => void relayTyping(socket, redis, userId, p?.conversationId, true));
+    socket.on("typing:stop", (p: any) => void relayTyping(socket, redis, userId, p?.conversationId, false));
   });
+}
+
+/**
+ * Never persisted -- this is a raw relay, not a message. Two guards the bare
+ * version didn't have: a participant check (otherwise anyone with a
+ * conversation id can make their name flash "typing..." in a room they were
+ * never added to), and a rate limit (a chatty client re-emitting on every
+ * keystroke otherwise fans out to every other participant on every
+ * keystroke too). Silently drops rather than acking an error -- typing
+ * indicators have no meaningful failure UI.
+ */
+async function relayTyping(socket: Socket, redis: Redis, userId: string, conversationId: unknown, isTyping: boolean) {
+  if (typeof conversationId !== "string") return;
+  try {
+    await assertParticipant(pool, redis, conversationId, userId);
+  } catch {
+    return;
+  }
+  if (isTyping) {
+    // At most one "start" event relayed per 2s per (user, conversation);
+    // "stop" always goes through so the indicator doesn't get stuck lit.
+    const allowed = await redis.set(`typing-rl:${conversationId}:${userId}`, "1", "PX", 2000, "NX");
+    if (!allowed) return;
+  }
+  socket.to(`conv:${conversationId}`).emit("typing", { conversationId, userId, isTyping });
+}
+
+/**
+ * The crash-tolerant backstop: a process killed outright never gets to run
+ * its disconnect handler, so nothing ever calls debounceOfflineIfLastSocket
+ * for its sockets. This is what still ages them out. Called on an interval
+ * from server.ts -- see presence.ts for why only one instance actually does
+ * the eviction per tick.
+ */
+export async function runPresenceSweep(io: Server, redis: Redis) {
+  const staleUserIds = await sweepStalePresence(redis);
+  await Promise.all(staleUserIds.map((id) => fanOutPresence(io, id, false)));
+}
+
+/** Fans out to accepted contacts only -- see presence.ts for why. */
+async function fanOutPresence(io: Server, userId: string, isOnline: boolean) {
+  const contactIds = await getContactIds(pool, userId);
+  if (contactIds.length === 0) return;
+  io.in(contactIds.map((id) => `user:${id}`)).emit("presence", { userId, isOnline });
+}
+
+async function announcePresenceIfFirstSocket(io: Server, redis: Redis, userId: string) {
+  const sockets = await io.in(`user:${userId}`).fetchSockets();
+  if (sockets.length === 1) await fanOutPresence(io, userId, true);
+}
+
+async function debounceOfflineIfLastSocket(io: Server, redis: Redis, userId: string) {
+  const stillConnected = (await io.in(`user:${userId}`).fetchSockets()).length > 0;
+  if (stillConnected) return;
+  setTimeout(async () => {
+    // Re-check after the debounce window -- a page refresh or a flaky
+    // connection reconnects well within it, and must not flip the dot.
+    const reconnected = (await io.in(`user:${userId}`).fetchSockets()).length > 0;
+    if (reconnected) return;
+    await removePresence(redis, userId);
+    await fanOutPresence(io, userId, false);
+  }, OFFLINE_DEBOUNCE_MS);
 }
 
 async function joinRooms(socket: Socket, userId: string) {
