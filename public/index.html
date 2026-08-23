@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ceko -- test harness</title>
+<!-- Push on iOS Safari only works from an installed home-screen app, never
+     a regular tab -- this is what makes that possible. -->
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ceko">
+<meta name="theme-color" content="#2f6fed">
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -94,6 +101,23 @@
   </section>
 
   <div id="app">
+    <section id="notify-box" style="display:none">
+      <h2>Notifications</h2>
+      <p class="hint" style="margin-bottom:10px">
+        On iPhone, push only works from a home-screen install: Share &rarr;
+        Add to Home Screen, then open Ceko from that icon (not from Safari)
+        before enabling notifications below.
+      </p>
+      <div class="row" id="notify-ask-row">
+        <button id="enable-notify-btn">Enable notifications</button>
+        <span class="error" id="notify-error"></span>
+      </div>
+      <p class="hint" id="notify-denied-row" style="display:none;margin:0">
+        Notifications are blocked for this site. Enable them from your
+        browser's site settings, then reload this page.
+      </p>
+    </section>
+
     <section>
       <h2>Add a contact</h2>
       <div class="row">
@@ -200,6 +224,23 @@
     location.reload();
   };
 
+  // Direct result of a tap, unlike the login-time attempt this replaced --
+  // this is what actually gets Chrome's native prompt to show on Android.
+  $("enable-notify-btn").onclick = async () => {
+    $("notify-error").textContent = "";
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        $("notify-error").textContent = "Permission not granted.";
+        return;
+      }
+      await setupPush();
+      $("notify-box").style.display = "none";
+    } catch (e) {
+      $("notify-error").textContent = e.message;
+    }
+  };
+
   async function setupPush() {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
     try {
@@ -248,13 +289,23 @@
 
     // Ceko accounts get notifications; a Taruna's whole point is to leave
     // nothing behind on a shared device, so its harness (taruna.html) never
-    // asks for this. requestPermission() resolves immediately with the
-    // existing value (no re-prompt) if this origin was already granted or
-    // denied in an earlier session, so this is safe to call every login.
-    if ("Notification" in window) {
-      Notification.requestPermission().then((permission) => {
-        if (permission === "granted") setupPush();
-      });
+    // asks for this.
+    //
+    // Deliberately NOT auto-calling Notification.requestPermission() here.
+    // Chrome (especially on Android) silently suppresses the native prompt
+    // -- no error, it just never appears -- for permission requests that
+    // aren't the direct result of a dedicated tap, treating an automatic
+    // post-login request as exactly the "abusive prompt" pattern its
+    // heuristics exist to block. Already-granted permission still resumes
+    // silently below; only a fresh grant needs the explicit button.
+    if ("Notification" in window && Notification.permission === "granted") {
+      setupPush();
+    } else if ("Notification" in window && Notification.permission === "denied") {
+      $("notify-box").style.display = "block";
+      $("notify-ask-row").style.display = "none";
+      $("notify-denied-row").style.display = "block";
+    } else if ("Notification" in window) {
+      $("notify-box").style.display = "block";
     }
 
     socket = io({ transports: ["websocket"], auth: { token: accessToken } });

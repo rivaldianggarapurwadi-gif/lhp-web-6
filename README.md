@@ -133,6 +133,24 @@ the subscribe/unsubscribe endpoints against real Postgres; actual delivery
 needs a real browser's notification-permission grant and a real push
 service (FCM/Mozilla), neither of which `node --test` can exercise.
 
+**Two mobile-specific things this needed, beyond desktop:**
+
+- **iOS Safari refuses to show push notifications from an ordinary tab at
+  all** -- only from a site installed to the Home Screen and opened from
+  that icon. `public/manifest.json` + the `apple-touch-icon`/
+  `apple-mobile-web-app-*` tags in `index.html`'s `<head>` are what make
+  that install possible; there's no code-side workaround for the
+  restriction itself.
+- **Chrome (notably on Android) silently suppresses its own native
+  permission prompt** -- no error, it just never appears -- when
+  `Notification.requestPermission()` isn't the direct result of a
+  dedicated tap; calling it automatically right after login reads as
+  exactly the "abusive prompt" pattern that heuristic exists to block.
+  `index.html` doesn't auto-call it at all: an already-granted permission
+  resumes push silently, but a fresh grant needs the visible "Enable
+  notifications" button under the Notifications section, which calls
+  `requestPermission()` straight from its own click handler.
+
 ## Layout
 
 ```
