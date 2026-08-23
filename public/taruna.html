@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ceko -- test harness</title>
+<title>Ceko -- Taruna</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -22,6 +22,10 @@
   main { max-width: 980px; margin: 0 auto; padding: 20px 16px; }
   .hint { color: #9aa1ac; font-size: 13px; margin: 0 0 16px; }
   .hint code { background: #1b1e24; padding: 1px 5px; border-radius: 3px; }
+  .warning {
+    background: #35201d; border: 1px solid #8a2b25; color: #ffb4a8;
+    border-radius: 8px; padding: 12px 14px; font-size: 13px; margin-bottom: 16px;
+  }
   section { background: #161920; border: 1px solid #2a2d34; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
   h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: #9aa1ac; }
   input, button, textarea {
@@ -33,6 +37,7 @@
     background: #2f6fed; border-color: #2f6fed; color: white; cursor: pointer; font-weight: 500;
   }
   button.secondary { background: transparent; color: #e6e8eb; border-color: #3a3f4a; }
+  button.pending-btn { background: #b8860b; border-color: #b8860b; }
   button:disabled { opacity: .5; cursor: default; }
   button:hover:not(:disabled) { filter: brightness(1.1); }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
@@ -52,7 +57,7 @@
   #login-box { max-width: 360px; }
   #conversations { max-width: 260px; }
   .layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
-  #conv-header { font-weight: 600; margin-bottom: 8px; }
+  #conv-header { font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
   #messages { height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
   .msg { max-width: 75%; padding: 6px 10px; border-radius: 10px; background: #1b1e24; align-self: flex-start; }
   .msg.mine { align-self: flex-end; background: #1e3a6e; }
@@ -62,26 +67,30 @@
   .conv-item { cursor: pointer; }
   .conv-item.active { color: #6ea1ff; }
   .badge { background: #2f6fed; color: white; border-radius: 10px; padding: 0 6px; font-size: 11px; }
-  .presence-dot { width: 8px; height: 8px; border-radius: 50%; background: #3a3f4a; display: inline-block; margin-right: 8px; }
-  .presence-dot.online { background: #3ddc84; }
+  .badge.pending { background: #b8860b; }
+  #pending-banner {
+    background: #2a2306; border: 1px solid #b8860b; border-radius: 6px;
+    padding: 10px 12px; margin-bottom: 10px; font-size: 13px; display: none;
+  }
 </style>
 </head>
 <body>
 
 <header>
   <span id="status-dot"></span>
-  <span>Ceko test harness -- <b id="instance-name">connecting...</b></span>
-  <a href="/admin.html" style="color:#6ea1ff;text-decoration:none">admin &rarr;</a>
+  <span>Ceko -- <b>Taruna</b> -- <b id="instance-name">connecting...</b></span>
   <span id="whoami" class="muted" style="margin-left:auto"></span>
   <button id="logout-btn" class="secondary" style="display:none">Log out</button>
 </header>
 
 <main>
-  <p class="hint">
-    Throwaway UI for exercising the REST + socket API -- not the real client (see
-    <code>CLAUDE.md</code>, "designed but not built"). No account yet? Run
-    <code>npm run create-admin -- yourname</code> against this instance's database first.
-  </p>
+  <div class="warning">
+    This is a Taruna session: your conversation history is wiped on every
+    login, and refreshing or closing this tab ends the session -- there is
+    no persistent login. Your contact list is not wiped. If someone messaged
+    you while you were logged out, open a DM with them again from your
+    contact list to see the option to request those messages.
+  </div>
 
   <section id="login-box">
     <h2>Log in</h2>
@@ -95,6 +104,14 @@
 
   <div id="app">
     <section>
+      <h2>Contacts</h2>
+      <p class="hint" style="margin-bottom:10px">
+        Unlike your conversations, your contact list survives across logins.
+      </p>
+      <ul class="list" id="contact-list"></ul>
+    </section>
+
+    <section>
       <h2>Add a contact</h2>
       <div class="row">
         <input id="add-tag" placeholder="their TAG" maxlength="6" style="text-transform:uppercase">
@@ -102,11 +119,6 @@
         <span class="error" id="add-contact-error"></span>
       </div>
       <div id="incoming-requests"></div>
-    </section>
-
-    <section>
-      <h2>Contacts</h2>
-      <ul class="list" id="contact-list"></ul>
     </section>
 
     <section>
@@ -122,6 +134,10 @@
         </div>
         <div id="conv-panel">
           <div id="conv-header" class="muted">Pick a conversation</div>
+          <div id="pending-banner">
+            Messages sent to you here before this session are being held back.
+            <button id="request-pending-btn" class="pending-btn">Request pending messages</button>
+          </div>
           <div id="messages"></div>
           <div id="compose">
             <textarea id="compose-text" placeholder="Message... (Enter to send)"></textarea>
@@ -137,6 +153,9 @@
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
+  // Access token lives in a page-scoped variable only -- there is no
+  // refresh token, no cookie, nothing to persist. A refresh or tab close
+  // loses this and the session is simply over, by design.
   let accessToken = null, me = null, socket = null;
   let conversations = [];
   let activeConvId = null;
@@ -166,6 +185,9 @@
       const tag = $("login-tag").value.trim().toUpperCase();
       const password = $("login-password").value;
       const data = await api("/auth/login", { method: "POST", body: { tag, password } });
+      if (data.user.accountKind !== "taruna") {
+        throw new Error("That's a Ceko account -- use the ordinary login page instead.");
+      }
       accessToken = data.accessToken;
       me = data.user;
       onLoggedIn();
@@ -185,29 +207,12 @@
     $("logout-btn").style.display = "inline-block";
     $("whoami").innerHTML = me.username + " -- your tag: <span class='tag-pill'>" + me.tag + "</span>";
 
-    // Ceko accounts get notifications; a Taruna's whole point is to leave
-    // nothing behind on a shared device, so its harness (taruna.html) never
-    // asks for this.
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-
     socket = io({ transports: ["websocket"], auth: { token: accessToken } });
     socket.on("message:new", (msg) => {
       if (!messagesByConv[msg.conversationId]) messagesByConv[msg.conversationId] = [];
       messagesByConv[msg.conversationId].push(msg);
       if (msg.conversationId === activeConvId) renderMessages();
-      else if (document.hidden) notify("New message", msg.content || "(attachment)");
       refreshConversations();
-    });
-    socket.on("pending:requested", (p) => {
-      notify("Pending messages requested", "A contact just asked to receive messages you sent while they were offline.");
-    });
-    socket.on("presence", (p) => {
-      // Live push while connected -- refreshContacts() below covers the
-      // initial load, same push+pull split the server uses.
-      onlineContacts[p.userId] = p.isOnline;
-      renderContacts();
     });
     socket.on("connect_error", (e) => console.error("socket:", e.message));
 
@@ -217,31 +222,24 @@
     setInterval(refreshIncomingRequests, 5000);
   }
 
-  function notify(title, body) {
-    if (!("Notification" in window) || Notification.permission !== "granted") return;
-    try { new Notification(title, { body }); } catch {}
-  }
-
   let contacts = [];
-  const onlineContacts = {};
-
   async function refreshContacts() {
     const data = await api("/contacts").catch(() => ({ contacts: [] }));
     contacts = data.contacts;
-    for (const c of contacts) onlineContacts[c.user_id] = c.isOnline;
-    renderContacts();
-  }
-
-  function renderContacts() {
     const list = $("contact-list");
     list.innerHTML = "";
     for (const c of contacts) {
       const li = document.createElement("li");
-      const online = !!onlineContacts[c.user_id];
-      li.innerHTML =
-        "<span><span class='presence-dot" + (online ? " online" : "") + "'></span>" +
-        escapeHtml(c.username) + " <span class='tag-pill'>" + c.tag + "</span></span>" +
-        "<span class='muted'>" + (online ? "online" : "offline") + "</span>";
+      li.innerHTML = "<span>" + escapeHtml(c.username) + " <span class='tag-pill'>" + c.tag + "</span></span>";
+      const btn = document.createElement("button");
+      btn.className = "secondary";
+      btn.textContent = "Open DM";
+      btn.onclick = async () => {
+        const conv = await api("/conversations", { method: "POST", body: { type: "dm", userId: c.user_id } });
+        await refreshConversations();
+        openConversation(conv.conversation.id);
+      };
+      li.appendChild(btn);
       list.appendChild(li);
     }
   }
@@ -256,6 +254,7 @@
       li.className = "conv-item" + (c.id === activeConvId ? " active" : "");
       const label = c.type === "group" ? c.name : otherParticipantLabel(c);
       li.innerHTML = "<span>" + escapeHtml(label) + "</span>" +
+        (c.pending_release_seq !== null ? "<span class='badge pending'>pending</span>" : "") +
         (c.unread > 0 ? "<span class='badge'>" + c.unread + "</span>" : "");
       li.onclick = () => openConversation(c.id);
       list.appendChild(li);
@@ -275,8 +274,20 @@
     const data = await api("/conversations/" + id + "/messages?limit=100");
     messagesByConv[id] = data.messages;
     renderMessages();
+    $("pending-banner").style.display = data.pending ? "flex" : "none";
     api("/conversations/" + id + "/read", { method: "POST", body: { seq: conv ? conv.last_seq : 0 } }).catch(() => {});
   }
+
+  $("request-pending-btn").onclick = async () => {
+    if (!activeConvId) return;
+    try {
+      await api("/conversations/" + activeConvId + "/request-pending", { method: "POST" });
+      $("pending-banner").style.display = "none";
+      await openConversation(activeConvId); // reload -- the backlog is now unlocked
+    } catch (e) {
+      alert(e.message);
+    }
+  };
 
   function renderMessages() {
     const box = $("messages");

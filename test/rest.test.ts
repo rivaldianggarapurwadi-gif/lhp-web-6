@@ -41,13 +41,13 @@ async function req(
   return { status: r.status, json: text ? JSON.parse(text) : null, cookie };
 }
 
-async function makeUser(opts: { admin?: boolean } = {}) {
+async function makeUser(opts: { admin?: boolean; kind?: "ceko" | "taruna" } = {}) {
   const id = randomUUID();
   const tag = generateTag();
   const password = "correct horse battery staple";
   await pool.query(
-    `INSERT INTO users (id, username, tag, password_hash, is_admin) VALUES ($1,$2,$3,$4,$5)`,
-    [id, `u_${id.slice(0, 8)}`, tag, await hashPassword(password), opts.admin ?? false]
+    `INSERT INTO users (id, username, tag, password_hash, is_admin, account_kind) VALUES ($1,$2,$3,$4,$5,$6)`,
+    [id, `u_${id.slice(0, 8)}`, tag, await hashPassword(password), opts.admin ?? false, opts.kind ?? "ceko"]
   );
   return { id, tag, password };
 }
@@ -366,4 +366,118 @@ test("presence: a non-contact's connect/disconnect is never pushed", async () =>
   const strangerSocket = await openSocket(stranger.id);
   assert.equal(await sawAnything, false, "a stranger connecting must not reach a's socket");
   strangerSocket.disconnect();
+});
+
+// ---------------------------------------------------------------------------
+// Account kinds: Taruna (ephemeral, shared-device) vs Ceko (persistent)
+// ---------------------------------------------------------------------------
+
+test("taruna: login issues no refresh cookie and wipes conversation membership only", async () => {
+  const ceko = await makeUser({ kind: "ceko" });
+  const taruna = await makeUser({ kind: "taruna" });
+  await makeContacts(ceko.id, taruna.id);
+
+  const cekoLogin = await req("/auth/login", { method: "POST", body: { tag: ceko.tag, password: ceko.password } });
+  const dm = await req("/conversations", {
+    method: "POST", token: cekoLogin.json.accessToken, body: { type: "dm", userId: taruna.id },
+  });
+  assert.equal(dm.status, 201);
+
+  // The wipe runs on every login, including this very first one -- Ceko
+  // created the DM (and so Taruna's participant row) before Taruna ever
+  // logged in at all, and that's still wiped away immediately.
+  const firstLogin = await req("/auth/login", { method: "POST", body: { tag: taruna.tag, password: taruna.password } });
+  assert.equal(firstLogin.status, 200);
+  assert.equal(firstLogin.cookie, null, "a taruna login must never set a session cookie");
+  assert.equal(firstLogin.json.user.accountKind, "taruna");
+
+  const conversations = await req("/conversations", { token: firstLogin.json.accessToken });
+  assert.equal(conversations.json.conversations.length, 0, "conversation membership wiped on login");
+
+  // Contacts are NOT wiped -- see taruna.ts for why: a contact is one row
+  // shared by both sides, and deleting "just Taruna's half" would delete
+  // Ceko's view of it too, which breaks "Ceko is never cleared."
+  const contacts = await req("/contacts", { token: firstLogin.json.accessToken });
+  assert.equal(contacts.json.contacts.length, 1, "contacts persist across logins, unlike conversation history");
+
+  // Ceko's own side is completely unaffected -- it still sees the contact
+  // and the conversation exactly as before.
+  const cekoContacts = await req("/contacts", { token: cekoLogin.json.accessToken });
+  assert.equal(cekoContacts.json.contacts.length, 1, "the wipe never touches the other side's data");
+  const cekoConversations = await req("/conversations", { token: cekoLogin.json.accessToken });
+  assert.equal(cekoConversations.json.conversations.length, 1);
+});
+
+test("ceko: login is unaffected -- persistent cookie, nothing wiped", async () => {
+  const a = await makeUser({ kind: "ceko" });
+  const b = await makeUser({ kind: "ceko" });
+  await makeContacts(a.id, b.id);
+  const login1 = await req("/auth/login", { method: "POST", body: { tag: a.tag, password: a.password } });
+  assert.ok(login1.cookie?.startsWith("ceko_refresh="));
+
+  const login2 = await req("/auth/login", { method: "POST", body: { tag: a.tag, password: a.password } });
+  const contacts = await req("/contacts", { token: login2.json.accessToken });
+  assert.equal(contacts.json.contacts.length, 1, "a ceko login never wipes contacts");
+});
+
+test("pending: a message sent to an offline taruna survives their wipe and needs an explicit request", async () => {
+  const ceko = await makeUser({ kind: "ceko" });
+  const taruna = await makeUser({ kind: "taruna" });
+  await makeContacts(ceko.id, taruna.id);
+
+  const cekoLogin = await req("/auth/login", { method: "POST", body: { tag: ceko.tag, password: ceko.password } });
+  const dm = await req("/conversations", {
+    method: "POST", token: cekoLogin.json.accessToken, body: { type: "dm", userId: taruna.id },
+  });
+  const convId = dm.json.conversation.id;
+
+  // Taruna is offline (never even logs in yet) when this arrives.
+  const sent = await req(`/conversations/${convId}/messages`, {
+    method: "POST", token: cekoLogin.json.accessToken,
+    body: { clientMessageId: randomUUID(), type: "text", content: "are you there?" },
+  });
+  assert.equal(sent.status, 201);
+
+  // Taruna logs in -- wipes the membership row that never even saw the
+  // message. The contact relationship itself survives the wipe (see
+  // taruna.ts), so no re-request/re-accept is needed here.
+  const tarunaLogin = await req("/auth/login", { method: "POST", body: { tag: taruna.tag, password: taruna.password } });
+  assert.equal((await req("/conversations", { token: tarunaLogin.json.accessToken })).json.conversations.length, 0);
+
+  // Re-creating the DM re-joins the SAME conversation (same dm_key) rather
+  // than starting a new one, and gates everything already in it.
+  const rejoin = await req("/conversations", {
+    method: "POST", token: tarunaLogin.json.accessToken, body: { type: "dm", userId: ceko.id },
+  });
+  assert.equal(rejoin.status, 200, "re-joins the existing conversation, doesn't create a new one");
+  assert.equal(rejoin.json.conversation.id, convId);
+
+  const gated = await req(`/conversations/${convId}/messages`, { token: tarunaLogin.json.accessToken });
+  assert.equal(gated.json.pending, true);
+  assert.equal(gated.json.messages.length, 0, "the pre-existing message is hidden until requested");
+
+  const released = await req(`/conversations/${convId}/request-pending`, { method: "POST", token: tarunaLogin.json.accessToken });
+  assert.equal(released.status, 200);
+
+  const afterRelease = await req(`/conversations/${convId}/messages`, { token: tarunaLogin.json.accessToken });
+  assert.equal(afterRelease.json.pending, false);
+  assert.equal(afterRelease.json.messages.length, 1);
+  assert.equal(afterRelease.json.messages[0].content, "are you there?");
+});
+
+test("pending: a plain Ceko-Ceko conversation is never gated", async () => {
+  const a = await makeUser({ kind: "ceko" });
+  const b = await makeUser({ kind: "ceko" });
+  await makeContacts(a.id, b.id);
+  const aLogin = await req("/auth/login", { method: "POST", body: { tag: a.tag, password: a.password } });
+
+  const dm = await req("/conversations", { method: "POST", token: aLogin.json.accessToken, body: { type: "dm", userId: b.id } });
+  await req(`/conversations/${dm.json.conversation.id}/messages`, {
+    method: "POST", token: aLogin.json.accessToken,
+    body: { clientMessageId: randomUUID(), type: "text", content: "hello" },
+  });
+
+  const history = await req(`/conversations/${dm.json.conversation.id}/messages`, { token: aLogin.json.accessToken });
+  assert.equal(history.json.pending, false);
+  assert.equal(history.json.messages.length, 1, "never gated -- visible immediately, same as always");
 });

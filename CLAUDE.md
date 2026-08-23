@@ -64,6 +64,19 @@ These are load-bearing. Each one is enforced by a test that will fail loudly.
     connect/disconnect to every user is O(users²) and is how a chat server
     melts under real load, not just a privacy leak.
 
+13. **Taruna's per-login wipe removes only `conversation_participants` rows
+    -- never `contacts`, never a message or a conversation itself.**
+    `contacts` is one row shared by both sides of a relationship, not a
+    per-user record; deleting "the Taruna's half" deletes the only row
+    there is and erases it from the Ceko's own contact list too, breaking
+    "Ceko is never cleared." (Found by a failing test, not by inspection --
+    the original plan wiped contacts too.) See `taruna.ts`.
+
+14. **`pending_release_seq` gates by strict `seq >`, ANDed across the whole
+    history/backfill clause** -- including the mutation-cursor arm. An OR'd
+    or partial gate lets an edit to an already-pending (still-hidden)
+    message leak it early through the mutation cursor.
+
 ## Layout
 
 ```
@@ -71,6 +84,8 @@ migrations/001_schema.sql            original schema
 migrations/002_realtime.sql          seq, client_message_id, dm_key, blocks, last_read_seq
 migrations/003_message_mutations.sql mutated_at + trigger (the second sync cursor)
 migrations/004_rest_surface.sql      refresh_tokens (rotation + reuse detection)
+migrations/005_account_kinds.sql     account_kind, conversation_participants.pending_release_seq
+src/taruna.ts                        the per-login wipe for Taruna accounts
 src/message-service.ts               the ONLY place a message is written or authorised
 src/message-store.ts                 client reconciliation, shared with the browser
 src/socket.ts                        auth middleware, rooms, message:send, sync, presence, typing
@@ -81,8 +96,9 @@ src/refresh-token.ts                 rotation, with theft-shaped reuse detection
 src/tag.ts, password.ts, cookies.ts, rate-limit.ts, storage.ts   REST building blocks
 src/http/                            REST routers: auth, admin, social, conversations, uploads
 src/create-admin.ts                  bootstraps the first admin account (accounts are admin-created)
-public/index.html                    throwaway browser test harness, served at "/" -- not the real UI
-public/admin.html                    account management for that harness: create/edit/disable/promote users
+public/index.html                    throwaway Ceko test harness, served at "/" -- not the real UI
+public/taruna.html                   throwaway Taruna test harness, served at "/taruna.html"
+public/admin.html                    account management for both: create/edit/disable/promote/re-kind users
 test/e2e.test.ts                     11 tests against a live two-instance cluster
 test/rest.test.ts                    REST integration tests, one instance
 test/rest-unit.test.ts               password/tag/cookie logic, no infra needed
@@ -95,8 +111,14 @@ socket auth with `session_version` revocation, client store (16 unit tests),
 cross-instance fan-out, the REST surface (auth + refresh rotation, admin
 user creation, contacts/blocks, idempotent DM creation, presigned uploads
 against a local-disk mock), presence (Redis ZSET + heartbeat + sweeper,
-narrow fan-out to contacts only, debounced disconnect), and typing beyond
-the raw relay (participant check + rate limit).
+narrow fan-out to contacts only, debounced disconnect), typing beyond
+the raw relay (participant check + rate limit), and two account kinds --
+Ceko (persistent session, full history) and Taruna (wiped membership/
+contacts on every login, no refresh token issued, so a page refresh or tab
+close ends the session; a message sent to an offline Taruna sits in its
+conversation as normal and becomes visible again only once the Taruna
+re-adds that contact, recreates the DM, and explicitly requests the
+pending backlog).
 
 **Designed but not built:** calls (LiveKit token vending, ring-timeout
 reconciliation), real object storage in place of the local-disk upload mock,

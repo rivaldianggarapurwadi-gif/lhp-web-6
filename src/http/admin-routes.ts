@@ -15,9 +15,12 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
     requireAuth,
     requireAdmin,
     asyncHandler(async (req, res) => {
-      const { username, password } = req.body ?? {};
+      const { username, password, accountKind } = req.body ?? {};
       if (typeof username !== "string" || username.trim().length === 0) {
         throw new ApiError(422, "INVALID_REQUEST", "username is required");
+      }
+      if (accountKind !== undefined && accountKind !== "ceko" && accountKind !== "taruna") {
+        throw new ApiError(422, "INVALID_REQUEST", "accountKind must be 'ceko' or 'taruna'");
       }
 
       const tag = await generateUniqueTag(pool);
@@ -29,10 +32,10 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
       const passwordHash = await hashPassword(generatedPassword ?? password);
 
       const { rows } = await pool.query(
-        `INSERT INTO users (username, tag, password_hash, created_by)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, username, tag, is_admin, created_at`,
-        [username.trim(), tag, passwordHash, req.auth!.userId]
+        `INSERT INTO users (username, tag, password_hash, created_by, account_kind)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, username, tag, is_admin, account_kind, created_at`,
+        [username.trim(), tag, passwordHash, req.auth!.userId, accountKind ?? "ceko"]
       );
 
       res.status(201).json({ user: rows[0], generatedPassword });
@@ -49,7 +52,7 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
       const limit = Math.min(Number(req.query.limit ?? 50) || 50, 200);
 
       const { rows } = await pool.query(
-        `SELECT id, username, tag, is_admin, disabled_at, created_at
+        `SELECT id, username, tag, is_admin, account_kind, disabled_at, created_at
            FROM users
           WHERE ($1 = '' OR username ILIKE '%' || $1 || '%' OR tag ILIKE '%' || $1 || '%')
             AND ($2::timestamptz IS NULL OR created_at < $2::timestamptz)
@@ -67,7 +70,11 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
     requireAdmin,
     asyncHandler(async (req, res) => {
       const id = String(req.params.id);
-      const { disabled, newPassword, username, isAdmin } = req.body ?? {};
+      const { disabled, newPassword, username, isAdmin, accountKind } = req.body ?? {};
+
+      if (accountKind !== undefined && accountKind !== "ceko" && accountKind !== "taruna") {
+        throw new ApiError(422, "INVALID_REQUEST", "accountKind must be 'ceko' or 'taruna'");
+      }
 
       const { rows: existing } = await pool.query(`SELECT id FROM users WHERE id = $1`, [id]);
       if (!existing[0]) throw new ApiError(404, "NOT_FOUND", "No such user");
@@ -82,12 +89,15 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
         throw new ApiError(422, "CANNOT_SELF_DEMOTE", "Cannot remove your own admin rights");
       }
 
-      // Disabling or resetting a password both need to kill every live
-      // session immediately, not just future logins -- bump session_version
-      // (invalidates outstanding access tokens on their next check) and
-      // revoke refresh tokens (stops silent renewal), then drop the live
-      // sockets right now rather than waiting for their next re-auth check.
-      const sessionInvalidatingChange = disabled === true || typeof newPassword === "string";
+      // Disabling, resetting a password, or switching account kind all need
+      // to kill every live session immediately, not just future logins --
+      // bump session_version (invalidates outstanding access tokens on
+      // their next check) and revoke refresh tokens (stops silent renewal
+      // -- essential for a ceko-to-taruna switch, since a Taruna must never
+      // keep a persistent session alive), then drop the live sockets right
+      // now rather than waiting for their next re-auth check.
+      const sessionInvalidatingChange =
+        disabled === true || typeof newPassword === "string" || accountKind !== undefined;
 
       const sets: string[] = [];
       const values: unknown[] = [id];
@@ -105,6 +115,10 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
       if (typeof isAdmin === "boolean") {
         sets.push(`is_admin = ${isAdmin ? "TRUE" : "FALSE"}`);
       }
+      if (accountKind !== undefined) {
+        values.push(accountKind);
+        sets.push(`account_kind = $${values.length}`);
+      }
       if (sessionInvalidatingChange) {
         sets.push(`session_version = session_version + 1`);
       }
@@ -114,7 +128,7 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
 
       const { rows } = await pool.query(
         `UPDATE users SET ${sets.join(", ")} WHERE id = $1
-         RETURNING id, username, tag, is_admin, disabled_at, created_at`,
+         RETURNING id, username, tag, is_admin, account_kind, disabled_at, created_at`,
         values
       );
 

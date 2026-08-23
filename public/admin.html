@@ -50,6 +50,11 @@
   .badge.admin { background: #2f6fed33; color: #8fb4ff; border: 1px solid #2f6fed66; }
   .badge.disabled { background: #8a2b2533; color: #ff9a90; border: 1px solid #8a2b2566; }
   .badge.active { background: #1f7a4a33; color: #7fe0a8; border: 1px solid #1f7a4a66; }
+  .badge.taruna { background: #b8860b33; color: #e0b45a; border: 1px solid #b8860b66; }
+  select {
+    font: inherit; background: #0f1115; color: #e6e8eb; border: 1px solid #2a2d34;
+    border-radius: 6px; padding: 6px 9px;
+  }
   .actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .created-note {
     margin-top: 10px; padding: 10px 12px; background: #12331f; border: 1px solid #1f7a4a;
@@ -90,6 +95,10 @@
       <div class="row">
         <input id="create-username" placeholder="username">
         <input id="create-password" placeholder="password (blank = generate)" type="text">
+        <select id="create-kind">
+          <option value="ceko">Ceko</option>
+          <option value="taruna">Taruna</option>
+        </select>
         <button id="create-btn">Create</button>
       </div>
       <div class="error" id="create-error"></div>
@@ -173,7 +182,11 @@
     try {
       const username = $("create-username").value.trim();
       const password = $("create-password").value;
-      const data = await api("/admin/users", { method: "POST", body: { username, password: password || undefined } });
+      const accountKind = $("create-kind").value;
+      const data = await api("/admin/users", {
+        method: "POST",
+        body: { username, password: password || undefined, accountKind },
+      });
       $("create-username").value = "";
       $("create-password").value = "";
       const passLine = data.generatedPassword
@@ -223,7 +236,8 @@
       const statusTd = document.createElement("td");
       statusTd.innerHTML =
         (u.disabled_at ? "<span class='badge disabled'>disabled</span>" : "<span class='badge active'>active</span>") +
-        (u.is_admin ? " <span class='badge admin'>admin</span>" : "");
+        (u.is_admin ? " <span class='badge admin'>admin</span>" : "") +
+        (u.account_kind === "taruna" ? " <span class='badge taruna'>taruna</span>" : "");
       tr.appendChild(statusTd);
 
       const createdTd = document.createElement("td");
@@ -251,6 +265,13 @@
         async () => { await patchUser(u.id, { isAdmin: !u.is_admin }); }
       );
       actionsTd.appendChild(toggleAdmin);
+
+      const toggleKind = actionButton(
+        u.account_kind === "taruna" ? "Make Ceko" : "Make Taruna",
+        "tiny secondary",
+        async () => { await patchUser(u.id, { accountKind: u.account_kind === "taruna" ? "ceko" : "taruna" }); }
+      );
+      actionsTd.appendChild(toggleKind);
 
       const resetBtn = actionButton("Reset password", "tiny secondary", async () => {
         const newPassword = crypto.randomUUID().replace(/-/g, "").slice(0, 16);

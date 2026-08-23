@@ -34,12 +34,33 @@ DATABASE_URL=postgres://ceko:ceko@localhost:5432/ceko \
   npm run create-admin -- alice
 ```
 
-Then open `http://localhost:3001/` for a throwaway test harness (login,
-contacts, DMs) -- not the real client, just enough to click around in. The
-real UI is still "designed but not built" per `CLAUDE.md`.
+Then open `http://localhost:3001/` for a throwaway Ceko test harness (login,
+contacts, DMs, notifications) -- not the real client, just enough to click
+around in. The real UI is still "designed but not built" per `CLAUDE.md`.
 `http://localhost:3001/admin.html` is the account-management page for that
 first admin: create users, edit usernames, promote/demote admins,
-disable/enable, reset passwords.
+disable/enable, reset passwords, switch between the Ceko and Taruna account
+kinds. `http://localhost:3001/taruna.html` is the separate harness for
+Taruna accounts -- same server, deliberately different session behavior
+(see "Two account kinds" below).
+
+### Two account kinds
+
+Taruna accounts share a limited pool of devices, so every Taruna login wipes
+that account's conversation membership -- and only that -- back to a clean
+slate, and issues no refresh token at all, so a page refresh or closed tab
+ends the session for good. Contacts are deliberately left alone: a contact
+is one row shared by both sides of the relationship, not a per-user record,
+so deleting "the Taruna's half" would delete it from the Ceko's own contact
+list too. Nothing is ever deleted from `messages` or `conversations`
+themselves either, so the other side (always Ceko) keeps its full history;
+only the Taruna's own membership in each conversation is removed and,
+later, re-added. A message sent to a Taruna who isn't currently a
+participant just sits in the conversation normally -- it becomes visible
+again once the Taruna recreates the DM (`POST /conversations` re-joins an
+existing `dm_key` conversation rather than only creating new ones) and
+calls `POST /conversations/:id/request-pending` to release the backlog.
+See `src/taruna.ts` and invariants 13-14 in `CLAUDE.md`.
 
 ## What the suite proves
 
@@ -73,21 +94,35 @@ offline debounce) are overridable via `PRESENCE_*` env vars --
 `docker-compose.yml` tunes them down for `api-1`/`api-2` so the suite
 above runs in seconds instead of minutes without changing what ships.
 
+The suite also proves the two-account-kind design: Taruna login returns no
+session cookie and wipes conversation membership while leaving contacts
+untouched; Ceko login is unaffected; a Ceko message sent to an offline
+Taruna stays hidden through a wipe and a DM re-creation until
+`request-pending` explicitly releases it; and an ordinary Ceko-Ceko
+conversation is completely unaffected
+by the new `pending_release_seq` column (it just stays `NULL`).
+
 ## Layout
 
 ```
-migrations/   001 (yours) + 002 realtime + 003 mutation cursor + 004 refresh tokens
+migrations/   001 (yours) + 002 realtime + 003 mutation cursor + 004 refresh
+              tokens + 005 account kinds
 src/
   message-service.ts   the send path, backfill, and participant auth --
                         the only place a message is written or authorised
   message-store.ts     client reconciliation (shared with the browser)
-  socket.ts            auth middleware, rooms, message:send, sync
+  socket.ts            auth middleware, rooms, message:send, sync, presence, typing
+  presence.ts           heartbeat/sweep/online-check
+  taruna.ts             the per-login wipe for Taruna accounts
   server.ts            http + socket.io + redis adapter + the Express app
   auth.ts              token signing and the session_version check
   refresh-token.ts     rotation with reuse detection
   tag.ts / password.ts / cookies.ts / rate-limit.ts / storage.ts
   http/                REST routers: auth, admin, social, conversations, uploads
   create-admin.ts      bootstraps the first admin account
+public/index.html       Ceko test harness, served at "/"
+public/taruna.html       Taruna test harness, served at "/taruna.html"
+public/admin.html        account management, including account-kind switch
 test/e2e.test.ts        socket suite, two instances
 test/rest.test.ts       REST suite, one instance
 test/rest-unit.test.ts  no infra needed (password/tag/cookie logic)

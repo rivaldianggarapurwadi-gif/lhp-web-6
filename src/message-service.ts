@@ -91,6 +91,23 @@ export async function assertParticipant(
   if (!ids.includes(userId)) throw new SendError("NOT_A_PARTICIPANT", "Not in conversation");
 }
 
+/** The Taruna re-join gate for this caller in this conversation, if any --
+ *  see taruna.ts. Not cached like participant ids: it changes rarely and
+ *  every history/backfill/sync call needs a fresh value, not a 5-minute-old
+ *  one that could momentarily leak a still-pending backlog. */
+export async function getPendingReleaseSeq(
+  pool: Pool,
+  conversationId: string,
+  userId: string
+): Promise<number | null> {
+  const { rows } = await pool.query<{ pending_release_seq: number | null }>(
+    `SELECT pending_release_seq FROM conversation_participants
+      WHERE conversation_id = $1 AND user_id = $2`,
+    [conversationId, userId]
+  );
+  return rows[0]?.pending_release_seq ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // The send path
 // ---------------------------------------------------------------------------
@@ -284,7 +301,11 @@ export async function backfill(
   conversationId: string,
   afterSeq: string | number,
   /** Server-issued timestamp from the client's previous sync; null on first run. */
-  mutatedSince: string | null
+  mutatedSince: string | null,
+  /** Taruna re-join gate (see taruna.ts / 005_account_kinds.sql). NULL for
+   *  every caller today and for Ceko always -- purely additive, no-op
+   *  unless a caller actually has a pending release point set. */
+  pendingReleaseSeq: string | number | null = null
 ): Promise<{ messages: any[]; truncated: boolean; syncedAt: string }> {
   const { rows } = await pool.query(
     `SELECT id, conversation_id, sender_id, seq, type, content,
@@ -295,9 +316,10 @@ export async function backfill(
         AND (seq > $2
              OR ($3::timestamptz IS NOT NULL
                  AND mutated_at > $3::timestamptz - make_interval(secs => $4)))
+        AND ($6::bigint IS NULL OR seq > $6::bigint)
       ORDER BY seq ASC
       LIMIT $5`,
-    [conversationId, afterSeq, mutatedSince, MUTATION_OVERLAP_SECONDS, BACKFILL_LIMIT + 1]
+    [conversationId, afterSeq, mutatedSince, MUTATION_OVERLAP_SECONDS, BACKFILL_LIMIT + 1, pendingReleaseSeq]
   );
 
   // The client echoes this back as its next mutation cursor. Server clock, not
@@ -320,7 +342,9 @@ export async function history(
   pool: Pool,
   conversationId: string,
   beforeSeq: string | number | null,
-  limit = 50
+  limit = 50,
+  /** See backfill()'s parameter of the same name. */
+  pendingReleaseSeq: string | number | null = null
 ) {
   const { rows } = await pool.query(
     `SELECT id, conversation_id, sender_id, seq, type, content,
@@ -328,9 +352,10 @@ export async function history(
        FROM messages
       WHERE conversation_id = $1
         AND ($2::bigint IS NULL OR seq < $2::bigint)
+        AND ($4::bigint IS NULL OR seq > $4::bigint)
       ORDER BY seq DESC
       LIMIT $3`,
-    [conversationId, beforeSeq, Math.min(limit, 100)]
+    [conversationId, beforeSeq, Math.min(limit, 100), pendingReleaseSeq]
   );
   return rows.reverse();
 }

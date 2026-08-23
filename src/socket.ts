@@ -6,6 +6,7 @@ import {
   sendMessage,
   backfill,
   assertParticipant,
+  getPendingReleaseSeq,
   SendError,
   BACKFILL_LIMIT,
 } from "./message-service.js";
@@ -89,11 +90,13 @@ export function attachSocketHandlers(io: Server, redis: Redis) {
     socket.on("messages:backfill", (payload: any, ack: Ack<any>) =>
       guard(ack, async () => {
         await assertParticipant(pool, redis, payload.conversationId, userId);
+        const pendingReleaseSeq = await getPendingReleaseSeq(pool, payload.conversationId, userId);
         return backfill(
           pool,
           payload.conversationId,
           payload.afterSeq ?? 0,
-          payload.mutatedSince ?? null
+          payload.mutatedSince ?? null,
+          pendingReleaseSeq
         );
       })
     );
@@ -212,8 +215,9 @@ async function sync(
     type: string;
     name: string | null;
     last_message_at: Date | null;
+    pending_release_seq: number | null;
   }>(
-    `SELECT cp.conversation_id, cp.last_read_seq,
+    `SELECT cp.conversation_id, cp.last_read_seq, cp.pending_release_seq,
             c.last_seq, c.type, c.name, c.last_message_at
        FROM conversation_participants cp
        JOIN conversations c ON c.id = cp.conversation_id
@@ -243,6 +247,7 @@ async function sync(
         lastReadSeq: m.last_read_seq,
         messages: [],
         truncated: false,
+        pending: m.pending_release_seq !== null,
         lazy: true,
       });
       continue;
@@ -258,12 +263,13 @@ async function sync(
         lastReadSeq: m.last_read_seq,
         messages: [],
         truncated: true,
+        pending: m.pending_release_seq !== null,
         lazy: false,
       });
       continue;
     }
 
-    const page = await backfill(pool, m.conversation_id, cursor, mutatedSince);
+    const page = await backfill(pool, m.conversation_id, cursor, mutatedSince, m.pending_release_seq);
     conversations.push({
       id: m.conversation_id,
       type: m.type,
@@ -272,6 +278,7 @@ async function sync(
       lastReadSeq: m.last_read_seq,
       messages: page.messages,
       truncated: page.truncated,
+      pending: m.pending_release_seq !== null,
       lazy: false,
     });
   }

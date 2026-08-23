@@ -7,12 +7,14 @@ import {
   history,
   assertParticipant,
   invalidateParticipants,
+  getPendingReleaseSeq,
 } from "../message-service.js";
 import { localStorage, type Storage } from "../storage.js";
 import { asyncHandler, requireAuth, ApiError } from "./middleware.js";
 
 const CONVERSATION_SUMMARY_SQL = `
   SELECT cp.conversation_id AS id, c.type, c.name, c.last_seq, cp.last_read_seq,
+         cp.pending_release_seq,
          GREATEST(c.last_seq - cp.last_read_seq, 0) AS unread,
          lm.id AS last_message_id, lm.content AS last_message_content,
          lm.type AS last_message_type, lm.created_at AS last_message_created_at,
@@ -90,18 +92,44 @@ export function createConversationRouter(
         if (inserted[0]) {
           conversationId = inserted[0].id;
           created = true;
+          // Brand new conversation -- nothing exists yet to hide, so both
+          // sides start with an ungated (pending_release_seq NULL) view.
           await pool.query(
             `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1,$2), ($1,$3)`,
             [conversationId, me, targetId]
           );
           io.in(`user:${me}`).in(`user:${targetId}`).socketsJoin(`conv:${conversationId}`);
         } else {
-          const { rows: existing } = await pool.query(
-            `SELECT id FROM conversations WHERE dm_key = $1 AND type = 'dm'`,
+          const { rows: existing } = await pool.query<{ id: string; last_seq: number }>(
+            `SELECT id, last_seq FROM conversations WHERE dm_key = $1 AND type = 'dm'`,
             [dmKey]
           );
           conversationId = existing[0].id;
           created = false;
+
+          // The conversation already exists, but the caller might not
+          // currently be a participant of it -- e.g. a Taruna re-adding a
+          // Ceko contact after their last login wiped their membership.
+          // ON CONFLICT DO NOTHING makes this a no-op for the normal case
+          // (already a participant); RETURNING only produces a row when a
+          // genuine re-join just happened, which is exactly when there's
+          // something to gate: everything already in the conversation is
+          // held back as pending until POST .../request-pending releases it.
+          const { rows: joined } = await pool.query(
+            `INSERT INTO conversation_participants (conversation_id, user_id, pending_release_seq)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (conversation_id, user_id) DO NOTHING
+             RETURNING conversation_id`,
+            [conversationId, me, existing[0].last_seq > 0 ? existing[0].last_seq : null]
+          );
+          if (joined[0]) {
+            // The participant cache may already have been populated (e.g.
+            // by an earlier send) before this INSERT happened, and would
+            // otherwise keep saying the caller isn't a participant for up
+            // to its 5-minute TTL.
+            await invalidateParticipants(redis, conversationId);
+            io.in(`user:${me}`).socketsJoin(`conv:${conversationId}`);
+          }
         }
 
         const { rows: summary } = await pool.query(
@@ -165,11 +193,36 @@ export function createConversationRouter(
     requireAuth,
     asyncHandler(async (req, res) => {
       const conversationId = String(req.params.id);
-      await assertParticipant(pool, redis, conversationId, req.auth!.userId);
+      const me = req.auth!.userId;
+      await assertParticipant(pool, redis, conversationId, me);
       const before = req.query.before ? Number(req.query.before) : null;
       const limit = req.query.limit ? Number(req.query.limit) : 50;
-      const messages = await history(pool, conversationId, before, limit);
-      res.json({ messages });
+      const pendingReleaseSeq = await getPendingReleaseSeq(pool, conversationId, me);
+      const messages = await history(pool, conversationId, before, limit, pendingReleaseSeq);
+      res.json({ messages, pending: pendingReleaseSeq !== null });
+    })
+  );
+
+  router.post(
+    "/conversations/:id/request-pending",
+    requireAuth,
+    asyncHandler(async (req, res) => {
+      const conversationId = String(req.params.id);
+      const me = req.auth!.userId;
+      await assertParticipant(pool, redis, conversationId, me);
+
+      const { rows } = await pool.query(
+        `UPDATE conversation_participants SET pending_release_seq = NULL
+          WHERE conversation_id = $1 AND user_id = $2 AND pending_release_seq IS NOT NULL
+        RETURNING conversation_id`,
+        [conversationId, me]
+      );
+      if (!rows[0]) throw new ApiError(404, "NOTHING_PENDING", "No pending messages to request");
+
+      // Lets the other side's client show a notification that its pending
+      // backlog was just requested -- see index.html for how this is used.
+      io.to(`conv:${conversationId}`).emit("pending:requested", { conversationId, userId: me });
+      res.json({ ok: true });
     })
   );
 

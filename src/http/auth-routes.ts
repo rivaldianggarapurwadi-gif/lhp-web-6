@@ -7,6 +7,7 @@ import { hashPassword, verifyPassword } from "../password.js";
 import { normalizeTag } from "../tag.js";
 import { issueRefreshToken, rotateRefreshToken, revokeAllForUser } from "../refresh-token.js";
 import { checkRateLimit } from "../rate-limit.js";
+import { wipeTarunaHistory } from "../taruna.js";
 import { parseCookies, serializeCookie, clearedCookie } from "../cookies.js";
 import { config } from "../config.js";
 import { asyncHandler, requireAuth, ApiError } from "./middleware.js";
@@ -71,8 +72,9 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
         is_admin: boolean;
         disabled_at: Date | null;
         session_version: number;
+        account_kind: "ceko" | "taruna";
       }>(
-        `SELECT id, username, tag, password_hash, is_admin, disabled_at, session_version
+        `SELECT id, username, tag, password_hash, is_admin, disabled_at, session_version, account_kind
            FROM users WHERE tag = $1`,
         [normalizeTag(tag)]
       );
@@ -87,13 +89,29 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
       }
 
       const accessToken = signAccessToken(user.id, user.session_version);
-      const { token: refreshToken } = await issueRefreshToken(pool, user.id);
 
+      const responseUser = {
+        id: user.id,
+        username: user.username,
+        tag: user.tag,
+        isAdmin: user.is_admin,
+        accountKind: user.account_kind,
+      };
+
+      if (user.account_kind === "taruna") {
+        // Clean slate on every login, and no refresh token -- see
+        // taruna.ts for what "clean slate" means and why nothing here
+        // touches messages or conversations themselves. No Set-Cookie at
+        // all means /auth/refresh already 401s for this account with no
+        // extra code, and a page refresh (access token is memory-only,
+        // never persisted client-side) forces a real re-login on its own.
+        await wipeTarunaHistory(pool, redis, user.id);
+        return res.json({ accessToken, user: responseUser });
+      }
+
+      const { token: refreshToken } = await issueRefreshToken(pool, user.id);
       res.setHeader("Set-Cookie", serializeCookie(REFRESH_COOKIE, refreshToken, refreshCookieOpts(req)));
-      res.json({
-        accessToken,
-        user: { id: user.id, username: user.username, tag: user.tag, isAdmin: user.is_admin },
-      });
+      res.json({ accessToken, user: responseUser });
     })
   );
 
@@ -142,7 +160,7 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
     requireAuth,
     asyncHandler(async (req, res) => {
       const { rows } = await pool.query(
-        `SELECT id, username, tag, avatar_url, is_admin, created_at FROM users WHERE id = $1`,
+        `SELECT id, username, tag, avatar_url, is_admin, account_kind, created_at FROM users WHERE id = $1`,
         [req.auth!.userId]
       );
       if (!rows[0]) throw new ApiError(404, "NOT_FOUND", "User not found");
@@ -163,7 +181,7 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
             SET username = COALESCE($2, username),
                 avatar_url = COALESCE($3, avatar_url)
           WHERE id = $1
-        RETURNING id, username, tag, avatar_url, is_admin, created_at`,
+        RETURNING id, username, tag, avatar_url, is_admin, account_kind, created_at`,
         [req.auth!.userId, username ?? null, avatarUrl ?? null]
       );
       res.json({ user: rows[0] });
