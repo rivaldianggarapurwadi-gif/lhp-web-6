@@ -160,6 +160,26 @@
     return data;
   }
 
+  // Ceko sessions are meant to survive a refresh or a closed tab -- the
+  // server already keeps that alive via the httpOnly refresh cookie, this
+  // is what actually uses it. Hidden until we know whether that succeeded,
+  // so a session that's about to be restored doesn't flash a login form
+  // first. A Taruna account never has this cookie at all, so this 401s
+  // immediately for them and just falls through to a normal login -- exactly
+  // the behavior they're supposed to have.
+  $("login-box").style.display = "none";
+  (async () => {
+    try {
+      const data = await api("/auth/refresh", { method: "POST" });
+      if (!data.user) throw new Error("no session");
+      accessToken = data.accessToken;
+      me = data.user;
+      onLoggedIn();
+    } catch {
+      $("login-box").style.display = "block";
+    }
+  })();
+
   $("login-btn").onclick = async () => {
     $("login-error").textContent = "";
     try {

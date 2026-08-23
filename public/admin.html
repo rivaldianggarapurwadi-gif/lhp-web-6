@@ -148,6 +148,21 @@
     return data;
   }
 
+  // Admins are Ceko accounts too -- same persistent-session restore as
+  // index.html. See there for why this is hidden until we know the result.
+  $("login-box").style.display = "none";
+  (async () => {
+    try {
+      const data = await api("/auth/refresh", { method: "POST" });
+      if (!data.user || !data.user.isAdmin) throw new Error("no admin session");
+      accessToken = data.accessToken;
+      me = data.user;
+      onLoggedIn();
+    } catch {
+      $("login-box").style.display = "block";
+    }
+  })();
+
   $("login-btn").onclick = async () => {
     $("login-error").textContent = "";
     try {

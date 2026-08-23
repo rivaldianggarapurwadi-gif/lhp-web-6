@@ -129,7 +129,24 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
           "Set-Cookie",
           serializeCookie(REFRESH_COOKIE, rotated.next.token, refreshCookieOpts(req))
         );
-        res.json({ accessToken });
+
+        // Same shape as /auth/login's response -- the client uses this to
+        // restore a session on page load without a second round trip.
+        const { rows } = await pool.query(
+          `SELECT id, username, tag, is_admin, account_kind FROM users WHERE id = $1`,
+          [rotated.userId]
+        );
+        const user = rows[0];
+        res.json({
+          accessToken,
+          user: user && {
+            id: user.id,
+            username: user.username,
+            tag: user.tag,
+            isAdmin: user.is_admin,
+            accountKind: user.account_kind,
+          },
+        });
       } catch (err) {
         // Whatever went wrong, the cookie the client is holding is dead --
         // don't leave it around to be retried forever.

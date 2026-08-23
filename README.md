@@ -62,6 +62,15 @@ existing `dm_key` conversation rather than only creating new ones) and
 calls `POST /conversations/:id/request-pending` to release the backlog.
 See `src/taruna.ts` and invariants 13-14 in `CLAUDE.md`.
 
+Ceko's persistent session needs the client to actually use the refresh
+cookie, not just the server to keep issuing one: `index.html`/`admin.html`
+call `POST /auth/refresh` once on page load, before ever showing the login
+form, and restore the session silently if it succeeds. `POST /auth/refresh`
+returns the same `{ accessToken, user }` shape as login for exactly this.
+A Taruna account never has that cookie, so this 401s immediately for them
+and falls through to an ordinary login -- the intended behavior, not a
+special case.
+
 ## What the suite proves
 
 | Test | What breaks without it |
