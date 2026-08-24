@@ -38,7 +38,7 @@ function guard<T>(ack: Ack<T> | undefined, fn: () => Promise<T>) {
     (err) => {
       if (err instanceof SendError) return ack?.(fail(err.code, err.message));
       console.error("[handler]", err);
-      ack?.(fail("INTERNAL", "Something went wrong"));
+      ack?.(fail("INTERNAL", "Terjadi kesalahan"));
     }
   );
 }

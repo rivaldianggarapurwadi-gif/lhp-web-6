@@ -50,18 +50,18 @@ export const requireAuth: RequestHandler = asyncHandler(async (req, _res, next) 
   const header = req.header("authorization") ?? "";
   const [scheme, token] = header.split(" ");
   if (scheme !== "Bearer" || !token) {
-    throw new ApiError(401, "UNAUTHORIZED", "Missing bearer token");
+    throw new ApiError(401, "UNAUTHORIZED", "Token tidak ditemukan");
   }
   try {
     req.auth = await authenticate(token);
   } catch {
-    throw new ApiError(401, "UNAUTHORIZED", "Invalid or expired token");
+    throw new ApiError(401, "UNAUTHORIZED", "Token tidak valid atau sudah kedaluwarsa");
   }
   next();
 });
 
 export const requireAdmin: RequestHandler = (req, _res, next) => {
-  if (!req.auth?.isAdmin) return next(new ApiError(403, "FORBIDDEN", "Admin only"));
+  if (!req.auth?.isAdmin) return next(new ApiError(403, "FORBIDDEN", "Khusus admin"));
   next();
 };
 
@@ -97,8 +97,8 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   // express.json()'s own parse failure -- a body the client sent, not a
   // server fault, so it belongs in the 4xx range.
   if (err instanceof SyntaxError && "body" in err) {
-    return res.status(400).json({ error: { code: "INVALID_JSON", message: "Malformed JSON body" } });
+    return res.status(400).json({ error: { code: "INVALID_JSON", message: "Format JSON tidak valid" } });
   }
   console.error("[http]", err);
-  res.status(500).json({ error: { code: "INTERNAL", message: "Something went wrong" } });
+  res.status(500).json({ error: { code: "INTERNAL", message: "Terjadi kesalahan" } });
 }

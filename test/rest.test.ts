@@ -394,11 +394,12 @@ test("taruna: login issues no refresh cookie and wipes conversation membership o
   const conversations = await req("/conversations", { token: firstLogin.json.accessToken });
   assert.equal(conversations.json.conversations.length, 0, "conversation membership wiped on login");
 
-  // Contacts are NOT wiped -- see taruna.ts for why: a contact is one row
-  // shared by both sides, and deleting "just Taruna's half" would delete
-  // Ceko's view of it too, which breaks "Ceko is never cleared."
+  // Contacts are hidden from Taruna's own view on login -- never deleted.
+  // See taruna.ts for why: a contact is one row shared by both sides, and
+  // deleting "just Taruna's half" would delete Ceko's view of it too,
+  // which breaks "Ceko is never cleared."
   const contacts = await req("/contacts", { token: firstLogin.json.accessToken });
-  assert.equal(contacts.json.contacts.length, 1, "contacts persist across logins, unlike conversation history");
+  assert.equal(contacts.json.contacts.length, 0, "contacts hidden from this account's own view after the wipe");
 
   // Ceko's own side is completely unaffected -- it still sees the contact
   // and the conversation exactly as before.
@@ -406,6 +407,20 @@ test("taruna: login issues no refresh cookie and wipes conversation membership o
   assert.equal(cekoContacts.json.contacts.length, 1, "the wipe never touches the other side's data");
   const cekoConversations = await req("/conversations", { token: cekoLogin.json.accessToken });
   assert.equal(cekoConversations.json.conversations.length, 1);
+
+  // Re-adding the same tag -- the same mechanism this account already uses
+  // to reopen a wiped conversation -- reveals the contact again instead of
+  // erroring on "already contacts", and never touches Ceko's side or
+  // creates a second row.
+  const readd = await req("/contacts", {
+    method: "POST", token: firstLogin.json.accessToken, body: { tag: ceko.tag },
+  });
+  assert.equal(readd.status, 200);
+  assert.equal(readd.json.autoAccepted, true);
+  const contactsAfterReadd = await req("/contacts", { token: firstLogin.json.accessToken });
+  assert.equal(contactsAfterReadd.json.contacts.length, 1, "re-adding by tag un-hides the existing contact");
+  const cekoContactsAfterReadd = await req("/contacts", { token: cekoLogin.json.accessToken });
+  assert.equal(cekoContactsAfterReadd.json.contacts.length, 1, "un-hiding my side never duplicates or touches the other side");
 });
 
 test("ceko: login is unaffected -- persistent cookie, nothing wiped", async () => {

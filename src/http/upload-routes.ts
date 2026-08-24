@@ -18,7 +18,7 @@ export function createUploadRouter(): Router {
       const expires = Number(req.query.expires);
       const sig = typeof req.query.sig === "string" ? req.query.sig : "";
       if (!key || !Number.isFinite(expires) || !sig || !verifyUploadSignature(key, expires, sig)) {
-        throw new ApiError(403, "INVALID_UPLOAD_URL", "This upload URL is invalid or has expired");
+        throw new ApiError(403, "INVALID_UPLOAD_URL", "URL upload tidak valid atau sudah kedaluwarsa");
       }
       const sizeBytes = await writeUpload(key, req);
       res.json({ storageKey: key, sizeBytes });

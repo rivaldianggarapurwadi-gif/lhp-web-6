@@ -63,7 +63,7 @@ export async function rotateRefreshToken(pool: Pool, rawToken: string): Promise<
     );
     const row = rows[0];
     if (!row) {
-      throw new RefreshTokenError("INVALID_TOKEN", "Refresh token not recognised");
+      throw new RefreshTokenError("INVALID_TOKEN", "Refresh token tidak dikenali");
     }
 
     if (row.rotated_at || row.revoked_at) {
@@ -78,7 +78,7 @@ export async function rotateRefreshToken(pool: Pool, rawToken: string): Promise<
         [row.user_id]
       );
       await client.query("COMMIT");
-      throw new RefreshTokenError("TOKEN_REUSE_DETECTED", "Session revoked");
+      throw new RefreshTokenError("TOKEN_REUSE_DETECTED", "Sesi telah dicabut");
     }
 
     await client.query(`UPDATE refresh_tokens SET rotated_at = now() WHERE id = $1`, [row.id]);

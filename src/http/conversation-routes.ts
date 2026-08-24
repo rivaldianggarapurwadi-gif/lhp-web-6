@@ -37,7 +37,7 @@ async function contactAndBlockCheck(pool: Pool, a: string, b: string): Promise<v
     `SELECT 1 FROM blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)`,
     [a, b]
   );
-  if (blocked[0]) throw new ApiError(403, "BLOCKED", "Cannot start a conversation with this user");
+  if (blocked[0]) throw new ApiError(403, "BLOCKED", "Tidak bisa memulai percakapan dengan pengguna ini");
 
   const { rows: accepted } = await pool.query(
     `SELECT 1 FROM contacts
@@ -45,7 +45,7 @@ async function contactAndBlockCheck(pool: Pool, a: string, b: string): Promise<v
         AND ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))`,
     [a, b]
   );
-  if (!accepted[0]) throw new ApiError(409, "NOT_CONTACTS", "Must be accepted contacts first");
+  if (!accepted[0]) throw new ApiError(409, "NOT_CONTACTS", "Harus menjadi kontak yang saling diterima terlebih dahulu");
 }
 
 export function createConversationRouter(
@@ -77,7 +77,7 @@ export function createConversationRouter(
 
       if (body.type === "dm") {
         const targetId = String(body.userId ?? "");
-        if (!targetId || targetId === me) throw new ApiError(422, "INVALID_REQUEST", "userId is required");
+        if (!targetId || targetId === me) throw new ApiError(422, "INVALID_REQUEST", "userId wajib diisi");
         await contactAndBlockCheck(pool, me, targetId);
 
         const dmKey = [me, targetId].sort().join(":");
@@ -145,8 +145,8 @@ export function createConversationRouter(
         const userIds: string[] = Array.isArray(body.userIds)
           ? [...new Set((body.userIds as unknown[]).map(String))]
           : [];
-        if (!name) throw new ApiError(422, "INVALID_REQUEST", "name is required");
-        if (userIds.length === 0) throw new ApiError(422, "INVALID_REQUEST", "userIds must be non-empty");
+        if (!name) throw new ApiError(422, "INVALID_REQUEST", "name wajib diisi");
+        if (userIds.length === 0) throw new ApiError(422, "INVALID_REQUEST", "userIds tidak boleh kosong");
 
         for (const id of userIds) {
           if (id === me) continue;
@@ -185,7 +185,7 @@ export function createConversationRouter(
         return res.status(201).json({ conversation: summary[0] });
       }
 
-      throw new ApiError(422, "INVALID_REQUEST", "type must be 'dm' or 'group'");
+      throw new ApiError(422, "INVALID_REQUEST", "type harus 'dm' atau 'group'");
     })
   );
 
@@ -218,7 +218,7 @@ export function createConversationRouter(
         RETURNING conversation_id`,
         [conversationId, me]
       );
-      if (!rows[0]) throw new ApiError(404, "NOTHING_PENDING", "No pending messages to request");
+      if (!rows[0]) throw new ApiError(404, "NOTHING_PENDING", "Tidak ada pesan tertunda untuk diminta");
 
       // Lets the other side's client show a notification that its pending
       // backlog was just requested -- see index.html for how this is used.
@@ -239,7 +239,7 @@ export function createConversationRouter(
       const me = req.auth!.userId;
       const body = req.body ?? {};
       if (typeof body.clientMessageId !== "string") {
-        throw new ApiError(422, "INVALID_REQUEST", "clientMessageId is required");
+        throw new ApiError(422, "INVALID_REQUEST", "clientMessageId wajib diisi");
       }
 
       // Same invariant real S3 would give you for free: a client cannot
@@ -247,7 +247,7 @@ export function createConversationRouter(
       for (const a of body.attachments ?? []) {
         const head = await storage.headObject(a.storageKey);
         if (!head.exists) {
-          throw new ApiError(422, "ATTACHMENT_NOT_UPLOADED", `No such upload: ${a.storageKey}`);
+          throw new ApiError(422, "ATTACHMENT_NOT_UPLOADED", `Upload tidak ditemukan: ${a.storageKey}`);
         }
       }
 
@@ -274,7 +274,7 @@ export function createConversationRouter(
       const me = req.auth!.userId;
       const conversationId = String(req.params.id);
       const seq = Number(req.body?.seq);
-      if (!Number.isFinite(seq)) throw new ApiError(422, "INVALID_REQUEST", "seq is required");
+      if (!Number.isFinite(seq)) throw new ApiError(422, "INVALID_REQUEST", "seq wajib diisi");
       await assertParticipant(pool, redis, conversationId, me);
 
       await pool.query(
@@ -293,12 +293,12 @@ export function createConversationRouter(
     asyncHandler(async (req, res) => {
       const conversationId = String(req.params.id);
       const targetId = String(req.body?.userId ?? "");
-      if (!targetId) throw new ApiError(422, "INVALID_REQUEST", "userId is required");
+      if (!targetId) throw new ApiError(422, "INVALID_REQUEST", "userId wajib diisi");
       await assertParticipant(pool, redis, conversationId, req.auth!.userId);
 
       const { rows: conv } = await pool.query(`SELECT type FROM conversations WHERE id = $1`, [conversationId]);
-      if (!conv[0]) throw new ApiError(404, "CONVERSATION_NOT_FOUND", "No such conversation");
-      if (conv[0].type !== "group") throw new ApiError(422, "NOT_A_GROUP", "DMs have fixed membership");
+      if (!conv[0]) throw new ApiError(404, "CONVERSATION_NOT_FOUND", "Percakapan tidak ditemukan");
+      if (conv[0].type !== "group") throw new ApiError(422, "NOT_A_GROUP", "Anggota DM tidak bisa diubah");
 
       await pool.query(
         `INSERT INTO conversation_participants (conversation_id, user_id) VALUES ($1, $2)
@@ -318,12 +318,12 @@ export function createConversationRouter(
     asyncHandler(async (req, res) => {
       const conversationId = String(req.params.id);
       const targetId = String(req.body?.userId ?? "");
-      if (!targetId) throw new ApiError(422, "INVALID_REQUEST", "userId is required");
+      if (!targetId) throw new ApiError(422, "INVALID_REQUEST", "userId wajib diisi");
       await assertParticipant(pool, redis, conversationId, req.auth!.userId);
 
       const { rows: conv } = await pool.query(`SELECT type FROM conversations WHERE id = $1`, [conversationId]);
-      if (!conv[0]) throw new ApiError(404, "CONVERSATION_NOT_FOUND", "No such conversation");
-      if (conv[0].type !== "group") throw new ApiError(422, "NOT_A_GROUP", "DMs have fixed membership");
+      if (!conv[0]) throw new ApiError(404, "CONVERSATION_NOT_FOUND", "Percakapan tidak ditemukan");
+      if (conv[0].type !== "group") throw new ApiError(422, "NOT_A_GROUP", "Anggota DM tidak bisa diubah");
 
       await pool.query(
         `DELETE FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2`,

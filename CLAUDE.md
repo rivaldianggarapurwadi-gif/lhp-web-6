@@ -64,13 +64,18 @@ These are load-bearing. Each one is enforced by a test that will fail loudly.
     connect/disconnect to every user is O(users²) and is how a chat server
     melts under real load, not just a privacy leak.
 
-13. **Taruna's per-login wipe removes only `conversation_participants` rows
-    -- never `contacts`, never a message or a conversation itself.**
+13. **Taruna's per-login wipe deletes `conversation_participants` rows, and
+    hides -- never deletes -- accepted `contacts` on this user's own side.**
     `contacts` is one row shared by both sides of a relationship, not a
     per-user record; deleting "the Taruna's half" deletes the only row
     there is and erases it from the Ceko's own contact list too, breaking
     "Ceko is never cleared." (Found by a failing test, not by inspection --
-    the original plan wiped contacts too.) See `taruna.ts`.
+    the original plan wiped contacts too.) `requester_hidden`/
+    `addressee_hidden` (`migrations/008_contact_hiding.sql`) let each side
+    hide an accepted contact from its own view without touching the row or
+    the other side; the same "re-add by tag" flow this account already uses
+    to reopen a wiped conversation clears the flag again. Never a message or
+    a conversation itself. See `taruna.ts`.
 
 14. **`pending_release_seq` gates by strict `seq >`, ANDed across the whole
     history/backfill clause** -- including the mutation-cursor arm. An OR'd
@@ -93,6 +98,7 @@ migrations/004_rest_surface.sql      refresh_tokens (rotation + reuse detection)
 migrations/005_account_kinds.sql     account_kind, conversation_participants.pending_release_seq
 migrations/006_push_subscriptions.sql push_subscriptions
 migrations/007_user_email.sql        users.email (notification address, not a credential)
+migrations/008_contact_hiding.sql    contacts.requester_hidden/addressee_hidden (per-side hide, Taruna wipe)
 src/taruna.ts                        the per-login wipe for Taruna accounts
 src/message-service.ts               the ONLY place a message is written or authorised
 src/message-store.ts                 client reconciliation, shared with the browser

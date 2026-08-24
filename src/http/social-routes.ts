@@ -37,7 +37,7 @@ export function createSocialRouter(pool: Pool, redis: Redis, io: Server): Router
       const raw = typeof req.query.tag === "string" ? req.query.tag : "";
       const tag = normalizeTag(raw);
       if (!isValidTagFormat(tag)) {
-        throw new ApiError(422, "INVALID_TAG_FORMAT", "That's not a valid tag");
+        throw new ApiError(422, "INVALID_TAG_FORMAT", "TAG tidak valid");
       }
 
       const { allowed, retryAfterSeconds } = await checkRateLimit(redis, `lookup:${req.auth!.userId}`, [
@@ -46,11 +46,11 @@ export function createSocialRouter(pool: Pool, redis: Redis, io: Server): Router
       ]);
       if (!allowed) {
         res.setHeader("Retry-After", String(retryAfterSeconds));
-        throw new ApiError(429, "RATE_LIMITED", "Too many lookups");
+        throw new ApiError(429, "RATE_LIMITED", "Terlalu banyak pencarian");
       }
 
       const user = await resolveVisibleTag(pool, req.auth!.userId, tag);
-      if (!user) throw new ApiError(404, "NOT_FOUND", "No user with that tag");
+      if (!user) throw new ApiError(404, "NOT_FOUND", "Tidak ada pengguna dengan TAG tersebut");
       res.json({ user });
     })
   );
@@ -65,6 +65,7 @@ export function createSocialRouter(pool: Pool, redis: Redis, io: Server): Router
            FROM contacts c
            JOIN users u ON u.id = (CASE WHEN c.requester_id = $1 THEN c.addressee_id ELSE c.requester_id END)
           WHERE c.status = 'accepted' AND (c.requester_id = $1 OR c.addressee_id = $1)
+            AND NOT ((c.requester_id = $1 AND c.requester_hidden) OR (c.addressee_id = $1 AND c.addressee_hidden))
           ORDER BY c.responded_at DESC NULLS LAST`,
         [req.auth!.userId]
       );
@@ -104,13 +105,13 @@ export function createSocialRouter(pool: Pool, redis: Redis, io: Server): Router
     asyncHandler(async (req, res) => {
       const me = req.auth!.userId;
       const tag = normalizeTag(String(req.body?.tag ?? ""));
-      if (!isValidTagFormat(tag)) throw new ApiError(422, "INVALID_TAG_FORMAT", "That's not a valid tag");
+      if (!isValidTagFormat(tag)) throw new ApiError(422, "INVALID_TAG_FORMAT", "TAG tidak valid");
 
       const target = await resolveVisibleTag(pool, me, tag);
-      if (!target) throw new ApiError(404, "NOT_FOUND", "No user with that tag");
+      if (!target) throw new ApiError(404, "NOT_FOUND", "Tidak ada pengguna dengan TAG tersebut");
 
-      const { rows: reverse } = await pool.query<{ id: string; status: string }>(
-        `SELECT id, status FROM contacts WHERE requester_id = $1 AND addressee_id = $2`,
+      const { rows: reverse } = await pool.query<{ id: string; status: string; addressee_hidden: boolean }>(
+        `SELECT id, status, addressee_hidden FROM contacts WHERE requester_id = $1 AND addressee_id = $2`,
         [target.id, me]
       );
       if (reverse[0]?.status === "pending") {
@@ -125,15 +126,35 @@ export function createSocialRouter(pool: Pool, redis: Redis, io: Server): Router
         return res.json({ contact: rows[0], autoAccepted: true });
       }
       if (reverse[0]?.status === "accepted") {
-        throw new ApiError(409, "ALREADY_CONTACTS", "Already contacts");
+        // Already a contact, just hidden from my own view (e.g. a Taruna
+        // login wiped it) -- re-adding the same tag is exactly how that
+        // account already reopens a wiped conversation, so treat this the
+        // same way rather than making it a dead end with a 409.
+        if (reverse[0].addressee_hidden) {
+          const { rows } = await pool.query(
+            `UPDATE contacts SET addressee_hidden = false WHERE id = $1 RETURNING *`,
+            [reverse[0].id]
+          );
+          return res.json({ contact: rows[0], autoAccepted: true });
+        }
+        throw new ApiError(409, "ALREADY_CONTACTS", "Sudah menjadi kontak");
       }
 
-      const { rows: forward } = await pool.query<{ id: string; status: string }>(
-        `SELECT id, status FROM contacts WHERE requester_id = $1 AND addressee_id = $2`,
+      const { rows: forward } = await pool.query<{ id: string; status: string; requester_hidden: boolean }>(
+        `SELECT id, status, requester_hidden FROM contacts WHERE requester_id = $1 AND addressee_id = $2`,
         [me, target.id]
       );
-      if (forward[0]?.status === "pending") throw new ApiError(409, "REQUEST_ALREADY_SENT", "Already sent");
-      if (forward[0]?.status === "accepted") throw new ApiError(409, "ALREADY_CONTACTS", "Already contacts");
+      if (forward[0]?.status === "pending") throw new ApiError(409, "REQUEST_ALREADY_SENT", "Sudah terkirim");
+      if (forward[0]?.status === "accepted") {
+        if (forward[0].requester_hidden) {
+          const { rows } = await pool.query(
+            `UPDATE contacts SET requester_hidden = false WHERE id = $1 RETURNING *`,
+            [forward[0].id]
+          );
+          return res.json({ contact: rows[0], autoAccepted: true });
+        }
+        throw new ApiError(409, "ALREADY_CONTACTS", "Sudah menjadi kontak");
+      }
 
       const { rows } = forward[0]
         ? await pool.query(
@@ -161,7 +182,7 @@ export function createSocialRouter(pool: Pool, redis: Redis, io: Server): Router
         RETURNING *`,
         [req.params.id, req.auth!.userId]
       );
-      if (!rows[0]) throw new ApiError(404, "NOT_FOUND", "No such pending request");
+      if (!rows[0]) throw new ApiError(404, "NOT_FOUND", "Permintaan tidak ditemukan");
       io.to(`user:${rows[0].requester_id}`).to(`user:${rows[0].addressee_id}`).emit(
         "contact:request_accepted",
         { contactId: rows[0].id }
@@ -182,7 +203,7 @@ export function createSocialRouter(pool: Pool, redis: Redis, io: Server): Router
         RETURNING *`,
         [req.params.id, req.auth!.userId]
       );
-      if (!rows[0]) throw new ApiError(404, "NOT_FOUND", "No such pending request");
+      if (!rows[0]) throw new ApiError(404, "NOT_FOUND", "Permintaan tidak ditemukan");
       res.json({ contact: rows[0] });
     })
   );
@@ -195,7 +216,7 @@ export function createSocialRouter(pool: Pool, redis: Redis, io: Server): Router
         `DELETE FROM contacts WHERE id = $1 AND (requester_id = $2 OR addressee_id = $2)`,
         [req.params.id, req.auth!.userId]
       );
-      if (!rowCount) throw new ApiError(404, "NOT_FOUND", "No such contact");
+      if (!rowCount) throw new ApiError(404, "NOT_FOUND", "Kontak tidak ditemukan");
       res.status(204).end();
     })
   );
@@ -221,7 +242,7 @@ export function createSocialRouter(pool: Pool, redis: Redis, io: Server): Router
     asyncHandler(async (req, res) => {
       const me = req.auth!.userId;
       const tag = normalizeTag(String(req.body?.tag ?? ""));
-      if (!isValidTagFormat(tag)) throw new ApiError(422, "INVALID_TAG_FORMAT", "That's not a valid tag");
+      if (!isValidTagFormat(tag)) throw new ApiError(422, "INVALID_TAG_FORMAT", "TAG tidak valid");
 
       // Blocking doesn't go through resolveVisibleTag -- you must be able to
       // block someone regardless of any block state that already exists.
@@ -230,7 +251,7 @@ export function createSocialRouter(pool: Pool, redis: Redis, io: Server): Router
         [tag, me]
       );
       const target = targetRows[0];
-      if (!target) throw new ApiError(404, "NOT_FOUND", "No user with that tag");
+      if (!target) throw new ApiError(404, "NOT_FOUND", "Tidak ada pengguna dengan TAG tersebut");
 
       await pool.query(
         `INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
@@ -248,7 +269,7 @@ export function createSocialRouter(pool: Pool, redis: Redis, io: Server): Router
         `DELETE FROM blocks WHERE blocker_id = $1 AND blocked_id = $2`,
         [req.auth!.userId, req.params.userId]
       );
-      if (!rowCount) throw new ApiError(404, "NOT_FOUND", "Not blocked");
+      if (!rowCount) throw new ApiError(404, "NOT_FOUND", "Tidak diblokir");
       res.status(204).end();
     })
   );

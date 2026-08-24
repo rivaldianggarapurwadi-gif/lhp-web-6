@@ -41,7 +41,7 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
     asyncHandler(async (req, res) => {
       const { tag, password } = req.body ?? {};
       if (typeof tag !== "string" || typeof password !== "string") {
-        throw new ApiError(400, "INVALID_REQUEST", "tag and password are required");
+        throw new ApiError(400, "INVALID_REQUEST", "TAG dan kata sandi wajib diisi");
       }
 
       const ip = req.ip ?? "unknown";
@@ -61,7 +61,7 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
       }
       if (!limit.allowed) {
         res.setHeader("Retry-After", String(limit.retryAfterSeconds));
-        throw new ApiError(429, "RATE_LIMITED", "Too many attempts");
+        throw new ApiError(429, "RATE_LIMITED", "Terlalu banyak percobaan");
       }
 
       const { rows } = await pool.query<{
@@ -85,7 +85,7 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
         : await verifyPassword(password, await getDummyHash());
 
       if (!user || !valid || user.disabled_at) {
-        throw new ApiError(401, "INVALID_CREDENTIALS", "Invalid tag or password");
+        throw new ApiError(401, "INVALID_CREDENTIALS", "TAG atau kata sandi salah");
       }
 
       const accessToken = signAccessToken(user.id, user.session_version);
@@ -120,7 +120,7 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
     asyncHandler(async (req, res) => {
       const cookies = parseCookies(req.header("cookie"));
       const refreshToken = cookies[REFRESH_COOKIE];
-      if (!refreshToken) throw new ApiError(401, "UNAUTHORIZED", "No refresh token");
+      if (!refreshToken) throw new ApiError(401, "UNAUTHORIZED", "Tidak ada refresh token");
 
       try {
         const rotated = await rotateRefreshToken(pool, refreshToken);
@@ -180,7 +180,7 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
         `SELECT id, username, tag, email, avatar_url, is_admin, account_kind, created_at FROM users WHERE id = $1`,
         [req.auth!.userId]
       );
-      if (!rows[0]) throw new ApiError(404, "NOT_FOUND", "User not found");
+      if (!rows[0]) throw new ApiError(404, "NOT_FOUND", "Pengguna tidak ditemukan");
       res.json({ user: rows[0] });
     })
   );
@@ -191,13 +191,13 @@ export function createAuthRouter(pool: Pool, redis: Redis, io: Server): Router {
     asyncHandler(async (req, res) => {
       const { username, avatarUrl, email } = req.body ?? {};
       if (username !== undefined && (typeof username !== "string" || username.trim().length === 0)) {
-        throw new ApiError(422, "INVALID_REQUEST", "username must be a non-empty string");
+        throw new ApiError(422, "INVALID_REQUEST", "Username tidak boleh kosong");
       }
       // Deliberately loose (just "has an @ and something on both sides") --
       // this is a notification address, not a login credential, so the real
       // validation that matters is whether mail actually arrives there.
       if (email !== undefined && email !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        throw new ApiError(422, "INVALID_REQUEST", "email is not a valid address");
+        throw new ApiError(422, "INVALID_REQUEST", "Format email tidak valid");
       }
       const { rows } = await pool.query(
         `UPDATE users

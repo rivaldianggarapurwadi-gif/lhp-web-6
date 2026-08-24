@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -222,16 +222,18 @@
   <span id="instance-name" class="sr-only" style="display:none"></span>
   <div class="topbar-right">
     <span id="whoami" class="whoami"></span>
-    <button id="logout-btn" class="ghost-btn-sm" style="display:none">Log out</button>
+    <button id="logout-btn" class="ghost-btn-sm" style="display:none">Keluar</button>
   </div>
 </header>
 
 <div class="warning">
-  This is a Taruna session: your conversation history is wiped on every login,
-  and refreshing or closing this tab ends the session -- there is no
-  persistent login. <b>Your contact list is not wiped.</b> If someone
-  messaged you while you were logged out, open a DM with them again from
-  your contact list to see the option to request those messages.
+  Ini adalah sesi Taruna: riwayat percakapan kamu dihapus setiap login, dan
+  me-refresh atau menutup tab ini mengakhiri sesi -- tidak ada login yang
+  tersimpan. <b>Kontak kamu tidak pernah benar-benar dihapus,</b> hanya
+  disembunyikan setiap login -- tambahkan lagi dengan TAG yang sama dari tab
+  Kontak untuk memunculkannya. Kalau seseorang mengirim pesan saat kamu
+  offline, tambahkan kontaknya lagi lalu buka DM untuk melihat opsi meminta
+  pesan tersebut.
 </div>
 
 <section id="login-box">
@@ -240,16 +242,16 @@
       <div class="brand">Ceko</div>
       <span class="badge-mark">TARUNA</span>
     </div>
-    <p class="login-tagline">Sign in with your tag to continue.</p>
+    <p class="login-tagline">Masuk dengan TAG kamu untuk melanjutkan.</p>
     <div class="field">
       <input id="login-tag" placeholder="TAG" maxlength="6" autocomplete="off">
     </div>
     <div class="field">
-      <input id="login-password" placeholder="Password" type="password">
+      <input id="login-password" placeholder="Kata sandi" type="password">
     </div>
-    <button id="login-btn" class="btn-primary">Log in</button>
+    <button id="login-btn" class="btn-primary">Masuk</button>
     <div class="error" id="login-error"></div>
-    <p class="login-hint">Don't have an account? Ask an admin to create one for you.</p>
+    <p class="login-hint">Belum punya akun? Minta admin untuk membuatkannya.</p>
   </div>
 </section>
 
@@ -257,26 +259,27 @@
   <div class="shell">
     <aside class="sidebar">
       <div class="tabs">
-        <button class="tab active" id="tab-chats" type="button">Chats</button>
-        <button class="tab" id="tab-contacts" type="button">Contacts</button>
+        <button class="tab active" id="tab-chats" type="button">Obrolan</button>
+        <button class="tab" id="tab-contacts" type="button">Kontak</button>
       </div>
 
       <div id="panel-chats" class="panel">
         <ul class="list" id="conv-list"></ul>
         <div class="new-dm">
-          <input id="dm-tag" placeholder="Start a chat -- TAG" maxlength="6">
-          <button id="dm-btn" class="ghost-btn-sm">Go</button>
+          <input id="dm-tag" placeholder="Mulai obrolan -- TAG" maxlength="6">
+          <button id="dm-btn" class="ghost-btn-sm">Buka</button>
         </div>
         <div class="error" id="dm-error"></div>
       </div>
 
       <div id="panel-contacts" class="panel" style="display:none">
         <p class="hint" style="margin-top:0">
-          Unlike your conversations, your contact list survives across logins.
+          Kontak kamu disembunyikan (bukan dihapus) setiap login -- tambahkan
+          lagi dengan TAG yang sama untuk memunculkannya kembali.
         </p>
         <div class="add-contact">
-          <input id="add-tag" placeholder="their TAG" maxlength="6">
-          <button id="add-contact-btn" class="ghost-btn-sm">Add</button>
+          <input id="add-tag" placeholder="TAG mereka" maxlength="6">
+          <button id="add-contact-btn" class="ghost-btn-sm">Tambah</button>
         </div>
         <div class="error" id="add-contact-error"></div>
         <div id="incoming-requests"></div>
@@ -286,17 +289,17 @@
 
     <section class="conv-panel" id="conv-panel">
       <div class="conv-toolbar">
-        <button id="back-btn" class="back-btn" aria-label="Back" type="button">&larr;</button>
-        <div id="conv-header" class="conv-title muted">Pick a conversation</div>
+        <button id="back-btn" class="back-btn" aria-label="Kembali" type="button">&larr;</button>
+        <div id="conv-header" class="conv-title muted">Pilih percakapan</div>
       </div>
       <div id="pending-banner">
-        <span>Messages sent to you here before this session are being held back.</span>
-        <button id="request-pending-btn" class="ghost-btn">Request pending messages</button>
+        <span>Pesan yang dikirim ke kamu di sini sebelum sesi ini sedang ditahan.</span>
+        <button id="request-pending-btn" class="ghost-btn">Minta pesan tertunda</button>
       </div>
-      <div id="messages"><div class="empty-state">Pick a conversation to start chatting.</div></div>
+      <div id="messages"><div class="empty-state">Pilih percakapan untuk mulai mengobrol.</div></div>
       <div id="compose">
-        <textarea id="compose-text" placeholder="Message... (Enter to send)"></textarea>
-        <button id="send-btn" class="btn-primary-sm">Send</button>
+        <textarea id="compose-text" placeholder="Pesan... (Enter untuk kirim)"></textarea>
+        <button id="send-btn" class="btn-primary-sm">Kirim</button>
       </div>
     </section>
   </div>
@@ -339,7 +342,7 @@
       const password = $("login-password").value;
       const data = await api("/auth/login", { method: "POST", body: { tag, password } });
       if (data.user.accountKind !== "taruna") {
-        throw new Error("That's a Ceko account -- use the ordinary login page instead.");
+        throw new Error("Itu akun Ceko -- gunakan halaman login biasa.");
       }
       accessToken = data.accessToken;
       me = data.user;
@@ -400,7 +403,7 @@
       li.innerHTML = "<span class='contact-name'>" + escapeHtml(c.username) + " <span class='tag-pill'>" + c.tag + "</span></span>";
       const btn = document.createElement("button");
       btn.className = "ghost-btn-sm";
-      btn.textContent = "Open DM";
+      btn.textContent = "Buka DM";
       btn.onclick = async () => {
         const conv = await api("/conversations", { method: "POST", body: { type: "dm", userId: c.user_id } });
         await refreshConversations();
@@ -420,7 +423,7 @@
     if (conversations.length === 0) {
       const li = document.createElement("li");
       li.style.border = "none";
-      li.innerHTML = "<span class='muted'>No chats yet -- start one from Contacts.</span>";
+      li.innerHTML = "<span class='muted'>Belum ada obrolan -- mulai dari tab Kontak.</span>";
       list.appendChild(li);
       return;
     }
@@ -484,7 +487,7 @@
     if (msgs.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty-state";
-      empty.textContent = activeConvId ? "No messages yet -- say hello." : "Pick a conversation to start chatting.";
+      empty.textContent = activeConvId ? "Belum ada pesan -- coba sapa duluan." : "Pilih percakapan untuk mulai mengobrol.";
       box.appendChild(empty);
       return;
     }
@@ -499,7 +502,7 @@
         const p = (conv.participants || []).find((p) => p.id === senderId);
         if (p) html += "<div class='sender'>" + escapeHtml(p.username) + "</div>";
       }
-      html += "<div class='text'>" + escapeHtml(m.content || "(attachment)") + "</div>";
+      html += "<div class='text'>" + escapeHtml(m.content || "(lampiran)") + "</div>";
       html += "<div class='meta'>" + formatTime(m.created_at || m.createdAt) + "</div>";
       div.innerHTML = html;
       box.appendChild(div);
@@ -561,7 +564,7 @@
     const data = await api("/contacts/requests?direction=incoming").catch(() => ({ requests: [] }));
     const box = $("incoming-requests");
     if (data.requests.length === 0) { box.innerHTML = ""; return; }
-    box.innerHTML = "<div class='muted req-label'>Incoming requests</div>";
+    box.innerHTML = "<div class='muted req-label'>Permintaan masuk</div>";
     const list = document.createElement("ul");
     list.className = "list";
     for (const r of data.requests) {
@@ -569,7 +572,7 @@
       li.innerHTML = "<span>" + escapeHtml(r.username) + " <span class='tag-pill'>" + r.tag + "</span></span>";
       const btn = document.createElement("button");
       btn.className = "ghost-btn-sm";
-      btn.textContent = "Accept";
+      btn.textContent = "Terima";
       btn.onclick = async () => {
         await api("/contacts/" + r.id + "/accept", { method: "POST" });
         refreshIncomingRequests();

@@ -17,10 +17,10 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
     asyncHandler(async (req, res) => {
       const { username, password, accountKind } = req.body ?? {};
       if (typeof username !== "string" || username.trim().length === 0) {
-        throw new ApiError(422, "INVALID_REQUEST", "username is required");
+        throw new ApiError(422, "INVALID_REQUEST", "username wajib diisi");
       }
       if (accountKind !== undefined && accountKind !== "ceko" && accountKind !== "taruna") {
-        throw new ApiError(422, "INVALID_REQUEST", "accountKind must be 'ceko' or 'taruna'");
+        throw new ApiError(422, "INVALID_REQUEST", "accountKind harus 'ceko' atau 'taruna'");
       }
 
       const tag = await generateUniqueTag(pool);
@@ -73,14 +73,14 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
       const { disabled, newPassword, username, isAdmin, accountKind, email } = req.body ?? {};
 
       if (accountKind !== undefined && accountKind !== "ceko" && accountKind !== "taruna") {
-        throw new ApiError(422, "INVALID_REQUEST", "accountKind must be 'ceko' or 'taruna'");
+        throw new ApiError(422, "INVALID_REQUEST", "accountKind harus 'ceko' atau 'taruna'");
       }
       if (email !== undefined && email !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        throw new ApiError(422, "INVALID_REQUEST", "email is not a valid address");
+        throw new ApiError(422, "INVALID_REQUEST", "Format email tidak valid");
       }
 
       const { rows: existing } = await pool.query(`SELECT id FROM users WHERE id = $1`, [id]);
-      if (!existing[0]) throw new ApiError(404, "NOT_FOUND", "No such user");
+      if (!existing[0]) throw new ApiError(404, "NOT_FOUND", "Pengguna tidak ditemukan");
 
       // isAdmin is read fresh from the DB on every request (see
       // authenticate() in auth.ts, called on every requireAuth), never
@@ -89,7 +89,7 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
       // yourself avoids an admin locking themselves out with no other
       // admin able to undo it.
       if (isAdmin === false && id === req.auth!.userId) {
-        throw new ApiError(422, "CANNOT_SELF_DEMOTE", "Cannot remove your own admin rights");
+        throw new ApiError(422, "CANNOT_SELF_DEMOTE", "Tidak bisa mencabut hak admin milikmu sendiri");
       }
 
       // Disabling, resetting a password, or switching account kind all need
@@ -130,7 +130,7 @@ export function createAdminRouter(pool: Pool, io: Server): Router {
         sets.push(`session_version = session_version + 1`);
       }
       if (sets.length === 0) {
-        throw new ApiError(422, "INVALID_REQUEST", "Nothing to update");
+        throw new ApiError(422, "INVALID_REQUEST", "Tidak ada yang diperbarui");
       }
 
       const { rows } = await pool.query(

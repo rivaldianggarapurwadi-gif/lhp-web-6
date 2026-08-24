@@ -23,11 +23,11 @@ export function createPushRouter(pool: Pool): Router {
       // A subscription is a standing record tying this device to this
       // account -- exactly what a Taruna session is built never to leave.
       if (req.auth!.accountKind === "taruna") {
-        throw new ApiError(403, "NOT_SUPPORTED", "Taruna accounts do not support push notifications");
+        throw new ApiError(403, "NOT_SUPPORTED", "Akun Taruna tidak mendukung notifikasi push");
       }
       const sub = req.body ?? {};
       if (typeof sub.endpoint !== "string" || !sub.keys?.p256dh || !sub.keys?.auth) {
-        throw new ApiError(422, "INVALID_REQUEST", "Malformed push subscription");
+        throw new ApiError(422, "INVALID_REQUEST", "Data subscription push tidak valid");
       }
       await saveSubscription(pool, req.auth!.userId, {
         endpoint: sub.endpoint,
@@ -42,7 +42,7 @@ export function createPushRouter(pool: Pool): Router {
     requireAuth,
     asyncHandler(async (req, res) => {
       const endpoint = typeof req.body?.endpoint === "string" ? req.body.endpoint : "";
-      if (!endpoint) throw new ApiError(422, "INVALID_REQUEST", "endpoint is required");
+      if (!endpoint) throw new ApiError(422, "INVALID_REQUEST", "endpoint wajib diisi");
       await removeSubscription(pool, req.auth!.userId, endpoint);
       res.status(204).end();
     })

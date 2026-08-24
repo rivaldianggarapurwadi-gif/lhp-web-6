@@ -88,7 +88,7 @@ export async function assertParticipant(
   userId: string
 ): Promise<void> {
   const ids = await getParticipantIds(pool, redis, conversationId);
-  if (!ids.includes(userId)) throw new SendError("NOT_A_PARTICIPANT", "Not in conversation");
+  if (!ids.includes(userId)) throw new SendError("NOT_A_PARTICIPANT", "Bukan bagian dari percakapan ini");
 }
 
 /** The Taruna re-join gate for this caller in this conversation, if any --
@@ -119,15 +119,15 @@ export async function sendMessage(
 ): Promise<PersistedMessage> {
   if (input.type === "text") {
     const body = (input.content ?? "").trim();
-    if (body.length === 0) throw new SendError("EMPTY_MESSAGE", "Message is empty");
+    if (body.length === 0) throw new SendError("EMPTY_MESSAGE", "Pesan tidak boleh kosong");
     if (body.length > MAX_CONTENT_LENGTH)
-      throw new SendError("MESSAGE_TOO_LONG", `Limit is ${MAX_CONTENT_LENGTH} characters`);
+      throw new SendError("MESSAGE_TOO_LONG", `Maksimal ${MAX_CONTENT_LENGTH} karakter`);
     input.content = body;
   }
 
   const participants = await getParticipantIds(pool, redis, input.conversationId);
   if (!participants.includes(input.senderId))
-    throw new SendError("NOT_A_PARTICIPANT", "You are not in this conversation");
+    throw new SendError("NOT_A_PARTICIPANT", "Kamu bukan bagian dari percakapan ini");
 
   const client = await pool.connect();
   try {
@@ -176,7 +176,7 @@ async function insertWithSeq(
   );
   if (seqRows.length === 0) {
     await client.query("ROLLBACK");
-    throw new SendError("CONVERSATION_NOT_FOUND", "No such conversation");
+    throw new SendError("CONVERSATION_NOT_FOUND", "Percakapan tidak ditemukan");
   }
   const seq = seqRows[0].last_seq;
 
@@ -189,7 +189,7 @@ async function insertWithSeq(
     );
     if (rowCount === 0) {
       await client.query("ROLLBACK");
-      throw new SendError("REPLY_TARGET_INVALID", "Cannot reply to that message");
+      throw new SendError("REPLY_TARGET_INVALID", "Tidak bisa membalas pesan tersebut");
     }
   }
 

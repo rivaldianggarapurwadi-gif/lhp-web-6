@@ -11,14 +11,16 @@ import { invalidateParticipants } from "./message-service.js";
  * while this row didn't exist is still sitting in the conversation, waiting
  * for this user to re-join it.
  *
- * Contacts are deliberately NOT cleared here, unlike the original plan --
- * this was corrected after testing surfaced why. A `contacts` row is a
- * single relationship *shared* by both users, not two independent per-user
- * records; deleting "the Taruna's side" of it deletes the only row there
- * is, which would also erase it from the Ceko's own contact list and break
- * "Ceko's side is never cleared." The conversation history and list --
- * which the wipe below does clear -- is what "the chat" actually means;
- * the address book is a separate concept and survives.
+ * Contacts are never *deleted* here -- a `contacts` row is a single
+ * relationship shared by both users, not two independent per-user records;
+ * deleting "the Taruna's side" of it deletes the only row there is, which
+ * would also erase it from the Ceko's own contact list. That was the
+ * original plan, corrected after testing surfaced why. What this does
+ * instead is hide every accepted contact from this user's own view only
+ * (see migrations/008_contact_hiding.sql) -- the row survives untouched and
+ * the other side's list is never affected. The same "re-add by tag" flow
+ * this account already uses to reopen a wiped conversation un-hides it
+ * again (see social-routes.ts POST /contacts).
  *
  * Blocks are also deliberately NOT cleared. Wiping them every login would
  * re-expose a Taruna to someone they deliberately blocked, which cuts
@@ -35,6 +37,15 @@ export async function wipeTarunaHistory(pool: Pool, redis: Redis, userId: string
     );
 
     await client.query(`DELETE FROM conversation_participants WHERE user_id = $1`, [userId]);
+
+    await client.query(
+      `UPDATE contacts SET requester_hidden = true WHERE requester_id = $1 AND status = 'accepted'`,
+      [userId]
+    );
+    await client.query(
+      `UPDATE contacts SET addressee_hidden = true WHERE addressee_id = $1 AND status = 'accepted'`,
+      [userId]
+    );
 
     await client.query("COMMIT");
 

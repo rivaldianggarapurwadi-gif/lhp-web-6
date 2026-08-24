@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -136,23 +136,23 @@
   <span class="badge-mark">ADMIN</span>
   <span id="instance-name" style="display:none"></span>
   <div class="topbar-right">
-    <a href="/" class="ghost-link">&larr; App</a>
+    <a href="/" class="ghost-link">&larr; Aplikasi</a>
     <span id="whoami" class="whoami"></span>
-    <button id="logout-btn" class="ghost-btn-sm" style="display:none">Log out</button>
+    <button id="logout-btn" class="ghost-btn-sm" style="display:none">Keluar</button>
   </div>
 </header>
 
 <section id="login-box">
   <div class="login-card">
     <div class="brand">Ceko</div>
-    <p class="login-tagline">Admin sign-in.</p>
+    <p class="login-tagline">Masuk sebagai admin.</p>
     <div class="field">
       <input id="login-tag" placeholder="TAG" maxlength="6" autocomplete="off">
     </div>
     <div class="field">
-      <input id="login-password" placeholder="Password" type="password">
+      <input id="login-password" placeholder="Kata sandi" type="password">
     </div>
-    <button id="login-btn" class="btn-primary">Log in</button>
+    <button id="login-btn" class="btn-primary">Masuk</button>
     <div class="error" id="login-error"></div>
   </div>
 </section>
@@ -160,31 +160,31 @@
 <div id="app">
   <main>
     <section>
-      <p class="section-title">Create account</p>
+      <p class="section-title">Buat akun</p>
       <div class="row">
         <input id="create-username" placeholder="username">
-        <input id="create-password" placeholder="password (blank = generate)" type="text">
+        <input id="create-password" placeholder="kata sandi (kosongkan = otomatis)" type="text">
         <select id="create-kind">
           <option value="ceko">Ceko</option>
           <option value="taruna">Taruna</option>
         </select>
-        <button id="create-btn" class="btn-primary">Create</button>
+        <button id="create-btn" class="btn-primary">Buat</button>
       </div>
       <div class="error" id="create-error"></div>
       <div id="create-result"></div>
     </section>
 
     <section>
-      <p class="section-title">Accounts</p>
+      <p class="section-title">Akun</p>
       <div class="row">
-        <input id="search-box" placeholder="search username or tag" style="width:220px">
-        <button id="search-btn" class="ghost-btn-sm">Search</button>
-        <button id="refresh-btn" class="ghost-btn-sm">Refresh</button>
+        <input id="search-box" placeholder="cari username atau tag" style="width:220px">
+        <button id="search-btn" class="ghost-btn-sm">Cari</button>
+        <button id="refresh-btn" class="ghost-btn-sm">Muat ulang</button>
       </div>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Tag</th><th>Username</th><th>Status</th><th>Created</th><th>Actions</th></tr>
+            <tr><th>Tag</th><th>Username</th><th>Status</th><th>Dibuat</th><th>Aksi</th></tr>
           </thead>
           <tbody id="user-rows"></tbody>
         </table>
@@ -238,7 +238,7 @@
   (async () => {
     try {
       const data = await api("/auth/refresh", { method: "POST" });
-      if (!data.user || !data.user.isAdmin) throw new Error("no admin session");
+      if (!data.user || !data.user.isAdmin) throw new Error("tidak ada sesi admin");
       accessToken = data.accessToken;
       me = data.user;
       onLoggedIn();
@@ -253,7 +253,7 @@
       const tag = $("login-tag").value.trim().toUpperCase();
       const password = $("login-password").value;
       const data = await api("/auth/login", { method: "POST", body: { tag, password } });
-      if (!data.user.isAdmin) throw new Error("That account isn't an admin.");
+      if (!data.user.isAdmin) throw new Error("Akun itu bukan admin.");
       accessToken = data.accessToken;
       me = data.user;
       onLoggedIn();
@@ -292,10 +292,10 @@
       $("create-username").value = "";
       $("create-password").value = "";
       const passLine = data.generatedPassword
-        ? "generated password: <b>" + data.generatedPassword + "</b> (shown once)"
-        : "password set as given";
+        ? "kata sandi otomatis: <b>" + data.generatedPassword + "</b> (hanya ditampilkan sekali)"
+        : "kata sandi diset sesuai yang dimasukkan";
       $("create-result").innerHTML =
-        "<div class='created-note'>Created <b>" + escapeHtml(data.user.username) +
+        "<div class='created-note'>Berhasil membuat <b>" + escapeHtml(data.user.username) +
         "</b> -- tag <span class='tag-pill'>" + data.user.tag + "</span><br>" + passLine + "</div>";
       loadUsers();
     } catch (e) {
@@ -337,7 +337,7 @@
 
       const statusTd = document.createElement("td");
       statusTd.innerHTML = "<div class='status-badges'>" +
-        (u.disabled_at ? "<span class='badge disabled'>disabled</span>" : "<span class='badge active'>active</span>") +
+        (u.disabled_at ? "<span class='badge disabled'>nonaktif</span>" : "<span class='badge active'>aktif</span>") +
         (u.is_admin ? " <span class='badge admin'>admin</span>" : "") +
         (u.account_kind === "taruna" ? " <span class='badge taruna'>taruna</span>" : "") +
         "</div>";
@@ -350,36 +350,36 @@
       const actionsTd = document.createElement("td");
       actionsTd.className = "actions";
 
-      const saveBtn = actionButton("Save name", "", async () => {
+      const saveBtn = actionButton("Simpan nama", "", async () => {
         await patchUser(u.id, { username: nameInput.value.trim() });
       });
       actionsTd.appendChild(saveBtn);
 
       const toggleDisabled = actionButton(
-        u.disabled_at ? "Enable" : "Disable",
+        u.disabled_at ? "Aktifkan" : "Nonaktifkan",
         u.disabled_at ? "" : "danger",
         async () => { await patchUser(u.id, { disabled: !u.disabled_at }); }
       );
       actionsTd.appendChild(toggleDisabled);
 
       const toggleAdmin = actionButton(
-        u.is_admin ? "Revoke admin" : "Make admin",
+        u.is_admin ? "Cabut admin" : "Jadikan admin",
         "",
         async () => { await patchUser(u.id, { isAdmin: !u.is_admin }); }
       );
       actionsTd.appendChild(toggleAdmin);
 
       const toggleKind = actionButton(
-        u.account_kind === "taruna" ? "Make Ceko" : "Make Taruna",
+        u.account_kind === "taruna" ? "Jadikan Ceko" : "Jadikan Taruna",
         "",
         async () => { await patchUser(u.id, { accountKind: u.account_kind === "taruna" ? "ceko" : "taruna" }); }
       );
       actionsTd.appendChild(toggleKind);
 
-      const resetBtn = actionButton("Reset password", "", async () => {
+      const resetBtn = actionButton("Reset kata sandi", "", async () => {
         const newPassword = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
         await patchUser(u.id, { newPassword });
-        alert("New password for " + u.username + ": " + newPassword + "\n(shown once)");
+        alert("Kata sandi baru untuk " + u.username + ": " + newPassword + "\n(hanya ditampilkan sekali)");
       });
       actionsTd.appendChild(resetBtn);
 

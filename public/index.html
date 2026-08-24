@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -266,27 +266,27 @@
   <span id="instance-name" class="sr-only"></span>
   <div class="topbar-right">
     <span id="whoami" class="whoami"></span>
-    <button id="settings-btn" class="icon-btn" style="display:none" title="Notification settings">
+    <button id="settings-btn" class="icon-btn" style="display:none" title="Pengaturan notifikasi">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.35a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.65 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.65a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.65a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.35 9a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03z"/></svg>
     </button>
     <a id="admin-link" href="/admin.html" class="ghost-link" style="display:none">Admin</a>
-    <button id="logout-btn" class="ghost-btn-sm" style="display:none">Log out</button>
+    <button id="logout-btn" class="ghost-btn-sm" style="display:none">Keluar</button>
   </div>
 </header>
 
 <section id="login-box">
   <div class="login-card">
     <div class="brand">Ceko</div>
-    <p class="login-tagline">Sign in with your tag to continue.</p>
+    <p class="login-tagline">Masuk dengan TAG kamu untuk melanjutkan.</p>
     <div class="field">
       <input id="login-tag" placeholder="TAG" maxlength="6" autocomplete="off">
     </div>
     <div class="field">
-      <input id="login-password" placeholder="Password" type="password">
+      <input id="login-password" placeholder="Kata sandi" type="password">
     </div>
-    <button id="login-btn" class="btn-primary">Log in</button>
+    <button id="login-btn" class="btn-primary">Masuk</button>
     <div class="error" id="login-error"></div>
-    <p class="login-hint">Don't have an account? Ask an admin to create one for you.</p>
+    <p class="login-hint">Belum punya akun? Minta admin untuk membuatkannya.</p>
   </div>
 </section>
 
@@ -294,23 +294,23 @@
   <div class="shell">
     <aside class="sidebar">
       <div class="tabs">
-        <button class="tab active" id="tab-chats" type="button">Chats</button>
-        <button class="tab" id="tab-contacts" type="button">Contacts</button>
+        <button class="tab active" id="tab-chats" type="button">Obrolan</button>
+        <button class="tab" id="tab-contacts" type="button">Kontak</button>
       </div>
 
       <div id="panel-chats" class="panel">
         <ul class="list" id="conv-list"></ul>
         <div class="new-dm">
-          <input id="dm-tag" placeholder="Start a chat -- TAG" maxlength="6">
-          <button id="dm-btn" class="ghost-btn-sm">Go</button>
+          <input id="dm-tag" placeholder="Mulai obrolan -- TAG" maxlength="6">
+          <button id="dm-btn" class="ghost-btn-sm">Buka</button>
         </div>
         <div class="error" id="dm-error"></div>
       </div>
 
       <div id="panel-contacts" class="panel" style="display:none">
         <div class="add-contact">
-          <input id="add-tag" placeholder="their TAG" maxlength="6">
-          <button id="add-contact-btn" class="ghost-btn-sm">Add</button>
+          <input id="add-tag" placeholder="TAG mereka" maxlength="6">
+          <button id="add-contact-btn" class="ghost-btn-sm">Tambah</button>
         </div>
         <div class="error" id="add-contact-error"></div>
         <div id="incoming-requests"></div>
@@ -320,13 +320,13 @@
 
     <section class="conv-panel" id="conv-panel">
       <div class="conv-toolbar">
-        <button id="back-btn" class="back-btn" aria-label="Back" type="button">&larr;</button>
-        <div id="conv-header" class="conv-title muted">Pick a conversation</div>
+        <button id="back-btn" class="back-btn" aria-label="Kembali" type="button">&larr;</button>
+        <div id="conv-header" class="conv-title muted">Pilih percakapan</div>
       </div>
-      <div id="messages"><div class="empty-state">Pick a conversation to start chatting.</div></div>
+      <div id="messages"><div class="empty-state">Pilih percakapan untuk mulai mengobrol.</div></div>
       <div id="compose">
-        <textarea id="compose-text" placeholder="Message... (Enter to send)"></textarea>
-        <button id="send-btn" class="btn-primary-sm">Send</button>
+        <textarea id="compose-text" placeholder="Pesan... (Enter untuk kirim)"></textarea>
+        <button id="send-btn" class="btn-primary-sm">Kirim</button>
       </div>
     </section>
   </div>
@@ -335,32 +335,32 @@
 <div id="settings-overlay" class="overlay">
   <div class="settings-panel">
     <div class="settings-head">
-      <span>Notifications</span>
-      <button id="settings-close-btn" class="icon-btn" aria-label="Close">
+      <span>Notifikasi</span>
+      <button id="settings-close-btn" class="icon-btn" aria-label="Tutup">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
 
     <h4>Email</h4>
     <p class="hint">
-      Works everywhere, no permission prompt, no install -- the most
-      reliable of the two if push is giving you trouble on a phone.
+      Bekerja di mana saja, tanpa izin khusus, tanpa instalasi -- paling
+      andal dari keduanya kalau notifikasi push bermasalah di HP.
     </p>
     <div class="field-row">
-      <input id="email-input" placeholder="you@example.com" type="email" autocapitalize="off" autocorrect="off">
-      <button id="save-email-btn" class="ghost-btn-sm">Save</button>
+      <input id="email-input" placeholder="kamu@contoh.com" type="email" autocapitalize="off" autocorrect="off">
+      <button id="save-email-btn" class="ghost-btn-sm">Simpan</button>
     </div>
     <div class="error" id="email-error"></div>
 
     <div id="notify-box" style="display:none">
       <h4 class="second">Push</h4>
       <p class="hint">
-        On iPhone, push only works from a home-screen install: Share &rarr;
-        Add to Home Screen, then open Ceko from that icon (not from Safari)
-        before turning this on.
+        Di iPhone, push hanya berfungsi jika diinstal ke Home Screen: Share
+        &rarr; Add to Home Screen, lalu buka Ceko dari ikon tersebut (bukan
+        dari Safari) sebelum mengaktifkan ini.
       </p>
       <div class="toggle-row">
-        <span id="push-toggle-label" class="toggle-label">Off</span>
+        <span id="push-toggle-label" class="toggle-label">Nonaktif</span>
         <button id="push-toggle" class="toggle" type="button" role="switch" aria-checked="false">
           <span class="toggle-knob"></span>
         </button>
@@ -486,7 +486,7 @@
       // The endpoint gives no other visible sign of success -- without
       // this the button looks broken even when the save worked.
       $("email-error").style.color = "var(--ok)";
-      $("email-error").textContent = email ? "Saved." : "Cleared.";
+      $("email-error").textContent = email ? "Tersimpan." : "Terhapus.";
       setTimeout(() => { $("email-error").textContent = ""; }, 3000);
     } catch (e) {
       $("email-error").style.color = "";
@@ -517,7 +517,7 @@
       if (turningOn) {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
-          $("notify-error").textContent = "Permission not granted.";
+          $("notify-error").textContent = "Izin tidak diberikan.";
           return;
         }
         await setupPush();
@@ -526,7 +526,7 @@
       }
       $("notify-error").textContent = "";
     } catch (e) {
-      $("notify-error").textContent = (turningOn ? "Couldn't enable push: " : "Couldn't disable push: ") + e.message;
+      $("notify-error").textContent = (turningOn ? "Gagal mengaktifkan push: " : "Gagal menonaktifkan push: ") + e.message;
     } finally {
       // Only resyncs the switch position/disabled state -- must not touch
       // notify-error itself, or the messages set just above (permission
@@ -540,7 +540,7 @@
     btn.classList.toggle("on", on);
     btn.setAttribute("aria-checked", on ? "true" : "false");
     btn.disabled = disabled;
-    $("push-toggle-label").textContent = on ? "On" : "Off";
+    $("push-toggle-label").textContent = on ? "Aktif" : "Nonaktif";
   }
 
   async function pushSubscriptionExists() {
@@ -560,7 +560,7 @@
     $("notify-box").style.display = "block";
     if (Notification.permission === "denied") {
       setToggleState(false, true);
-      $("notify-error").textContent = "Blocked for this site -- enable notifications in your browser's site settings, then reload.";
+      $("notify-error").textContent = "Diblokir untuk situs ini -- aktifkan notifikasi di pengaturan situs browser kamu, lalu muat ulang halaman.";
       return;
     }
     const subscribed = Notification.permission === "granted" && (await pushSubscriptionExists());
@@ -578,11 +578,11 @@
   // either" was.
   async function setupPush() {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      throw new Error("This browser doesn't support push notifications.");
+      throw new Error("Browser ini tidak mendukung notifikasi push.");
     }
     const registration = await navigator.serviceWorker.register("/sw.js");
     const { publicKey } = await api("/push/vapid-public-key");
-    if (!publicKey) throw new Error("Push isn't configured on this server yet.");
+    if (!publicKey) throw new Error("Push belum dikonfigurasi di server ini.");
 
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
@@ -650,11 +650,11 @@
       if (!messagesByConv[msg.conversationId]) messagesByConv[msg.conversationId] = [];
       messagesByConv[msg.conversationId].push(msg);
       if (msg.conversationId === activeConvId) renderMessages();
-      else if (document.hidden) notify("New message", msg.content || "(attachment)");
+      else if (document.hidden) notify("Pesan baru", msg.content || "(lampiran)");
       refreshConversations();
     });
     socket.on("pending:requested", (p) => {
-      notify("Pending messages requested", "A contact just asked to receive messages you sent while they were offline.");
+      notify("Pesan tertunda diminta", "Kontak baru saja meminta pesan yang kamu kirim saat mereka offline.");
     });
     socket.on("presence", (p) => {
       // Live push while connected -- refreshContacts() below covers the
@@ -722,7 +722,7 @@
     if (conversations.length === 0) {
       const li = document.createElement("li");
       li.style.border = "none";
-      li.innerHTML = "<span class='muted'>No chats yet -- start one from Contacts.</span>";
+      li.innerHTML = "<span class='muted'>Belum ada obrolan -- mulai dari tab Kontak.</span>";
       list.appendChild(li);
       return;
     }
@@ -775,7 +775,7 @@
     if (msgs.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty-state";
-      empty.textContent = activeConvId ? "No messages yet -- say hello." : "Pick a conversation to start chatting.";
+      empty.textContent = activeConvId ? "Belum ada pesan -- coba sapa duluan." : "Pilih percakapan untuk mulai mengobrol.";
       box.appendChild(empty);
       return;
     }
@@ -790,7 +790,7 @@
         const p = (conv.participants || []).find((p) => p.id === senderId);
         if (p) html += "<div class='sender'>" + escapeHtml(p.username) + "</div>";
       }
-      html += "<div class='text'>" + escapeHtml(m.content || "(attachment)") + "</div>";
+      html += "<div class='text'>" + escapeHtml(m.content || "(lampiran)") + "</div>";
       html += "<div class='meta'>" + formatTime(m.created_at || m.createdAt) + "</div>";
       div.innerHTML = html;
       box.appendChild(div);
@@ -852,7 +852,7 @@
     const data = await api("/contacts/requests?direction=incoming").catch(() => ({ requests: [] }));
     const box = $("incoming-requests");
     if (data.requests.length === 0) { box.innerHTML = ""; return; }
-    box.innerHTML = "<div class='muted req-label'>Incoming requests</div>";
+    box.innerHTML = "<div class='muted req-label'>Permintaan masuk</div>";
     const list = document.createElement("ul");
     list.className = "list";
     for (const r of data.requests) {
@@ -860,7 +860,7 @@
       li.innerHTML = "<span>" + escapeHtml(r.username) + " <span class='tag-pill'>" + r.tag + "</span></span>";
       const btn = document.createElement("button");
       btn.className = "ghost-btn-sm";
-      btn.textContent = "Accept";
+      btn.textContent = "Terima";
       btn.onclick = async () => {
         await api("/contacts/" + r.id + "/accept", { method: "POST" });
         refreshIncomingRequests();
