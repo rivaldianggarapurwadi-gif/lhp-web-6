@@ -1,4 +1,4 @@
-# Ceko — realtime layer
+# Materi — realtime layer
 
 Discord-style chat app. Admin-created accounts, 6-char lookup tags, DMs and group
 chats, voice/video via a managed SFU. This repo is the **realtime slice**: the
@@ -68,8 +68,8 @@ These are load-bearing. Each one is enforced by a test that will fail loudly.
     hides -- never deletes -- accepted `contacts` on this user's own side.**
     `contacts` is one row shared by both sides of a relationship, not a
     per-user record; deleting "the Taruna's half" deletes the only row
-    there is and erases it from the Ceko's own contact list too, breaking
-    "Ceko is never cleared." (Found by a failing test, not by inspection --
+    there is and erases it from the Materi's own contact list too, breaking
+    "Materi is never cleared." (Found by a failing test, not by inspection --
     the original plan wiped contacts too.) `requester_hidden`/
     `addressee_hidden` (`migrations/008_contact_hiding.sql`) let each side
     hide an accepted contact from its own view without touching the row or
@@ -104,8 +104,8 @@ src/message-service.ts               the ONLY place a message is written or auth
 src/message-store.ts                 client reconciliation, shared with the browser
 src/socket.ts                        auth middleware, rooms, message:send, sync, presence, typing
 src/presence.ts                      heartbeat/sweep/online-check, narrow-fan-out contact lookup
-src/push.ts                          Web Push (VAPID) -- Ceko only
-src/email.ts                         email via Resend -- Ceko only
+src/push.ts                          Web Push (VAPID) -- Materi only
+src/email.ts                         email via Resend -- Materi only
 src/notify.ts                        shared orchestrator: push + email, offline participants only
 src/server.ts                        http + socket.io + redis adapter + the Express app + presence sweep loop
 src/auth.ts                          JWT + session_version revocation check
@@ -113,7 +113,7 @@ src/refresh-token.ts                 rotation, with theft-shaped reuse detection
 src/tag.ts, password.ts, cookies.ts, rate-limit.ts, storage.ts   REST building blocks
 src/http/                            REST routers: auth, admin, social, conversations, uploads, push
 src/create-admin.ts                  bootstraps the first admin account (accounts are admin-created)
-public/index.html                    throwaway Ceko test harness, served at "/" -- not the real UI
+public/index.html                    throwaway Materi test harness, served at "/" -- not the real UI
 public/sw.js                         service worker for push, registered by index.html only
 public/taruna.html                   throwaway Taruna test harness, served at "/taruna.html"
 public/admin.html                    account management for both: create/edit/disable/promote/re-kind users
@@ -131,12 +131,12 @@ user creation, contacts/blocks, idempotent DM creation, presigned uploads
 against a local-disk mock), presence (Redis ZSET + heartbeat + sweeper,
 narrow fan-out to contacts only, debounced disconnect), typing beyond
 the raw relay (participant check + rate limit), two account kinds --
-Ceko (persistent session, full history) and Taruna (wiped conversation
+Materi (persistent session, full history) and Taruna (wiped conversation
 membership on every login -- contacts survive, see invariant 13 -- no
 refresh token issued, so a page refresh or tab close ends the session; a
 message sent to an offline Taruna sits in its conversation as normal and
 becomes visible again once the Taruna recreates the DM and explicitly
-requests the pending backlog), real Web Push for Ceko accounts
+requests the pending backlog), real Web Push for Materi accounts
 (a service worker + VAPID + a PWA manifest, so a notification arrives even
 with the tab closed -- iOS Safari refuses to show push from an ordinary
 tab at all, only an installed home-screen app, and Chrome silently

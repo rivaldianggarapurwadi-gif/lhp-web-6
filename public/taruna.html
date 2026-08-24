@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ceko -- Taruna</title>
+<title>Materi -- Taruna</title>
 <meta name="theme-color" content="#000000">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -217,7 +217,7 @@
 
 <header class="topbar">
   <span class="status-dot" id="status-dot"></span>
-  <span class="brand">Ceko</span>
+  <span class="brand">Materi</span>
   <span class="badge-mark">TARUNA</span>
   <span id="instance-name" class="sr-only" style="display:none"></span>
   <div class="topbar-right">
@@ -239,7 +239,7 @@
 <section id="login-box">
   <div class="login-card">
     <div class="brand-row">
-      <div class="brand">Ceko</div>
+      <div class="brand">Materi</div>
       <span class="badge-mark">TARUNA</span>
     </div>
     <p class="login-tagline">Masuk dengan TAG kamu untuk melanjutkan.</p>
@@ -342,7 +342,7 @@
       const password = $("login-password").value;
       const data = await api("/auth/login", { method: "POST", body: { tag, password } });
       if (data.user.accountKind !== "taruna") {
-        throw new Error("Itu akun Ceko -- gunakan halaman login biasa.");
+        throw new Error("Itu akun Materi -- gunakan halaman login biasa.");
       }
       accessToken = data.accessToken;
       me = data.user;

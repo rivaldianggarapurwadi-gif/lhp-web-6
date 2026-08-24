@@ -2,7 +2,7 @@
 // never subscribes.
 
 self.addEventListener("push", (event) => {
-  let data = { title: "Ceko", body: "" };
+  let data = { title: "Materi", body: "" };
   try {
     if (event.data) data = event.data.json();
   } catch {

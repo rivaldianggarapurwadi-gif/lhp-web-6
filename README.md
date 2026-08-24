@@ -1,4 +1,4 @@
-# Ceko realtime slice
+# Materi realtime slice
 
 A running vertical slice of the realtime layer: Postgres + Redis + **two** API
 instances + an end-to-end suite that exercises the failure modes the design
@@ -34,12 +34,12 @@ DATABASE_URL=postgres://ceko:ceko@localhost:5432/ceko \
   npm run create-admin -- alice
 ```
 
-Then open `http://localhost:3001/` for a throwaway Ceko test harness (login,
+Then open `http://localhost:3001/` for a throwaway Materi test harness (login,
 contacts, DMs, notifications) -- not the real client, just enough to click
 around in. The real UI is still "designed but not built" per `CLAUDE.md`.
 `http://localhost:3001/admin.html` is the account-management page for that
 first admin: create users, edit usernames, promote/demote admins,
-disable/enable, reset passwords, switch between the Ceko and Taruna account
+disable/enable, reset passwords, switch between the Materi and Taruna account
 kinds. `http://localhost:3001/taruna.html` is the separate harness for
 Taruna accounts -- same server, deliberately different session behavior
 (see "Two account kinds" below).
@@ -51,9 +51,9 @@ that account's conversation membership -- and only that -- back to a clean
 slate, and issues no refresh token at all, so a page refresh or closed tab
 ends the session for good. Contacts are deliberately left alone: a contact
 is one row shared by both sides of the relationship, not a per-user record,
-so deleting "the Taruna's half" would delete it from the Ceko's own contact
+so deleting "the Taruna's half" would delete it from the Materi's own contact
 list too. Nothing is ever deleted from `messages` or `conversations`
-themselves either, so the other side (always Ceko) keeps its full history;
+themselves either, so the other side (always Materi) keeps its full history;
 only the Taruna's own membership in each conversation is removed and,
 later, re-added. A message sent to a Taruna who isn't currently a
 participant just sits in the conversation normally -- it becomes visible
@@ -62,7 +62,7 @@ existing `dm_key` conversation rather than only creating new ones) and
 calls `POST /conversations/:id/request-pending` to release the backlog.
 See `src/taruna.ts` and invariants 13-14 in `CLAUDE.md`.
 
-Ceko's persistent session needs the client to actually use the refresh
+Materi's persistent session needs the client to actually use the refresh
 cookie, not just the server to keep issuing one: `index.html`/`admin.html`
 call `POST /auth/refresh` once on page load, before ever showing the login
 form, and restore the session silently if it succeeds. `POST /auth/refresh`
@@ -105,15 +105,15 @@ above runs in seconds instead of minutes without changing what ships.
 
 The suite also proves the two-account-kind design: Taruna login returns no
 session cookie and wipes conversation membership while leaving contacts
-untouched; Ceko login is unaffected; a Ceko message sent to an offline
+untouched; Materi login is unaffected; a Materi message sent to an offline
 Taruna stays hidden through a wipe and a DM re-creation until
-`request-pending` explicitly releases it; and an ordinary Ceko-Ceko
+`request-pending` explicitly releases it; and an ordinary Materi-Materi
 conversation is completely unaffected
 by the new `pending_release_seq` column (it just stays `NULL`).
 
 ### Push notifications
 
-Ceko accounts get real Web Push -- a notification that arrives even with
+Materi accounts get real Web Push -- a notification that arrives even with
 the tab closed, not just the in-page one that only fires over a live
 socket. `public/sw.js` is the service worker; `src/push.ts` wraps
 `web-push`; `GET /push/vapid-public-key`, `POST /push/subscribe`, and
@@ -163,7 +163,7 @@ if push is giving trouble on a phone. `PATCH /me` accepts an `email` field
 it, pre-filled from `GET /me` on login.
 
 Requires `RESEND_API_KEY` (and optionally `EMAIL_FROM`, default
-`Ceko <onboarding@resend.dev>` -- Resend's shared test sender, fine to
+`Materi <onboarding@resend.dev>` -- Resend's shared test sender, fine to
 start with, swap for a verified domain for real deliverability). Unset in
 local dev, same as push: one startup warning, otherwise silently disabled.
 `test/rest.test.ts` covers the `/me` email field (set/read/clear,
@@ -182,7 +182,7 @@ src/
   socket.ts            auth middleware, rooms, message:send, sync, presence, typing
   presence.ts           heartbeat/sweep/online-check
   taruna.ts             the per-login wipe for Taruna accounts
-  push.ts / email.ts    Web Push (VAPID) / email (Resend) -- both Ceko only
+  push.ts / email.ts    Web Push (VAPID) / email (Resend) -- both Materi only
   notify.ts             shared orchestrator: offline participants only
   server.ts            http + socket.io + redis adapter + the Express app
   auth.ts              token signing and the session_version check
@@ -190,7 +190,7 @@ src/
   tag.ts / password.ts / cookies.ts / rate-limit.ts / storage.ts
   http/                REST routers: auth, admin, social, conversations, uploads, push
   create-admin.ts      bootstraps the first admin account
-public/index.html       Ceko test harness, served at "/"
+public/index.html       Materi test harness, served at "/"
 public/manifest.json     PWA manifest -- required for push to work on iOS
 public/sw.js             service worker for push
 public/taruna.html       Taruna test harness, served at "/taruna.html"
