@@ -228,6 +228,21 @@
   .settings-panel h4.second { margin-top: 30px; }
   .field-row { display: flex; gap: 10px; align-items: center; }
 
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+  .toggle-label { font-size: 13px; color: var(--silver); }
+  .toggle {
+    width: 44px; height: 26px; border-radius: 999px; background: rgba(255,255,255,.15);
+    border: none; position: relative; cursor: pointer; padding: 0; flex-shrink: 0;
+    transition: background .15s ease;
+  }
+  .toggle .toggle-knob {
+    position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--bone); transition: transform .15s ease;
+  }
+  .toggle.on { background: var(--iris); }
+  .toggle.on .toggle-knob { transform: translateX(18px); }
+  .toggle:disabled { opacity: .5; cursor: not-allowed; }
+
   /* ---------- mobile ---------- */
   @media (max-width: 760px) {
     .topbar { padding: 12px 14px; gap: 10px; }
@@ -342,16 +357,15 @@
       <p class="hint">
         On iPhone, push only works from a home-screen install: Share &rarr;
         Add to Home Screen, then open Ceko from that icon (not from Safari)
-        before enabling notifications below.
+        before turning this on.
       </p>
-      <div id="notify-ask-row">
-        <button id="enable-notify-btn" class="ghost-btn">Enable notifications</button>
+      <div class="toggle-row">
+        <span id="push-toggle-label" class="toggle-label">Off</span>
+        <button id="push-toggle" class="toggle" type="button" role="switch" aria-checked="false">
+          <span class="toggle-knob"></span>
+        </button>
       </div>
       <div class="error" id="notify-error"></div>
-      <p class="hint" id="notify-denied-row" style="display:none;margin-top:12px">
-        Notifications are blocked for this site. Enable them from your
-        browser's site settings, then reload this page.
-      </p>
     </div>
   </div>
 </div>
@@ -470,32 +484,70 @@
   // makes typing replace it, the way editing a pre-filled field should work.
   $("email-input").addEventListener("focus", (e) => e.target.select());
 
+  // A single toggle instead of a one-way "Enable notifications" button that
+  // used to vanish once granted, with no way back to check or turn it off
+  // short of digging into the browser's own site settings.
+  //
   // Direct result of a tap, unlike the login-time attempt this replaced --
   // this is what actually gets Chrome's native prompt to show on Android.
-  $("enable-notify-btn").onclick = async () => {
-    $("notify-error").style.color = "";
+  $("push-toggle").onclick = async () => {
     $("notify-error").textContent = "";
-    $("enable-notify-btn").disabled = true;
+    const btn = $("push-toggle");
+    const turningOn = !btn.classList.contains("on");
+    btn.disabled = true;
     try {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        $("notify-error").textContent = "Permission not granted.";
-        return;
+      if (turningOn) {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          $("notify-error").textContent = "Permission not granted.";
+          return;
+        }
+        await setupPush();
+      } else {
+        await teardownPush();
       }
-      await setupPush();
-      // Confirm success visibly before hiding the box -- collapsing it
-      // straight to nothing on success looked identical to the silent
-      // failure this replaced.
-      $("notify-error").style.color = "var(--ok)";
-      $("notify-error").textContent = "Enabled.";
-      setTimeout(() => { $("notify-box").style.display = "none"; }, 1200);
+      $("notify-error").textContent = "";
     } catch (e) {
-      $("notify-error").style.color = "";
-      $("notify-error").textContent = "Couldn't enable push: " + e.message;
+      $("notify-error").textContent = (turningOn ? "Couldn't enable push: " : "Couldn't disable push: ") + e.message;
     } finally {
-      $("enable-notify-btn").disabled = false;
+      // Only resyncs the switch position/disabled state -- must not touch
+      // notify-error itself, or the messages set just above (permission
+      // refused, setup/teardown failed) get wiped before they're ever seen.
+      await refreshPushToggle();
     }
   };
+
+  function setToggleState(on, disabled) {
+    const btn = $("push-toggle");
+    btn.classList.toggle("on", on);
+    btn.setAttribute("aria-checked", on ? "true" : "false");
+    btn.disabled = disabled;
+    $("push-toggle-label").textContent = on ? "On" : "Off";
+  }
+
+  async function pushSubscriptionExists() {
+    const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+    const subscription = await registration?.pushManager.getSubscription();
+    return !!subscription;
+  }
+
+  // The single source of truth for what the toggle shows -- called after
+  // login and after every flip, so the switch always reflects the real
+  // subscription state instead of just remembering what it was last set to.
+  async function refreshPushToggle() {
+    if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+      $("notify-box").style.display = "none";
+      return;
+    }
+    $("notify-box").style.display = "block";
+    if (Notification.permission === "denied") {
+      setToggleState(false, true);
+      $("notify-error").textContent = "Blocked for this site -- enable notifications in your browser's site settings, then reload.";
+      return;
+    }
+    const subscribed = Notification.permission === "granted" && (await pushSubscriptionExists());
+    setToggleState(subscribed, false);
+  }
 
   // Throws on failure rather than swallowing it -- the two call sites decide
   // for themselves whether a failure here should surface in the UI (the
@@ -544,7 +596,7 @@
     return bytes;
   }
 
-  function onLoggedIn() {
+  async function onLoggedIn() {
     $("login-box").style.display = "none";
     $("app").style.display = "flex";
     $("logout-btn").style.display = "inline-block";
@@ -564,16 +616,11 @@
     // aren't the direct result of a dedicated tap, treating an automatic
     // post-login request as exactly the "abusive prompt" pattern its
     // heuristics exist to block. Already-granted permission still resumes
-    // silently below; only a fresh grant needs the explicit button.
+    // silently below; a fresh grant needs the toggle itself.
     if ("Notification" in window && Notification.permission === "granted") {
-      setupPush().catch((e) => console.error("push resume failed:", e));
-    } else if ("Notification" in window && Notification.permission === "denied") {
-      $("notify-box").style.display = "block";
-      $("notify-ask-row").style.display = "none";
-      $("notify-denied-row").style.display = "block";
-    } else if ("Notification" in window) {
-      $("notify-box").style.display = "block";
+      await setupPush().catch((e) => console.error("push resume failed:", e));
     }
+    await refreshPushToggle();
 
     socket = io({ transports: ["websocket"], auth: { token: accessToken } });
     socket.on("message:new", (msg) => {
