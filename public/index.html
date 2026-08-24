@@ -269,7 +269,9 @@
   // Direct result of a tap, unlike the login-time attempt this replaced --
   // this is what actually gets Chrome's native prompt to show on Android.
   $("enable-notify-btn").onclick = async () => {
+    $("notify-error").style.color = "";
     $("notify-error").textContent = "";
+    $("enable-notify-btn").disabled = true;
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
@@ -277,30 +279,45 @@
         return;
       }
       await setupPush();
-      $("notify-box").style.display = "none";
+      // Confirm success visibly before hiding the box -- collapsing it
+      // straight to nothing on success looked identical to the silent
+      // failure this replaced.
+      $("notify-error").style.color = "#7fe0a8";
+      $("notify-error").textContent = "Enabled.";
+      setTimeout(() => { $("notify-box").style.display = "none"; }, 1200);
     } catch (e) {
-      $("notify-error").textContent = e.message;
+      $("notify-error").style.color = "";
+      $("notify-error").textContent = "Couldn't enable push: " + e.message;
+    } finally {
+      $("enable-notify-btn").disabled = false;
     }
   };
 
+  // Throws on failure rather than swallowing it -- the two call sites decide
+  // for themselves whether a failure here should surface in the UI (the
+  // explicit "Enable notifications" button) or just log quietly (the
+  // passive resume-on-login path for an already-granted permission). It
+  // used to swallow every error itself, which meant the button handler
+  // could never tell subscribing had failed and would hide the box as if
+  // it had succeeded -- silent failure looks identical to success from the
+  // user's side, which is exactly what "still no notification, no error
+  // either" was.
   async function setupPush() {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-    try {
-      const registration = await navigator.serviceWorker.register("/sw.js");
-      const { publicKey } = await api("/push/vapid-public-key");
-      if (!publicKey) return; // server has no VAPID keys configured -- push is off
-
-      let subscription = await registration.pushManager.getSubscription();
-      if (!subscription) {
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey),
-        });
-      }
-      await api("/push/subscribe", { method: "POST", body: subscription.toJSON() });
-    } catch (e) {
-      console.error("push setup failed:", e);
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      throw new Error("This browser doesn't support push notifications.");
     }
+    const registration = await navigator.serviceWorker.register("/sw.js");
+    const { publicKey } = await api("/push/vapid-public-key");
+    if (!publicKey) throw new Error("Push isn't configured on this server yet.");
+
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+    await api("/push/subscribe", { method: "POST", body: subscription.toJSON() });
   }
 
   async function teardownPush() {
@@ -343,7 +360,7 @@
     // heuristics exist to block. Already-granted permission still resumes
     // silently below; only a fresh grant needs the explicit button.
     if ("Notification" in window && Notification.permission === "granted") {
-      setupPush();
+      setupPush().catch((e) => console.error("push resume failed:", e));
     } else if ("Notification" in window && Notification.permission === "denied") {
       $("notify-box").style.display = "block";
       $("notify-ask-row").style.display = "none";
