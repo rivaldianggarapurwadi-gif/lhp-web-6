@@ -387,13 +387,31 @@
     $("status-dot").classList.add("bad");
   });
 
-  async function api(path, opts = {}) {
+  async function api(path, opts = {}, isRetry = false) {
     const headers = { "content-type": "application/json", ...(opts.headers || {}) };
     if (accessToken) headers.authorization = "Bearer " + accessToken;
     const res = await fetch(path, { ...opts, headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
     const text = await res.text();
     const data = text ? JSON.parse(text) : null;
-    if (!res.ok) throw new Error((data && data.error && data.error.message) || res.statusText);
+    if (!res.ok) {
+      // The access token is short-lived (15 min by default) and nothing
+      // was refreshing it proactively -- a Ceko session is meant to survive
+      // far longer than that (that's the whole point of the refresh
+      // cookie), so a tab left open for a while turned every single action
+      // into "Invalid or expired token" until the page was manually
+      // reloaded. Refresh once and retry transparently instead.
+      if (res.status === 401 && !isRetry && path !== "/auth/refresh" && path !== "/auth/login") {
+        try {
+          const refreshed = await api("/auth/refresh", { method: "POST" }, true);
+          accessToken = refreshed.accessToken;
+          return api(path, opts, true);
+        } catch {
+          // Refresh itself failed -- the session is genuinely over (revoked,
+          // logged out elsewhere). Fall through to the original error.
+        }
+      }
+      throw new Error((data && data.error && data.error.message) || res.statusText);
+    }
     return data;
   }
 
@@ -622,7 +640,12 @@
     }
     await refreshPushToggle();
 
-    socket = io({ transports: ["websocket"], auth: { token: accessToken } });
+    // A function, not a static object -- socket.io calls this fresh on every
+    // (re)connect attempt, so a reconnect after the phone backgrounds/
+    // foregrounds or a network blip picks up whatever accessToken currently
+    // holds instead of replaying the value captured back when the page
+    // first loaded.
+    socket = io({ transports: ["websocket"], auth: (cb) => cb({ token: accessToken }) });
     socket.on("message:new", (msg) => {
       if (!messagesByConv[msg.conversationId]) messagesByConv[msg.conversationId] = [];
       messagesByConv[msg.conversationId].push(msg);

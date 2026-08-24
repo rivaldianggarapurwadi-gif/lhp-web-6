@@ -207,13 +207,28 @@
     $("status-dot").classList.add("bad");
   });
 
-  async function api(path, opts = {}) {
+  async function api(path, opts = {}, isRetry = false) {
     const headers = { "content-type": "application/json", ...(opts.headers || {}) };
     if (accessToken) headers.authorization = "Bearer " + accessToken;
     const res = await fetch(path, { ...opts, headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
     const text = await res.text();
     const data = text ? JSON.parse(text) : null;
-    if (!res.ok) throw new Error((data && data.error && data.error.message) || res.statusText);
+    if (!res.ok) {
+      // Same fix as index.html: the access token is short-lived and nothing
+      // refreshed it proactively, so an admin tab left open for a while
+      // turned every action into "Invalid or expired token". Refresh once
+      // and retry transparently instead.
+      if (res.status === 401 && !isRetry && path !== "/auth/refresh" && path !== "/auth/login") {
+        try {
+          const refreshed = await api("/auth/refresh", { method: "POST" }, true);
+          accessToken = refreshed.accessToken;
+          return api(path, opts, true);
+        } catch {
+          // Refresh itself failed -- the session is genuinely over.
+        }
+      }
+      throw new Error((data && data.error && data.error.message) || res.statusText);
+    }
     return data;
   }
 
