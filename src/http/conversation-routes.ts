@@ -10,7 +10,7 @@ import {
   getPendingReleaseSeq,
 } from "../message-service.js";
 import { localStorage, type Storage } from "../storage.js";
-import { notifyOfflineParticipants } from "../notify.js";
+import { notifyOfflineParticipants, notifyMessage } from "../notify.js";
 import { asyncHandler, requireAuth, ApiError } from "./middleware.js";
 
 const CONVERSATION_SUMMARY_SQL = `
@@ -262,11 +262,7 @@ export function createConversationRouter(
       });
 
       io.to(`conv:${message.conversationId}`).emit("message:new", message);
-      void notifyOfflineParticipants(io, pool, redis, message.conversationId, me, {
-        title: "New message",
-        body: message.content || "(attachment)",
-        conversationId: message.conversationId,
-      });
+      void notifyMessage(io, pool, redis, message, me);
       res.status(message.deduplicated ? 200 : 201).json({ message });
     })
   );

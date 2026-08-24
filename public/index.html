@@ -388,10 +388,25 @@
     });
     socket.on("connect_error", (e) => console.error("socket:", e.message));
 
-    refreshConversations();
+    refreshConversations().then(() => {
+      // Opened via a notification tap (?conv=<id> from sw.js) or the app
+      // was already open and the service worker just told us to switch --
+      // either way land directly on that conversation instead of making
+      // the tap open the app to nowhere in particular.
+      const conv = new URLSearchParams(location.search).get("conv");
+      if (conv) openConversation(conv);
+    });
     refreshIncomingRequests();
     refreshContacts();
     setInterval(refreshIncomingRequests, 5000);
+  }
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event.data?.type === "open-conversation" && event.data.conversationId) {
+        openConversation(event.data.conversationId);
+      }
+    });
   }
 
   function notify(title, body) {

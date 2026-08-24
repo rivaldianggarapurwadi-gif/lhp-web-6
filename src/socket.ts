@@ -18,7 +18,7 @@ import {
   HEARTBEAT_INTERVAL_MS,
   OFFLINE_DEBOUNCE_MS,
 } from "./presence.js";
-import { notifyOfflineParticipants } from "./notify.js";
+import { notifyMessage } from "./notify.js";
 
 interface SocketData {
   userId: string;
@@ -84,11 +84,7 @@ export function attachSocketHandlers(io: Server, redis: Redis) {
         // Fan out AFTER commit. If this process dies here the message is still
         // durable and the next reconnect's sync picks it up.
         io.to(`conv:${message.conversationId}`).emit("message:new", message);
-        void notifyOfflineParticipants(io, pool, redis, message.conversationId, userId, {
-          title: "New message",
-          body: message.content || "(attachment)",
-          conversationId: message.conversationId,
-        });
+        void notifyMessage(io, pool, redis, message, userId);
         return message;
       })
     );

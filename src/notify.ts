@@ -11,6 +11,35 @@ export interface NotifyPayload {
   conversationId?: string;
 }
 
+export interface NotifiableMessage {
+  conversationId: string;
+  content: string | null;
+}
+
+/**
+ * WhatsApp-style: the notification title is the sender's name, not a
+ * generic "New message" -- so a locked screen full of notifications is
+ * scannable the same way a real chat app's is. Thin wrapper around
+ * notifyOfflineParticipants that looks up the sender's username first.
+ */
+export async function notifyMessage(
+  io: Server,
+  pool: Pool,
+  redis: Redis,
+  message: NotifiableMessage,
+  senderId: string
+): Promise<void> {
+  const { rows } = await pool.query<{ username: string }>(`SELECT username FROM users WHERE id = $1`, [
+    senderId,
+  ]);
+  const title = rows[0]?.username ?? "New message";
+  await notifyOfflineParticipants(io, pool, redis, message.conversationId, senderId, {
+    title,
+    body: message.content || "(attachment)",
+    conversationId: message.conversationId,
+  });
+}
+
 /**
  * Called after the live socket fan-out, not instead of it. A participant
  * with a socket connected right now gets the in-page notification off that
