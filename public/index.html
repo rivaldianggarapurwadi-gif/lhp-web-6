@@ -110,7 +110,7 @@
         reliable of the two if push is giving you trouble on a phone.
       </p>
       <div class="row">
-        <input id="email-input" placeholder="you@example.com" style="width:220px">
+        <input id="email-input" placeholder="you@example.com" style="width:220px" type="email" autocapitalize="off" autocorrect="off">
         <button id="save-email-btn" class="secondary">Save</button>
         <span class="error" id="email-error"></span>
       </div>
@@ -241,13 +241,30 @@
 
   $("save-email-btn").onclick = async () => {
     $("email-error").textContent = "";
+    $("email-error").style.color = "";
+    const btn = $("save-email-btn");
+    btn.disabled = true;
     try {
       const email = $("email-input").value.trim();
       await api("/me", { method: "PATCH", body: { email: email || null } });
+      // The endpoint gives no other visible sign of success -- without
+      // this the button looks broken even when the save worked.
+      $("email-error").style.color = "#7fe0a8";
+      $("email-error").textContent = email ? "Saved." : "Cleared.";
+      setTimeout(() => { $("email-error").textContent = ""; }, 3000);
     } catch (e) {
+      $("email-error").style.color = "";
       $("email-error").textContent = e.message;
+    } finally {
+      btn.disabled = false;
     }
   };
+  // A pre-filled value (this is loaded from GET /me on every login) is easy
+  // to type into without clearing first, especially on a phone keyboard --
+  // the result is the new text silently appended to the old, producing a
+  // garbled address the format check then rejects. Select-all on focus
+  // makes typing replace it, the way editing a pre-filled field should work.
+  $("email-input").addEventListener("focus", (e) => e.target.select());
 
   // Direct result of a tap, unlike the login-time attempt this replaced --
   // this is what actually gets Chrome's native prompt to show on Android.
