@@ -4,163 +4,303 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ceko -- Taruna</title>
+<meta name="theme-color" content="#000000">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600;700&display=swap" rel="stylesheet">
 <style>
-  /* Deliberately not the Ceko palette -- warm olive/amber instead of cool
-     blue, a stencilled header instead of a dashboard one, so which account
-     type you're looking at is obvious before you've read a word of copy. */
-  :root { color-scheme: dark; }
+  /* Same token system as index.html, but the primary action color is
+     Saffron Spark instead of Electric Iris -- deliberately not the Ceko
+     palette, so which account type you're looking at is obvious before
+     you've read a word of copy. */
+  :root {
+    color-scheme: dark;
+    --void: #000000;
+    --bone: #ffffff;
+    --ash: #9a9a9a;
+    --silver: #bdbdbd;
+    --primary: #ffb829;
+    --primary-dim: #e0a11f;
+    --primary-ink: #1a1200;
+    --iris: #8052ff;
+    --hairline: rgba(255,255,255,.10);
+    --hairline-soft: rgba(255,255,255,.06);
+    --danger: #ff6b6b;
+    --ok: #3ddc84;
+    --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
-    margin: 0; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #14140e; color: #ece6d3;
+    margin: 0; font-family: var(--font); font-weight: 400; font-size: 15px; line-height: 1.5;
+    background: var(--void); color: var(--bone);
+    display: flex; flex-direction: column;
   }
-  header {
-    padding: 14px 16px; border-bottom: 2px solid #4a4326; display: flex;
-    align-items: center; gap: 12px; font-size: 13px; color: #a89a68;
-    background: linear-gradient(180deg, #1c1a10, #14140e);
+
+  .topbar {
+    display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+    border-bottom: 1px solid var(--hairline-soft); flex-shrink: 0;
   }
-  header .badge-mark {
+  .brand { font-weight: 400; font-size: 20px; letter-spacing: -0.02em; color: var(--bone); }
+  .badge-mark {
     font-family: ui-monospace, "SF Mono", monospace; font-weight: 700; font-size: 11px;
-    letter-spacing: .12em; color: #14140e; background: #d1a730;
-    border-radius: 4px; padding: 3px 8px;
+    letter-spacing: .1em; color: var(--primary-ink); background: var(--primary);
+    border-radius: 999px; padding: 3px 10px;
   }
-  header b { color: #ece6d3; }
-  #status-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; display: inline-block; }
-  #status-dot.ok { background: #7fae4a; }
-  #status-dot.bad { background: #c1502e; }
-  main { max-width: 980px; margin: 0 auto; padding: 20px 16px; }
-  .hint { color: #a89a68; font-size: 13px; margin: 0 0 16px; }
-  .hint code { background: #221f13; padding: 1px 5px; border-radius: 3px; }
-  .warning {
-    background: #241d0c; border: 1px solid #6b5620; color: #e8cf8f;
-    border-radius: 8px; padding: 12px 14px; font-size: 13px; margin-bottom: 16px;
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #444; flex-shrink: 0; }
+  .status-dot.ok { background: var(--ok); }
+  .status-dot.bad { background: var(--danger); }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .whoami { font-size: 13px; color: var(--ash); }
+
+  .ghost-btn-sm {
+    font-family: var(--font); font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .025em; color: var(--ash); background: transparent; border: none;
+    cursor: pointer; padding: 6px 2px;
   }
-  section { background: #1c1a10; border: 1px solid #3a3420; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-  h2 {
-    margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .1em;
-    color: #c9a94a; font-family: ui-monospace, "SF Mono", monospace;
+  .ghost-btn-sm:hover { color: var(--bone); }
+
+  .ghost-btn {
+    font-family: var(--font); font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .025em; color: var(--bone); background: transparent;
+    border: 1px solid var(--hairline); border-radius: 999px; padding: 8px 16px; cursor: pointer;
   }
-  input, button, textarea {
-    font: inherit; background: #14140e; color: #ece6d3; border: 1px solid #3a3420;
-    border-radius: 4px; padding: 7px 10px;
+  .ghost-btn:hover { border-color: rgba(255,255,255,.28); }
+
+  .btn-primary {
+    font-family: var(--font); font-size: 14px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .025em; color: var(--primary-ink); background: var(--primary);
+    border: none; border-radius: 999px; padding: 14px 28px; cursor: pointer; width: 100%;
   }
-  input { width: 200px; }
-  button {
-    background: #b3872b; border-color: #b3872b; color: #14140e; cursor: pointer; font-weight: 600;
+  .btn-primary:hover:not(:disabled) { background: var(--primary-dim); }
+  .btn-primary:disabled { opacity: .5; cursor: default; }
+
+  .btn-primary-sm {
+    font-family: var(--font); font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .025em; color: var(--primary-ink); background: var(--primary);
+    border: none; border-radius: 999px; padding: 10px 20px; cursor: pointer; flex-shrink: 0;
   }
-  button.secondary { background: transparent; color: #ece6d3; border-color: #4a4326; }
-  button.pending-btn { background: #8a6d1f; border-color: #8a6d1f; color: #f5e9c4; }
-  button:disabled { opacity: .5; cursor: default; }
-  button:hover:not(:disabled) { filter: brightness(1.15); }
-  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-  .error { color: #e8967a; font-size: 13px; margin-top: 6px; min-height: 1em; }
-  .muted { color: #a89a68; font-size: 12px; }
+  .btn-primary-sm:hover { background: var(--primary-dim); }
+
+  input, textarea {
+    font-family: var(--font); font-size: 15px; font-weight: 400; color: var(--bone);
+    background: transparent; border: none; border-bottom: 1px solid var(--hairline);
+    border-radius: 0; padding: 10px 2px; outline: none; width: 100%;
+  }
+  input::placeholder, textarea::placeholder { color: var(--ash); }
+  input:focus, textarea:focus { border-bottom-color: var(--primary); }
+
+  .error { color: var(--danger); font-size: 13px; margin-top: 8px; min-height: 1em; }
+  .hint { color: var(--ash); font-size: 13px; line-height: 1.5; margin: 6px 0 14px; }
+  .muted { color: var(--ash); font-size: 13px; }
   .tag-pill {
-    font-family: ui-monospace, monospace; background: #221f13; border: 1px solid #3a3420;
-    border-radius: 4px; padding: 2px 8px; letter-spacing: .05em;
+    font-family: ui-monospace, monospace; font-size: 11px; color: var(--silver);
+    background: rgba(255,255,255,.06); border-radius: 999px; padding: 2px 8px; letter-spacing: .05em;
   }
+
+  .warning {
+    padding: 14px 20px; max-width: 760px;
+    background: rgba(255,184,41,.08); border-bottom: 1px solid var(--hairline-soft);
+    color: var(--silver); font-size: 13px; line-height: 1.5; flex-shrink: 0;
+  }
+  .warning b { color: var(--primary); font-weight: 600; }
+
+  /* ---------- login ---------- */
+  #login-box {
+    flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px;
+    background: radial-gradient(600px 400px at 50% 0%, rgba(255,184,41,.10), transparent 70%);
+  }
+  .login-card { width: 100%; max-width: 340px; }
+  .login-card .brand-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .login-card .brand { font-size: 40px; }
+  .login-tagline { font-weight: 200; font-size: 16px; color: var(--silver); margin: 0 0 32px; }
+  .field { margin-bottom: 18px; }
+  #login-tag { text-transform: uppercase; letter-spacing: .06em; }
+  .login-hint { color: var(--ash); font-size: 13px; margin-top: 22px; text-align: center; }
+
+  /* ---------- app shell ---------- */
+  #app { display: none; flex: 1; min-height: 0; }
+  .shell { display: flex; flex: 1; min-height: 0; }
+
+  .sidebar {
+    width: 320px; flex-shrink: 0; border-right: 1px solid var(--hairline-soft);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .tabs { display: flex; gap: 4px; padding: 14px 16px 0; flex-shrink: 0; }
+  .tab {
+    font-family: var(--font); font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .025em; color: var(--ash); background: transparent; border: none;
+    cursor: pointer; padding: 8px 4px; margin-right: 16px; border-bottom: 2px solid transparent;
+  }
+  .tab.active { color: var(--bone); border-bottom-color: var(--primary); }
+
+  .panel { flex: 1; overflow-y: auto; padding: 12px 16px 16px; min-height: 0; }
+
   ul.list { list-style: none; margin: 0; padding: 0; }
   ul.list li {
     display: flex; justify-content: space-between; align-items: center; gap: 8px;
-    padding: 8px 0; border-bottom: 1px solid #2a2716;
+    padding: 10px 4px; border-bottom: 1px solid var(--hairline-soft);
   }
   ul.list li:last-child { border-bottom: none; }
-  #app { display: none; }
-  #login-box { max-width: 360px; }
-  #conversations { max-width: 260px; }
-  .layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
-  #conv-header { font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
-  #messages { height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
-  .msg { max-width: 75%; padding: 6px 10px; border-radius: 8px; background: #221f13; align-self: flex-start; }
-  .msg.mine { align-self: flex-end; background: #3a2f10; }
-  .msg .meta { font-size: 11px; color: #a89a68; margin-top: 2px; }
-  #compose { display: flex; gap: 8px; }
-  #compose textarea { flex: 1; resize: none; height: 40px; }
-  .conv-item { cursor: pointer; }
-  .conv-item.active { color: #d1a730; }
-  .badge { background: #b3872b; color: #14140e; border-radius: 10px; padding: 0 6px; font-size: 11px; font-weight: 600; }
-  .badge.pending { background: #8a6d1f; color: #f5e9c4; }
+
+  .conv-item { cursor: pointer; border-radius: 10px; padding: 10px 8px !important; }
+  .conv-item:hover { background: rgba(255,255,255,.04); }
+  .conv-item.active { background: rgba(255,184,41,.10); }
+  .conv-item .conv-label { color: var(--bone); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge {
+    background: var(--primary); color: var(--primary-ink); border-radius: 999px; min-width: 18px; height: 18px;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; font-size: 11px; flex-shrink: 0;
+  }
+  .badge.pending { background: var(--iris); color: white; }
+
+  .new-dm, .add-contact { display: flex; gap: 8px; align-items: center; margin-top: 14px; }
+  .new-dm input, .add-contact input { text-transform: uppercase; letter-spacing: .06em; }
+
+  #incoming-requests .req-label { margin: 14px 0 6px; }
+  .contact-name { display: flex; align-items: center; gap: 6px; }
+
+  /* ---------- conversation panel ---------- */
+  .conv-panel { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .conv-toolbar {
+    display: flex; align-items: center; gap: 10px; padding: 16px 24px;
+    border-bottom: 1px solid var(--hairline-soft); flex-shrink: 0;
+  }
+  .back-btn {
+    display: none; background: none; border: none; color: var(--bone); font-size: 20px;
+    cursor: pointer; padding: 0 4px 0 0; line-height: 1;
+  }
+  .conv-title { font-size: 15px; font-weight: 600; color: var(--bone); }
+  .conv-title.muted { color: var(--ash); font-weight: 400; }
+
   #pending-banner {
-    background: #241d0c; border: 1px solid #8a6d1f; border-radius: 6px;
-    padding: 10px 12px; margin-bottom: 10px; font-size: 13px; display: none;
+    display: none; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    background: rgba(128,82,255,.10); border-bottom: 1px solid var(--hairline-soft);
+    padding: 12px 24px; font-size: 13px; color: var(--silver); flex-shrink: 0;
+  }
+
+  #messages {
+    flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
+    padding: 24px; min-height: 0;
+  }
+  .msg { max-width: 70%; align-self: flex-start; }
+  .msg.mine { align-self: flex-end; text-align: right; }
+  .msg .sender { font-size: 12px; font-weight: 600; color: var(--iris); margin-bottom: 3px; }
+  .msg .text { font-size: 15px; color: var(--silver); white-space: pre-wrap; word-wrap: break-word; }
+  .msg.mine .text { color: var(--bone); }
+  .msg .meta { font-size: 11px; color: var(--ash); margin-top: 4px; }
+
+  #compose {
+    display: flex; gap: 12px; align-items: flex-end; padding: 16px 24px 20px; flex-shrink: 0;
+    border-top: 1px solid var(--hairline-soft);
+  }
+  #compose-text { flex: 1; resize: none; height: 42px; max-height: 140px; }
+
+  .empty-state {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--ash); font-size: 14px; padding: 24px; text-align: center;
+  }
+
+  @media (max-width: 760px) {
+    .topbar { padding: 12px 14px; gap: 8px; }
+    .whoami { display: none; }
+    .warning { padding: 10px 14px; font-size: 12px; }
+    .sidebar { width: 100%; border-right: none; }
+    .shell { position: relative; overflow: hidden; }
+    .conv-panel { position: absolute; inset: 0; transform: translateX(100%); transition: transform .18s ease; background: var(--void); }
+    body.conv-open .sidebar { display: none; }
+    body.conv-open .conv-panel { transform: translateX(0); }
+    .back-btn { display: inline-block; }
   }
 </style>
 </head>
 <body>
 
-<header>
-  <span id="status-dot"></span>
+<header class="topbar">
+  <span class="status-dot" id="status-dot"></span>
+  <span class="brand">Ceko</span>
   <span class="badge-mark">TARUNA</span>
-  <span>Ceko cadet access -- <b id="instance-name">connecting...</b></span>
-  <span id="whoami" class="muted" style="margin-left:auto"></span>
-  <button id="logout-btn" class="secondary" style="display:none">Log out</button>
+  <span id="instance-name" class="sr-only" style="display:none"></span>
+  <div class="topbar-right">
+    <span id="whoami" class="whoami"></span>
+    <button id="logout-btn" class="ghost-btn-sm" style="display:none">Log out</button>
+  </div>
 </header>
 
-<main>
-  <div class="warning">
-    This is a Taruna session: your conversation history is wiped on every
-    login, and refreshing or closing this tab ends the session -- there is
-    no persistent login. Your contact list is not wiped. If someone messaged
-    you while you were logged out, open a DM with them again from your
-    contact list to see the option to request those messages.
-  </div>
+<div class="warning">
+  This is a Taruna session: your conversation history is wiped on every login,
+  and refreshing or closing this tab ends the session -- there is no
+  persistent login. <b>Your contact list is not wiped.</b> If someone
+  messaged you while you were logged out, open a DM with them again from
+  your contact list to see the option to request those messages.
+</div>
 
-  <section id="login-box">
-    <h2>Log in</h2>
-    <div class="row">
-      <input id="login-tag" placeholder="TAG" maxlength="6" autocomplete="off" style="text-transform:uppercase">
-      <input id="login-password" placeholder="password" type="password">
-      <button id="login-btn">Log in</button>
+<section id="login-box">
+  <div class="login-card">
+    <div class="brand-row">
+      <div class="brand">Ceko</div>
+      <span class="badge-mark">TARUNA</span>
     </div>
+    <p class="login-tagline">Sign in with your tag to continue.</p>
+    <div class="field">
+      <input id="login-tag" placeholder="TAG" maxlength="6" autocomplete="off">
+    </div>
+    <div class="field">
+      <input id="login-password" placeholder="Password" type="password">
+    </div>
+    <button id="login-btn" class="btn-primary">Log in</button>
     <div class="error" id="login-error"></div>
-  </section>
+    <p class="login-hint">Don't have an account? Ask an admin to create one for you.</p>
+  </div>
+</section>
 
-  <div id="app">
-    <section>
-      <h2>Contacts</h2>
-      <p class="hint" style="margin-bottom:10px">
-        Unlike your conversations, your contact list survives across logins.
-      </p>
-      <ul class="list" id="contact-list"></ul>
-    </section>
-
-    <section>
-      <h2>Add a contact</h2>
-      <div class="row">
-        <input id="add-tag" placeholder="their TAG" maxlength="6" style="text-transform:uppercase">
-        <button id="add-contact-btn">Send request</button>
-        <span class="error" id="add-contact-error"></span>
+<div id="app">
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="tabs">
+        <button class="tab active" id="tab-chats" type="button">Chats</button>
+        <button class="tab" id="tab-contacts" type="button">Contacts</button>
       </div>
-      <div id="incoming-requests"></div>
-    </section>
 
-    <section>
-      <h2>Conversations</h2>
-      <div class="layout">
-        <div id="conversations">
-          <ul class="list" id="conv-list"></ul>
-          <div class="row" style="margin-top:10px">
-            <input id="dm-tag" placeholder="contact TAG" maxlength="6" style="width:120px;text-transform:uppercase">
-            <button id="dm-btn" class="secondary">New DM</button>
-          </div>
-          <div class="error" id="dm-error"></div>
+      <div id="panel-chats" class="panel">
+        <ul class="list" id="conv-list"></ul>
+        <div class="new-dm">
+          <input id="dm-tag" placeholder="Start a chat -- TAG" maxlength="6">
+          <button id="dm-btn" class="ghost-btn-sm">Go</button>
         </div>
-        <div id="conv-panel">
-          <div id="conv-header" class="muted">Pick a conversation</div>
-          <div id="pending-banner">
-            Messages sent to you here before this session are being held back.
-            <button id="request-pending-btn" class="pending-btn">Request pending messages</button>
-          </div>
-          <div id="messages"></div>
-          <div id="compose">
-            <textarea id="compose-text" placeholder="Message... (Enter to send)"></textarea>
-            <button id="send-btn">Send</button>
-          </div>
+        <div class="error" id="dm-error"></div>
+      </div>
+
+      <div id="panel-contacts" class="panel" style="display:none">
+        <p class="hint" style="margin-top:0">
+          Unlike your conversations, your contact list survives across logins.
+        </p>
+        <div class="add-contact">
+          <input id="add-tag" placeholder="their TAG" maxlength="6">
+          <button id="add-contact-btn" class="ghost-btn-sm">Add</button>
         </div>
+        <div class="error" id="add-contact-error"></div>
+        <div id="incoming-requests"></div>
+        <ul class="list" id="contact-list"></ul>
+      </div>
+    </aside>
+
+    <section class="conv-panel" id="conv-panel">
+      <div class="conv-toolbar">
+        <button id="back-btn" class="back-btn" aria-label="Back" type="button">&larr;</button>
+        <div id="conv-header" class="conv-title muted">Pick a conversation</div>
+      </div>
+      <div id="pending-banner">
+        <span>Messages sent to you here before this session are being held back.</span>
+        <button id="request-pending-btn" class="ghost-btn">Request pending messages</button>
+      </div>
+      <div id="messages"><div class="empty-state">Pick a conversation to start chatting.</div></div>
+      <div id="compose">
+        <textarea id="compose-text" placeholder="Message... (Enter to send)"></textarea>
+        <button id="send-btn" class="btn-primary-sm">Send</button>
       </div>
     </section>
   </div>
-</main>
+</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -208,17 +348,31 @@
       $("login-error").textContent = e.message;
     }
   };
+  $("login-password").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") $("login-btn").click();
+  });
 
   $("logout-btn").onclick = async () => {
     try { await api("/auth/logout", { method: "POST" }); } catch {}
     location.reload();
   };
 
+  $("tab-chats").onclick = () => switchTab("chats");
+  $("tab-contacts").onclick = () => switchTab("contacts");
+  function switchTab(tab) {
+    $("tab-chats").classList.toggle("active", tab === "chats");
+    $("tab-contacts").classList.toggle("active", tab === "contacts");
+    $("panel-chats").style.display = tab === "chats" ? "block" : "none";
+    $("panel-contacts").style.display = tab === "contacts" ? "block" : "none";
+  }
+
+  $("back-btn").onclick = () => { document.body.classList.remove("conv-open"); };
+
   function onLoggedIn() {
     $("login-box").style.display = "none";
-    $("app").style.display = "block";
+    $("app").style.display = "flex";
     $("logout-btn").style.display = "inline-block";
-    $("whoami").innerHTML = me.username + " -- your tag: <span class='tag-pill'>" + me.tag + "</span>";
+    $("whoami").innerHTML = me.username + " <span class='tag-pill'>" + me.tag + "</span>";
 
     socket = io({ transports: ["websocket"], auth: { token: accessToken } });
     socket.on("message:new", (msg) => {
@@ -243,14 +397,15 @@
     list.innerHTML = "";
     for (const c of contacts) {
       const li = document.createElement("li");
-      li.innerHTML = "<span>" + escapeHtml(c.username) + " <span class='tag-pill'>" + c.tag + "</span></span>";
+      li.innerHTML = "<span class='contact-name'>" + escapeHtml(c.username) + " <span class='tag-pill'>" + c.tag + "</span></span>";
       const btn = document.createElement("button");
-      btn.className = "secondary";
+      btn.className = "ghost-btn-sm";
       btn.textContent = "Open DM";
       btn.onclick = async () => {
         const conv = await api("/conversations", { method: "POST", body: { type: "dm", userId: c.user_id } });
         await refreshConversations();
         openConversation(conv.conversation.id);
+        switchTab("chats");
       };
       li.appendChild(btn);
       list.appendChild(li);
@@ -262,11 +417,18 @@
     conversations = data.conversations;
     const list = $("conv-list");
     list.innerHTML = "";
+    if (conversations.length === 0) {
+      const li = document.createElement("li");
+      li.style.border = "none";
+      li.innerHTML = "<span class='muted'>No chats yet -- start one from Contacts.</span>";
+      list.appendChild(li);
+      return;
+    }
     for (const c of conversations) {
       const li = document.createElement("li");
       li.className = "conv-item" + (c.id === activeConvId ? " active" : "");
       const label = c.type === "group" ? c.name : otherParticipantLabel(c);
-      li.innerHTML = "<span>" + escapeHtml(label) + "</span>" +
+      li.innerHTML = "<span class='conv-label'>" + escapeHtml(label) + "</span>" +
         (c.pending_release_seq !== null ? "<span class='badge pending'>pending</span>" : "") +
         (c.unread > 0 ? "<span class='badge'>" + c.unread + "</span>" : "");
       li.onclick = () => openConversation(c.id);
@@ -281,9 +443,11 @@
 
   async function openConversation(id) {
     activeConvId = id;
+    document.body.classList.add("conv-open");
     refreshConversations();
     const conv = conversations.find((c) => c.id === id);
     $("conv-header").textContent = conv ? (conv.type === "group" ? conv.name : otherParticipantLabel(conv)) : "";
+    $("conv-header").classList.toggle("muted", !conv);
     const data = await api("/conversations/" + id + "/messages?limit=100");
     messagesByConv[id] = data.messages;
     renderMessages();
@@ -302,14 +466,42 @@
     }
   };
 
+  function activeConv() {
+    return conversations.find((c) => c.id === activeConvId);
+  }
+
+  function formatTime(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
   function renderMessages() {
     const box = $("messages");
+    const msgs = messagesByConv[activeConvId] || [];
     box.innerHTML = "";
-    for (const m of messagesByConv[activeConvId] || []) {
+    if (msgs.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.textContent = activeConvId ? "No messages yet -- say hello." : "Pick a conversation to start chatting.";
+      box.appendChild(empty);
+      return;
+    }
+    const conv = activeConv();
+    for (const m of msgs) {
+      const senderId = m.sender_id || m.senderId;
+      const mine = senderId === me.id;
       const div = document.createElement("div");
-      div.className = "msg" + (m.sender_id === me.id || m.senderId === me.id ? " mine" : "");
-      div.innerHTML = escapeHtml(m.content || "") +
-        "<div class='meta'>seq " + m.seq + "</div>";
+      div.className = "msg" + (mine ? " mine" : "");
+      let html = "";
+      if (!mine && conv && conv.type === "group") {
+        const p = (conv.participants || []).find((p) => p.id === senderId);
+        if (p) html += "<div class='sender'>" + escapeHtml(p.username) + "</div>";
+      }
+      html += "<div class='text'>" + escapeHtml(m.content || "(attachment)") + "</div>";
+      html += "<div class='meta'>" + formatTime(m.created_at || m.createdAt) + "</div>";
+      div.innerHTML = html;
       box.appendChild(div);
     }
     box.scrollTop = box.scrollHeight;
@@ -369,13 +561,14 @@
     const data = await api("/contacts/requests?direction=incoming").catch(() => ({ requests: [] }));
     const box = $("incoming-requests");
     if (data.requests.length === 0) { box.innerHTML = ""; return; }
-    box.innerHTML = "<div class='muted' style='margin:10px 0 4px'>Incoming requests</div>";
+    box.innerHTML = "<div class='muted req-label'>Incoming requests</div>";
     const list = document.createElement("ul");
     list.className = "list";
     for (const r of data.requests) {
       const li = document.createElement("li");
       li.innerHTML = "<span>" + escapeHtml(r.username) + " <span class='tag-pill'>" + r.tag + "</span></span>";
       const btn = document.createElement("button");
+      btn.className = "ghost-btn-sm";
       btn.textContent = "Accept";
       btn.onclick = async () => {
         await api("/contacts/" + r.id + "/accept", { method: "POST" });

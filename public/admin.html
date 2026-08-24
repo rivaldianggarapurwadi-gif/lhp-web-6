@@ -3,95 +3,164 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ceko -- admin</title>
+<title>Ceko -- Admin</title>
+<meta name="theme-color" content="#000000">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { color-scheme: dark; }
+  :root {
+    color-scheme: dark;
+    --void: #000000;
+    --bone: #ffffff;
+    --ash: #9a9a9a;
+    --silver: #bdbdbd;
+    --iris: #8052ff;
+    --iris-dim: #6a3ff0;
+    --saffron: #ffb829;
+    --hairline: rgba(255,255,255,.10);
+    --hairline-soft: rgba(255,255,255,.06);
+    --danger: #ff6b6b;
+    --ok: #3ddc84;
+    --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
   * { box-sizing: border-box; }
   body {
-    margin: 0; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #0f1115; color: #e6e8eb;
+    margin: 0; font-family: var(--font); font-weight: 400; font-size: 15px; line-height: 1.5;
+    background: var(--void); color: var(--bone);
   }
-  header {
-    padding: 10px 16px; border-bottom: 1px solid #2a2d34; display: flex;
-    align-items: center; gap: 12px; font-size: 13px; color: #9aa1ac;
+
+  .topbar {
+    display: flex; align-items: center; gap: 14px; padding: 14px 20px;
+    border-bottom: 1px solid var(--hairline-soft);
   }
-  header b { color: #e6e8eb; }
-  header a { color: #6ea1ff; text-decoration: none; }
-  main { max-width: 1080px; margin: 0 auto; padding: 20px 16px; }
-  .hint { color: #9aa1ac; font-size: 13px; margin: 0 0 16px; }
-  .hint code { background: #1b1e24; padding: 1px 5px; border-radius: 3px; }
-  section { background: #161920; border: 1px solid #2a2d34; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-  h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: #9aa1ac; }
-  input, button {
-    font: inherit; background: #0f1115; color: #e6e8eb; border: 1px solid #2a2d34;
-    border-radius: 6px; padding: 6px 9px;
+  .brand { font-weight: 400; font-size: 20px; letter-spacing: -0.02em; color: var(--bone); }
+  .badge-mark {
+    font-family: ui-monospace, "SF Mono", monospace; font-weight: 700; font-size: 11px;
+    letter-spacing: .1em; color: var(--void); background: var(--iris);
+    border-radius: 999px; padding: 3px 10px;
   }
-  input { width: 180px; }
-  button { background: #2f6fed; border-color: #2f6fed; color: white; cursor: pointer; font-weight: 500; }
-  button.secondary { background: transparent; color: #e6e8eb; border-color: #3a3f4a; }
-  button.danger { background: #8a2b25; border-color: #8a2b25; }
-  button.tiny { padding: 3px 8px; font-size: 12px; }
-  button:disabled { opacity: .5; cursor: default; }
-  button:hover:not(:disabled) { filter: brightness(1.12); }
-  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-  .error { color: #ff8a80; font-size: 13px; margin-top: 6px; min-height: 1em; }
-  .ok-msg { color: #7fe0a8; font-size: 13px; margin-top: 6px; min-height: 1em; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #444; flex-shrink: 0; }
+  .status-dot.ok { background: var(--ok); }
+  .status-dot.bad { background: var(--danger); }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+  .whoami { font-size: 13px; color: var(--ash); }
+  .ghost-link { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .025em; color: var(--ash); text-decoration: none; }
+  .ghost-link:hover { color: var(--bone); }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+  .hint { color: var(--ash); font-size: 13px; line-height: 1.5; margin: 0 0 16px; }
+  .section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .025em; color: var(--ash); margin: 0 0 18px; }
+  section { margin-bottom: 56px; }
+
+  input, select {
+    font-family: var(--font); font-size: 14px; font-weight: 400; color: var(--bone);
+    background: transparent; border: none; border-bottom: 1px solid var(--hairline);
+    border-radius: 0; padding: 9px 4px; outline: none;
+  }
+  input::placeholder { color: var(--ash); }
+  input:focus, select:focus { border-bottom-color: var(--iris); }
+  select { padding: 9px 2px; }
+  select option { background: #111; color: var(--bone); }
+
+  .row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+
+  .btn-primary {
+    font-family: var(--font); font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .025em; color: var(--bone); background: var(--iris);
+    border: none; border-radius: 999px; padding: 11px 22px; cursor: pointer;
+  }
+  .btn-primary:hover:not(:disabled) { background: var(--iris-dim); }
+  .btn-primary:disabled { opacity: .5; cursor: default; }
+
+  .ghost-btn-sm {
+    font-family: var(--font); font-size: 12px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .02em; color: var(--ash); background: transparent;
+    border: 1px solid var(--hairline); border-radius: 999px; padding: 5px 12px; cursor: pointer;
+  }
+  .ghost-btn-sm:hover:not(:disabled) { color: var(--bone); border-color: rgba(255,255,255,.28); }
+  .ghost-btn-sm:disabled { opacity: .5; cursor: default; }
+  .ghost-btn-sm.danger { color: var(--danger); border-color: rgba(255,107,107,.35); }
+  .ghost-btn-sm.danger:hover:not(:disabled) { border-color: var(--danger); }
+
+  .error { color: var(--danger); font-size: 13px; margin-top: 8px; min-height: 1em; }
+  .ok-msg { color: var(--ok); font-size: 13px; margin-top: 8px; min-height: 1em; }
   .tag-pill {
-    font-family: ui-monospace, monospace; background: #1b1e24; border: 1px solid #2a2d34;
-    border-radius: 4px; padding: 2px 8px; letter-spacing: .05em; font-size: 12px;
+    font-family: ui-monospace, monospace; font-size: 11px; color: var(--silver);
+    background: rgba(255,255,255,.06); border-radius: 999px; padding: 2px 8px; letter-spacing: .05em;
   }
-  #login-box { max-width: 360px; }
+
+  #login-box {
+    min-height: calc(100vh - 65px); display: flex; align-items: center; justify-content: center; padding: 24px;
+    background: radial-gradient(600px 400px at 50% 0%, rgba(128,82,255,.14), transparent 70%);
+  }
+  .login-card { width: 100%; max-width: 340px; }
+  .login-card .brand { font-size: 40px; letter-spacing: -0.02em; margin-bottom: 6px; }
+  .login-tagline { font-weight: 200; font-size: 16px; color: var(--silver); margin: 0 0 32px; }
+  .field { margin-bottom: 18px; }
+  #login-tag { text-transform: uppercase; letter-spacing: .06em; width: 100%; }
+  #login-password { width: 100%; }
+  .login-card .btn-primary { width: 100%; padding: 14px 28px; font-size: 14px; }
+
   #app { display: none; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #1e2128; vertical-align: middle; }
-  th { color: #9aa1ac; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-  td input.username-edit { width: 130px; padding: 4px 7px; }
-  .badge { font-size: 11px; border-radius: 4px; padding: 1px 6px; }
-  .badge.admin { background: #2f6fed33; color: #8fb4ff; border: 1px solid #2f6fed66; }
-  .badge.disabled { background: #8a2b2533; color: #ff9a90; border: 1px solid #8a2b2566; }
-  .badge.active { background: #1f7a4a33; color: #7fe0a8; border: 1px solid #1f7a4a66; }
-  .badge.taruna { background: #b8860b33; color: #e0b45a; border: 1px solid #b8860b66; }
-  select {
-    font: inherit; background: #0f1115; color: #e6e8eb; border: 1px solid #2a2d34;
-    border-radius: 6px; padding: 6px 9px;
-  }
-  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
   .created-note {
-    margin-top: 10px; padding: 10px 12px; background: #12331f; border: 1px solid #1f7a4a;
-    border-radius: 6px; font-size: 13px;
+    margin-top: 16px; padding: 14px 16px; background: rgba(61,220,132,.08);
+    border: 1px solid rgba(61,220,132,.25); border-radius: 12px; font-size: 13px; color: var(--silver);
   }
-  .created-note b { color: #7fe0a8; }
+  .created-note b { color: var(--ok); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--hairline-soft); vertical-align: middle; }
+  th { color: var(--ash); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  td input.username-edit {
+    width: 140px; padding: 6px 4px; font-size: 13px; border-bottom: 1px solid var(--hairline);
+  }
+  .status-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    font-size: 11px; font-weight: 600; border-radius: 999px; padding: 2px 9px; border: 1px solid;
+  }
+  .badge.admin { color: var(--iris); border-color: rgba(128,82,255,.4); }
+  .badge.disabled { color: var(--danger); border-color: rgba(255,107,107,.4); }
+  .badge.active { color: var(--ok); border-color: rgba(61,220,132,.4); }
+  .badge.taruna { color: var(--saffron); border-color: rgba(255,184,41,.4); }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .table-wrap { overflow-x: auto; }
 </style>
 </head>
 <body>
 
-<header>
-  <span id="status-dot" style="width:8px;height:8px;border-radius:50%;background:#555;display:inline-block"></span>
-  <span>Ceko admin -- <b id="instance-name">connecting...</b></span>
-  <a href="/">&larr; back to test harness</a>
-  <span id="whoami" class="hint" style="margin:0 0 0 auto"></span>
-  <button id="logout-btn" class="secondary" style="display:none">Log out</button>
+<header class="topbar">
+  <span class="status-dot" id="status-dot"></span>
+  <span class="brand">Ceko</span>
+  <span class="badge-mark">ADMIN</span>
+  <span id="instance-name" style="display:none"></span>
+  <div class="topbar-right">
+    <a href="/" class="ghost-link">&larr; App</a>
+    <span id="whoami" class="whoami"></span>
+    <button id="logout-btn" class="ghost-btn-sm" style="display:none">Log out</button>
+  </div>
 </header>
 
-<main>
-  <p class="hint">
-    Admin-only account management -- create and edit users freely. Requires an
-    admin account; see <code>npm run create-admin</code> if you don't have one yet.
-  </p>
-
-  <section id="login-box">
-    <h2>Log in as admin</h2>
-    <div class="row">
-      <input id="login-tag" placeholder="TAG" maxlength="6" autocomplete="off" style="text-transform:uppercase">
-      <input id="login-password" placeholder="password" type="password">
-      <button id="login-btn">Log in</button>
+<section id="login-box">
+  <div class="login-card">
+    <div class="brand">Ceko</div>
+    <p class="login-tagline">Admin sign-in.</p>
+    <div class="field">
+      <input id="login-tag" placeholder="TAG" maxlength="6" autocomplete="off">
     </div>
+    <div class="field">
+      <input id="login-password" placeholder="Password" type="password">
+    </div>
+    <button id="login-btn" class="btn-primary">Log in</button>
     <div class="error" id="login-error"></div>
-  </section>
+  </div>
+</section>
 
-  <div id="app">
+<div id="app">
+  <main>
     <section>
-      <h2>Create account</h2>
+      <p class="section-title">Create account</p>
       <div class="row">
         <input id="create-username" placeholder="username">
         <input id="create-password" placeholder="password (blank = generate)" type="text">
@@ -99,20 +168,20 @@
           <option value="ceko">Ceko</option>
           <option value="taruna">Taruna</option>
         </select>
-        <button id="create-btn">Create</button>
+        <button id="create-btn" class="btn-primary">Create</button>
       </div>
       <div class="error" id="create-error"></div>
       <div id="create-result"></div>
     </section>
 
     <section>
-      <h2>Accounts</h2>
+      <p class="section-title">Accounts</p>
       <div class="row">
-        <input id="search-box" placeholder="search username or tag">
-        <button id="search-btn" class="secondary">Search</button>
-        <button id="refresh-btn" class="secondary">Refresh</button>
+        <input id="search-box" placeholder="search username or tag" style="width:220px">
+        <button id="search-btn" class="ghost-btn-sm">Search</button>
+        <button id="refresh-btn" class="ghost-btn-sm">Refresh</button>
       </div>
-      <div style="overflow-x:auto">
+      <div class="table-wrap">
         <table>
           <thead>
             <tr><th>Tag</th><th>Username</th><th>Status</th><th>Created</th><th>Actions</th></tr>
@@ -122,8 +191,8 @@
       </div>
       <div class="error" id="list-error"></div>
     </section>
-  </div>
-</main>
+  </main>
+</div>
 
 <script>
 (function () {
@@ -132,10 +201,10 @@
 
   fetch("/health").then((r) => r.json()).then((d) => {
     $("instance-name").textContent = d.instance;
-    $("status-dot").style.background = "#3ddc84";
+    $("status-dot").classList.add("ok");
   }).catch(() => {
     $("instance-name").textContent = "unreachable";
-    $("status-dot").style.background = "#e5534b";
+    $("status-dot").classList.add("bad");
   });
 
   async function api(path, opts = {}) {
@@ -159,7 +228,7 @@
       me = data.user;
       onLoggedIn();
     } catch {
-      $("login-box").style.display = "block";
+      $("login-box").style.display = "flex";
     }
   })();
 
@@ -177,6 +246,9 @@
       $("login-error").textContent = e.message;
     }
   };
+  $("login-password").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") $("login-btn").click();
+  });
 
   $("logout-btn").onclick = async () => {
     try { await api("/auth/logout", { method: "POST" }); } catch {}
@@ -187,7 +259,7 @@
     $("login-box").style.display = "none";
     $("app").style.display = "block";
     $("logout-btn").style.display = "inline-block";
-    $("whoami").innerHTML = me.username + " -- <span class='tag-pill'>" + me.tag + "</span>";
+    $("whoami").innerHTML = me.username + " <span class='tag-pill'>" + me.tag + "</span>";
     loadUsers();
   }
 
@@ -249,10 +321,11 @@
       tr.appendChild(nameTd);
 
       const statusTd = document.createElement("td");
-      statusTd.innerHTML =
+      statusTd.innerHTML = "<div class='status-badges'>" +
         (u.disabled_at ? "<span class='badge disabled'>disabled</span>" : "<span class='badge active'>active</span>") +
         (u.is_admin ? " <span class='badge admin'>admin</span>" : "") +
-        (u.account_kind === "taruna" ? " <span class='badge taruna'>taruna</span>" : "");
+        (u.account_kind === "taruna" ? " <span class='badge taruna'>taruna</span>" : "") +
+        "</div>";
       tr.appendChild(statusTd);
 
       const createdTd = document.createElement("td");
@@ -262,33 +335,33 @@
       const actionsTd = document.createElement("td");
       actionsTd.className = "actions";
 
-      const saveBtn = actionButton("Save name", "tiny secondary", async () => {
+      const saveBtn = actionButton("Save name", "", async () => {
         await patchUser(u.id, { username: nameInput.value.trim() });
       });
       actionsTd.appendChild(saveBtn);
 
       const toggleDisabled = actionButton(
         u.disabled_at ? "Enable" : "Disable",
-        "tiny " + (u.disabled_at ? "secondary" : "danger"),
+        u.disabled_at ? "" : "danger",
         async () => { await patchUser(u.id, { disabled: !u.disabled_at }); }
       );
       actionsTd.appendChild(toggleDisabled);
 
       const toggleAdmin = actionButton(
         u.is_admin ? "Revoke admin" : "Make admin",
-        "tiny secondary",
+        "",
         async () => { await patchUser(u.id, { isAdmin: !u.is_admin }); }
       );
       actionsTd.appendChild(toggleAdmin);
 
       const toggleKind = actionButton(
         u.account_kind === "taruna" ? "Make Ceko" : "Make Taruna",
-        "tiny secondary",
+        "",
         async () => { await patchUser(u.id, { accountKind: u.account_kind === "taruna" ? "ceko" : "taruna" }); }
       );
       actionsTd.appendChild(toggleKind);
 
-      const resetBtn = actionButton("Reset password", "tiny secondary", async () => {
+      const resetBtn = actionButton("Reset password", "", async () => {
         const newPassword = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
         await patchUser(u.id, { newPassword });
         alert("New password for " + u.username + ": " + newPassword + "\n(shown once)");
@@ -300,9 +373,9 @@
     }
   }
 
-  function actionButton(label, className, onClick) {
+  function actionButton(label, extraClass, onClick) {
     const btn = document.createElement("button");
-    btn.className = className;
+    btn.className = "ghost-btn-sm" + (extraClass ? " " + extraClass : "");
     btn.textContent = label;
     btn.onclick = async () => {
       btn.disabled = true;
