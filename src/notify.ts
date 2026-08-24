@@ -37,7 +37,11 @@ export async function notifyOfflineParticipants(
   await Promise.all(
     others.map(async (userId) => {
       const sockets = await io.in(`user:${userId}`).fetchSockets();
-      if (sockets.length > 0) return;
+      if (sockets.length > 0) {
+        console.log(`[notify] ${userId} has ${sockets.length} live socket(s) -- skipping push/email`);
+        return;
+      }
+      console.log(`[notify] ${userId} has no live socket -- attempting push/email`);
       await Promise.all([
         sendPushToUser(pool, userId, payload),
         sendEmailToUser(pool, userId, { subject: payload.title, text: payload.body }),

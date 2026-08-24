@@ -22,13 +22,19 @@ export interface EmailPayload {
  * offline for a while starts meaning a burst of individual emails.
  */
 export async function sendEmailToUser(pool: Pool, userId: string, payload: EmailPayload): Promise<void> {
-  if (!client) return;
+  if (!client) {
+    console.log(`[email] skipped for ${userId}: RESEND_API_KEY not configured`);
+    return;
+  }
 
   const { rows } = await pool.query<{ email: string | null }>(`SELECT email FROM users WHERE id = $1`, [
     userId,
   ]);
   const email = rows[0]?.email;
-  if (!email) return;
+  if (!email) {
+    console.log(`[email] skipped for ${userId}: no email address on file`);
+    return;
+  }
 
   try {
     const { error } = await client.emails.send({
@@ -38,6 +44,7 @@ export async function sendEmailToUser(pool: Pool, userId: string, payload: Email
       text: payload.text,
     });
     if (error) console.error("[email] send failed", error.name, error.message);
+    else console.log(`[email] sent to ${userId}`);
   } catch (err: any) {
     console.error("[email] send failed", err?.message);
   }

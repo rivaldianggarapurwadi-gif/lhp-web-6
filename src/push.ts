@@ -48,21 +48,29 @@ export async function removeSubscription(pool: Pool, userId: string, endpoint: s
  * message will just try again.
  */
 export async function sendPushToUser(pool: Pool, userId: string, payload: PushPayload): Promise<void> {
-  if (!enabled) return;
+  if (!enabled) {
+    console.log(`[push] skipped for ${userId}: VAPID keys not configured`);
+    return;
+  }
 
   const { rows } = await pool.query<{ endpoint: string; p256dh: string; auth: string }>(
     `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1`,
     [userId]
   );
-  if (rows.length === 0) return;
+  if (rows.length === 0) {
+    console.log(`[push] skipped for ${userId}: no subscriptions on file`);
+    return;
+  }
 
   await Promise.all(
     rows.map(async (row) => {
       const subscription = { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } };
       try {
         await webpush.sendNotification(subscription, JSON.stringify(payload));
+        console.log(`[push] sent to ${userId} (${row.endpoint.slice(0, 60)}...)`);
       } catch (err: any) {
         if (err?.statusCode === 404 || err?.statusCode === 410) {
+          console.log(`[push] subscription gone for ${userId}, removing it (${err.statusCode})`);
           await removeSubscription(pool, userId, row.endpoint);
         } else {
           console.error("[push] send failed", err?.statusCode, err?.message);
