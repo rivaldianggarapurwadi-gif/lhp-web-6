@@ -317,7 +317,7 @@ def complete_order(order_id):
     orders[order_id]['status']  = 'paid'
     orders[order_id]['paid_at'] = datetime.now(timezone.utc).isoformat()
     _save_orders(orders)
-    add_tokens(orders[order_id]['username'], orders[order_id]['tokens'])
+    add_tokens(orders[order_id]['uid'], orders[order_id]['tokens'])
     return True
 
 # ══════════════════════════════════════════════════════════════════════════════
