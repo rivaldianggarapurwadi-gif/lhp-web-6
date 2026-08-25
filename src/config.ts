@@ -29,4 +29,12 @@ export const config = {
   // Same additive-not-load-bearing pattern as push. See email.ts.
   resendApiKey: process.env.RESEND_API_KEY ?? null,
   emailFrom: process.env.EMAIL_FROM ?? "Materi <onboarding@resend.dev>",
+  // Same pattern again: unset in local dev, and call:start still runs the
+  // full ring/accept/decline/timeout signaling and bookkeeping -- it just
+  // can't mint a real media token, so the client learns the call has no
+  // audio/video attached to it yet rather than the server refusing to ring
+  // at all. See call-service.ts.
+  livekitUrl: process.env.LIVEKIT_URL ?? null,
+  livekitApiKey: process.env.LIVEKIT_API_KEY ?? null,
+  livekitApiSecret: process.env.LIVEKIT_API_SECRET ?? null,
 };

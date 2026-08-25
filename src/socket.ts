@@ -19,6 +19,7 @@ import {
   OFFLINE_DEBOUNCE_MS,
 } from "./presence.js";
 import { notifyMessage } from "./notify.js";
+import { startCall, acceptCall, declineCall, leaveCall, postCallSystemMessage, CallError } from "./call-service.js";
 
 interface SocketData {
   userId: string;
@@ -36,7 +37,7 @@ function guard<T>(ack: Ack<T> | undefined, fn: () => Promise<T>) {
   fn().then(
     (data) => ack?.(ok(data)),
     (err) => {
-      if (err instanceof SendError) return ack?.(fail(err.code, err.message));
+      if (err instanceof SendError || err instanceof CallError) return ack?.(fail(err.code, err.message));
       console.error("[handler]", err);
       ack?.(fail("INTERNAL", "Terjadi kesalahan"));
     }
@@ -126,6 +127,64 @@ export function attachSocketHandlers(io: Server, redis: Redis) {
 
     socket.on("typing:start", (p: any) => void relayTyping(socket, redis, userId, p?.conversationId, true));
     socket.on("typing:stop", (p: any) => void relayTyping(socket, redis, userId, p?.conversationId, false));
+
+    socket.on("call:start", (payload: any, ack: Ack<any>) =>
+      guard(ack, async () => {
+        const { call, token, otherParticipantIds } = await startCall(pool, redis, {
+          conversationId: payload.conversationId,
+          startedBy: userId,
+          type: payload.type === "video" ? "video" : "voice",
+        });
+        // The user room, not the conversation room, so it rings on every
+        // device the callee is signed into -- not just whichever tab
+        // happens to be looking at this specific conversation.
+        io.in(otherParticipantIds.map((id) => `user:${id}`)).emit("call:incoming", {
+          callId: call.id,
+          conversationId: call.conversationId,
+          type: call.type,
+          startedBy: userId,
+        });
+        return { call, token };
+      })
+    );
+
+    socket.on("call:accept", (payload: any, ack: Ack<any>) =>
+      guard(ack, async () => {
+        const { call, token } = await acceptCall(pool, redis, payload.callId, userId);
+        io.to(`conv:${call.conversationId}`).emit("call:participant_joined", { callId: call.id, userId });
+        return { call, token };
+      })
+    );
+
+    socket.on("call:decline", (payload: any, ack: Ack<any>) =>
+      guard(ack, async () => {
+        const result = await declineCall(pool, payload.callId, userId);
+        if (result?.ended) {
+          io.to(`conv:${result.call.conversationId}`).emit("call:ended", {
+            callId: result.call.id,
+            status: "missed",
+          });
+          const message = await postCallSystemMessage(pool, redis, result.call, "Panggilan ditolak");
+          io.to(`conv:${result.call.conversationId}`).emit("message:new", message);
+        }
+        return { ok: true };
+      })
+    );
+
+    socket.on("call:leave", (payload: any, ack: Ack<any>) =>
+      guard(ack, async () => {
+        const result = await leaveCall(pool, payload.callId, userId);
+        if (result?.ended) {
+          io.to(`conv:${result.call.conversationId}`).emit("call:ended", {
+            callId: result.call.id,
+            status: result.call.status,
+          });
+          const message = await postCallSystemMessage(pool, redis, result.call, "Panggilan berakhir");
+          io.to(`conv:${result.call.conversationId}`).emit("message:new", message);
+        }
+        return { ok: true };
+      })
+    );
   });
 }
 

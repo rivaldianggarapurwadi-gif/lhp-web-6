@@ -7,6 +7,7 @@ import { pool } from "./db.js";
 import { attachSocketHandlers, runPresenceSweep } from "./socket.js";
 import { createApp } from "./http/app.js";
 import { SWEEP_INTERVAL_MS } from "./presence.js";
+import { sweepRingingCalls, SWEEP_INTERVAL_MS as CALL_SWEEP_INTERVAL_MS } from "./call-service.js";
 
 async function main() {
   // Refuse to boot with a public-facing deployment signing tokens on a
@@ -27,6 +28,9 @@ async function main() {
   }
   if (!config.resendApiKey) {
     console.warn("RESEND_API_KEY not set -- email notifications are disabled.");
+  }
+  if (!config.livekitApiKey || !config.livekitApiSecret) {
+    console.warn("LIVEKIT_API_KEY/LIVEKIT_API_SECRET not set -- calls will ring but can't carry audio/video.");
   }
 
   const http = createServer();
@@ -61,6 +65,9 @@ async function main() {
   // Every instance runs this; presence.ts's lock ensures only one of them
   // actually performs a given tick's eviction and fan-out.
   const sweepTimer = setInterval(() => void runPresenceSweep(io, cache), SWEEP_INTERVAL_MS);
+  // Same reasoning, same lock pattern (call-service.ts): a bare setTimeout
+  // per call would ring forever if the instance that started it restarts.
+  const callSweepTimer = setInterval(() => void sweepRingingCalls(pool, cache, io), CALL_SWEEP_INTERVAL_MS);
 
   await new Promise<void>((resolve) => http.listen(config.port, resolve));
   console.log(`[${config.instanceId}] listening on ${config.port}`);
