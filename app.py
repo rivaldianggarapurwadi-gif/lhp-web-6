@@ -1171,6 +1171,9 @@ def topup_create():
     if not pkg:
         return jsonify({'error': 'Paket tidak valid'}), 400
 
+    if not DUITKU_MERCHANT_CODE:
+        return jsonify({'error': 'Pembayaran belum aktif. Coba lagi nanti.'}), 503
+
     uid  = session['uid']
     user = get_user(uid)
     if not user:
@@ -1180,11 +1183,6 @@ def topup_create():
     if err:
         return jsonify({'error': err}), 400
 
-    if not DUITKU_MERCHANT_CODE:
-        # Dev mode — auto-complete without Duitku
-        complete_order(order_id)
-        return jsonify({'ok': True, 'dev_mode': True,
-                        'message': f'{pkg["tokens"]} token ditambahkan (dev mode)'})
     try:
         user_email = (user.get('email') or user.get('google_email') or '').strip()
         if not user_email or '@' not in user_email:
