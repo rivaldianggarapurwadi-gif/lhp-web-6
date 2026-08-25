@@ -1053,11 +1053,22 @@ function buildPreviewHTML(data, fotoUrls) {
   const MONTHS_ID=['','JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI',
                    'JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
   const MONTHS_SHORT={jan:1,feb:2,mar:3,apr:4,mei:5,jun:6,jul:7,agu:8,sep:9,okt:10,nov:11,des:12};
+  const HARI_ID=['SENIN','SELASA','RABU','KAMIS','JUMAT',"JUM'AT",'SABTU','MINGGU','AHAD'];
   function parseTanggal(str){
     const raw=(str||'').trim();
     const parts=raw.split(',');
-    const hari=parts.length>1?parts[0].trim().toUpperCase():'';
-    const datePart=(parts.length>1?parts.slice(1).join(','):raw).trim();
+    let hari='', datePart=raw;
+    if(parts.length>1){
+      hari=parts[0].trim().toUpperCase();
+      datePart=parts.slice(1).join(',').trim();
+    } else {
+      // Terima juga 'SENIN 23 AGUSTUS 2026' tanpa koma
+      const t0=raw.split(/\s+/);
+      if(t0.length && HARI_ID.includes(t0[0].replace(/[.,]/g,'').toUpperCase())){
+        hari=t0[0].replace(/[.,]/g,'').toUpperCase();
+        datePart=t0.slice(1).join(' ');
+      }
+    }
     const tk=datePart.split(/\s+/);
     const tgl=tk[0]||'';
     const bulanRaw=(tk[1]||'').toLowerCase().replace(/\.$/,'');

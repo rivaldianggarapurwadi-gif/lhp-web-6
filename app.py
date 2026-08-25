@@ -4,6 +4,7 @@ Google OAuth login, self-register (3 free tokens), weekly regen, Midtrans topup.
 """
 import os, re, shutil, uuid, json, hashlib, hmac
 import logging, traceback, time
+import threading, atexit
 from datetime import datetime, timezone, timedelta
 from functools import wraps
 from flask import (Flask, request, jsonify, send_file,
@@ -106,18 +107,62 @@ def _unhandled(e):
 # User Store
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _load_users():
-    if not os.path.exists(USERS_FILE):
-        return {}
+# Satu proses + banyak thread (lihat Procfile), jadi cukup lock di dalam proses.
+_STORE_LOCK = threading.RLock()
+
+def _write_json_atomic(path, data):
+    """
+    Tulis via file sementara lalu os.replace (atomic).
+    Kalau proses mati di tengah penulisan, file lama tetap utuh —
+    menulis langsung dengan open(path,'w') bisa membuat file terpotong
+    dan seluruh data akun hilang.
+    """
+    import tempfile
+    d = os.path.dirname(path) or '.'
+    fd, tmp = tempfile.mkstemp(dir=d, prefix='.tmp-', suffix='.json')
     try:
-        with open(USERS_FILE) as f:
-            return json.load(f)
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
     except Exception:
-        return {}
+        try: os.remove(tmp)
+        except Exception: pass
+        raise
+
+# Cache di memori supaya JSON tidak di-parse ulang tiap request.
+_users_cache = {'mtime': None, 'data': None}
+
+def _load_users():
+    with _STORE_LOCK:
+        mt = os.path.getmtime(USERS_FILE) if os.path.exists(USERS_FILE) else None
+        if mt is None:
+            if _users_cache['data'] is None:
+                _users_cache['data'] = {}
+            return _users_cache['data']
+        if _users_cache['data'] is not None and _users_cache['mtime'] == mt:
+            return _users_cache['data']
+        try:
+            with open(USERS_FILE, encoding='utf-8') as f:
+                _users_cache['data']  = json.load(f)
+                _users_cache['mtime'] = mt
+        except Exception:
+            # JANGAN kembalikan {} — penyimpanan berikutnya akan menimpa
+            # seluruh akun. Pakai salinan terakhir yang masih baik.
+            app.logger.error("users.json gagal dibaca, memakai cache terakhir")
+            if _users_cache['data'] is None:
+                _users_cache['data'] = {}
+        return _users_cache['data']
 
 def _save_users(users):
-    with open(USERS_FILE, 'w') as f:
-        json.dump(users, f, indent=2, ensure_ascii=False)
+    with _STORE_LOCK:
+        _write_json_atomic(USERS_FILE, users)
+        _users_cache['data']  = users
+        try:
+            _users_cache['mtime'] = os.path.getmtime(USERS_FILE)
+        except OSError:
+            _users_cache['mtime'] = None
 
 def get_user(username):
     """Ambil user berdasarkan username (lowercase). Returns user dict or None."""
@@ -239,8 +284,8 @@ def _load_orders():
         return {}
 
 def _save_orders(orders):
-    with open(ORDERS_FILE, 'w') as f:
-        json.dump(orders, f, indent=2, ensure_ascii=False)
+    with _STORE_LOCK:
+        _write_json_atomic(ORDERS_FILE, orders)
 
 def create_order(uid, pkg_id):
     pkg    = PKG_MAP.get(pkg_id)
@@ -279,34 +324,73 @@ def complete_order(order_id):
 # Visitor Tracking
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _load_visitors():
-    if not os.path.exists(VISITORS_FILE):
-        return {'total': 0, 'daily': {}, 'unique_ips': []}
-    try:
-        with open(VISITORS_FILE) as f:
-            return json.load(f)
-    except Exception:
-        return {'total': 0, 'daily': {}, 'unique_ips': []}
+# Statistik pengunjung disimpan di memori dan ditulis ke disk berkala.
+# Sebelumnya tiap kali halaman dibuka file ini dibaca + ditulis ulang,
+# yang menjadi beban I/O terbesar di aplikasi.
+VISIT_FLUSH_SECS = 30
+_visit = {'loaded': False, 'total': 0, 'daily': {}, 'ips': set(),
+          'dirty': False, 'last_flush': 0.0}
 
-def _save_visitors(v):
-    with open(VISITORS_FILE, 'w') as f:
-        json.dump(v, f, indent=2)
+def _load_visitors():
+    with _STORE_LOCK:
+        if not _visit['loaded']:
+            data = {'total': 0, 'daily': {}, 'unique_ips': []}
+            if os.path.exists(VISITORS_FILE):
+                try:
+                    with open(VISITORS_FILE, encoding='utf-8') as f:
+                        data = json.load(f)
+                except Exception:
+                    app.logger.error("visitors.json gagal dibaca, mulai dari kosong")
+            _visit['total']  = data.get('total', 0)
+            _visit['daily']  = dict(data.get('daily', {}))
+            _visit['ips']    = set(data.get('unique_ips', []))
+            _visit['loaded'] = True
+        return {'total': _visit['total'],
+                'daily': dict(_visit['daily']),
+                'unique_ips': list(_visit['ips'])}
+
+def _save_visitors(v=None):
+    """Tulis snapshot statistik ke disk (dipanggil berkala, bukan tiap request)."""
+    with _STORE_LOCK:
+        if v is not None:
+            _visit['total'] = v.get('total', 0)
+            _visit['daily'] = dict(v.get('daily', {}))
+            _visit['ips']   = set(v.get('unique_ips', []))
+            _visit['loaded'] = True
+        snapshot = {'total': _visit['total'],
+                    'daily': _visit['daily'],
+                    'unique_ips': list(_visit['ips'])[-5000:]}
+        try:
+            _write_json_atomic(VISITORS_FILE, snapshot)
+            _visit['dirty'] = False
+            _visit['last_flush'] = time.time()
+        except Exception:
+            app.logger.warning("gagal menyimpan visitors.json")
 
 def record_visit(ip):
-    v   = _load_visitors()
-    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-    v['total'] = v.get('total', 0) + 1
-    v.setdefault('daily', {})[today] = v['daily'].get(today, 0) + 1
-    uniq = v.get('unique_ips', [])
-    if ip and ip not in uniq:
-        uniq.append(ip)
-        if len(uniq) > 5000:   # cap list size
-            uniq = uniq[-5000:]
-    v['unique_ips'] = uniq
-    # Keep only last 30 days
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).strftime('%Y-%m-%d')
-    v['daily'] = {d: c for d, c in v['daily'].items() if d >= cutoff}
-    _save_visitors(v)
+    with _STORE_LOCK:
+        if not _visit['loaded']:
+            _load_visitors()
+        today  = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).strftime('%Y-%m-%d')
+        _visit['total'] += 1
+        _visit['daily'][today] = _visit['daily'].get(today, 0) + 1
+        if ip:
+            _visit['ips'].add(ip)
+            if len(_visit['ips']) > 5000:
+                _visit['ips'] = set(list(_visit['ips'])[-5000:])
+        _visit['daily'] = {d: c for d, c in _visit['daily'].items() if d >= cutoff}
+        _visit['dirty'] = True
+        if time.time() - _visit['last_flush'] >= VISIT_FLUSH_SECS:
+            _save_visitors()
+
+@atexit.register
+def _flush_visitors_on_exit():
+    try:
+        if _visit.get('dirty'):
+            _save_visitors()
+    except Exception:
+        pass
 
 def get_visitor_stats():
     v     = _load_visitors()
@@ -470,11 +554,25 @@ MONTHS_ID    = ['','JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI',
 MONTHS_SHORT = {'jan':1,'feb':2,'mar':3,'apr':4,'mei':5,'jun':6,
                 'jul':7,'agu':8,'sep':9,'okt':10,'nov':11,'des':12}
 
+HARI_ID = {'SENIN','SELASA','RABU','KAMIS','JUMAT',"JUM'AT",'SABTU','MINGGU','AHAD'}
+
 def parse_tanggal(s):
+    """
+    Terima 'SENIN, 23 AGUSTUS 2026' maupun 'SENIN 23 AGUSTUS 2026' (tanpa koma).
+    Tanpa ini, nama hari terbaca sebagai tanggal dan seluruh bagian tanggal
+    bergeser satu posisi.
+    """
     s = s.strip(); hari = ''
     parts = s.split(',', 1)
-    date_part = parts[1].strip() if len(parts) == 2 else s
-    if len(parts) == 2: hari = parts[0].strip().upper()
+    if len(parts) == 2:
+        hari = parts[0].strip().upper()
+        date_part = parts[1].strip()
+    else:
+        date_part = s
+        toks = date_part.split()
+        if toks and toks[0].strip('.,').upper() in HARI_ID:
+            hari = toks[0].strip('.,').upper()
+            date_part = ' '.join(toks[1:])
     tokens = date_part.split()
     tgl_num   = tokens[0] if tokens else ''
     bulan_raw = tokens[1].lower().rstrip('.') if len(tokens) > 1 else ''
@@ -487,26 +585,53 @@ def parse_waktu(s):
     s = re.sub(r'\s*(WIB|WITA|WIT)\s*$', '', s.strip(), flags=re.IGNORECASE)
     return s.replace(':', '.').strip()
 
+# Data Danton/Danki jarang berubah, tapi dulu seluruh workbook Excel
+# di-parse ulang setiap kali /api/lookup dipanggil (dua kali per lookup,
+# dan lookup jalan tiap kali peleton/kompi diketik). Sekarang di-cache
+# di memori dan hanya dibaca ulang kalau file Excel-nya berubah.
+_xlsx_cache = {'mtime': None, 'sheets': None}
+
+def _parse_sheet(ws):
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return []
+    headers = [str(h).strip() if h else '' for h in rows[0]]
+    return [{headers[i]: (str(rows[j][i]).strip() if rows[j][i] is not None else '')
+             for i in range(len(headers))}
+            for j in range(1, len(rows)) if any(rows[j])]
+
+def _xlsx_sheets():
+    with _STORE_LOCK:
+        try:
+            mt = os.path.getmtime(XLSX_FILE)
+        except OSError:
+            return {}
+        if _xlsx_cache['sheets'] is not None and _xlsx_cache['mtime'] == mt:
+            return _xlsx_cache['sheets']
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(XLSX_FILE, data_only=True, read_only=True)
+            sheets = {}
+            for name in wb.sheetnames:
+                sheets[name.strip().upper()] = _parse_sheet(wb[name])
+            sheets['__ACTIVE__'] = sheets.get(
+                (wb.sheetnames[0].strip().upper() if wb.sheetnames else ''), [])
+            wb.close()
+            _xlsx_cache['sheets'] = sheets
+            _xlsx_cache['mtime']  = mt
+        except Exception:
+            app.logger.error("Gagal membaca %s:\n%s", XLSX_FILE, traceback.format_exc())
+            if _xlsx_cache['sheets'] is None:
+                _xlsx_cache['sheets'] = {}
+        return _xlsx_cache['sheets']
+
 def _load_xlsx_for_tingkat(tingkat: str):
     sheet_map = {'1': 'TK I', '2': 'TK II', '3': 'TK III'}
-    target_sheet = sheet_map.get(str(tingkat), 'TK II')
-    try:
-        import openpyxl
-        wb = openpyxl.load_workbook(XLSX_FILE, data_only=True)
-        ws = None
-        for name in wb.sheetnames:
-            if name.strip().upper() == target_sheet.upper():
-                ws = wb[name]; break
-        if ws is None:
-            ws = wb.active
-        rows = list(ws.iter_rows(values_only=True))
-        if not rows: return []
-        headers = [str(h).strip() if h else '' for h in rows[0]]
-        return [{headers[i]: (str(rows[j][i]).strip() if rows[j][i] is not None else '')
-                 for i in range(len(headers))}
-                for j in range(1, len(rows)) if any(rows[j])]
-    except Exception:
+    target = sheet_map.get(str(tingkat), 'TK II').upper()
+    sheets = _xlsx_sheets()
+    if not sheets:
         return []
+    return sheets.get(target, sheets.get('__ACTIVE__', []))
 
 def _norm(jab):
     jab = jab.upper().strip()
@@ -662,10 +787,56 @@ def _fix_signature_formatting(doc, pangkat_danton, nrp_danton,
              nrp_danton and nrp_danton in full and pangkat_abbr in full)):
             set_center(para)
 
+
+def _anchor_pic_to_inline(doc):
+    """
+    Ubah gambar melayang (floating/anchored) di dalam tabel menjadi inline.
+    Gambar melayang sering bergeser posisinya saat .docx dikonversi ke PDF
+    oleh viewer yang berbeda (Word / Google Docs / LibreOffice / HP).
+    Inline selalu tampil di posisi yang sama di semua viewer.
+    """
+    from lxml import etree
+    from docx.oxml.ns import qn
+    WP  = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'
+    A   = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    PIC = 'http://schemas.openxmlformats.org/drawingml/2006/picture'
+    def wp(t): return '{%s}%s' % (WP, t)
+    changed = 0
+    for tbl in doc.tables:
+        for dr in tbl._element.findall('.//' + qn('w:drawing')):
+            anchor = dr.find(wp('anchor'))
+            if anchor is None:
+                continue
+            # hanya gambar (picture); jangan sentuh shape/garis tanda tangan
+            if anchor.find('.//{%s}pic' % PIC) is None:
+                continue
+            extent  = anchor.find(wp('extent'))
+            effect  = anchor.find(wp('effectExtent'))
+            docPr   = anchor.find(wp('docPr'))
+            cnv     = anchor.find(wp('cNvGraphicFramePr'))
+            graphic = anchor.find('{%s}graphic' % A)
+            if extent is None or graphic is None:
+                continue
+            inline = etree.SubElement(dr, wp('inline'))
+            for k in ('distT', 'distB', 'distL', 'distR'):
+                inline.set(k, '0')
+            for child in (extent, effect, docPr, cnv, graphic):
+                if child is not None:
+                    inline.append(child)   # lxml memindahkan node
+            dr.remove(anchor)
+            changed += 1
+    return changed
+
 def fill_template(data, image_paths, output_path):
     from docx import Document
     shutil.copy(TEMPLATE_FILE, output_path)
     doc = Document(output_path)
+    # Logo AKPOL di tabel: ubah dari melayang ke inline supaya posisinya tidak
+    # bergeser saat dokumen dibuka/dikonversi ke PDF di viewer lain
+    try:
+        _anchor_pic_to_inline(doc)
+    except Exception:
+        app.logger.warning("anchor->inline gagal, memakai layout asli")
 
     nama           = data['Nama']
     no_ak          = data['No Ak']
