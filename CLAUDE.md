@@ -1,170 +1,170 @@
-# Materi — realtime layer
+# LHP AKPOL — catatan proyek
 
-Discord-style chat app. Admin-created accounts, 6-char lookup tags, DMs and group
-chats, voice/video via a managed SFU. This repo is the **realtime slice**: the
-message delivery path, proven end to end against Postgres + Redis + two API
-instances.
+Web app untuk taruna Akademi Kepolisian: isi form → keluar dokumen Word
+"LHP Kegiatan Positif" sesuai format resmi. Bahasa UI: Indonesia.
 
-Full design note: https://claude.ai/code/artifact/0231cf3c-50bd-4e0a-b9e9-54e45c0c4a85
+Produksi: https://lhpakpol.co (Railway) · repo di-deploy dari root folder ini.
 
-## Run it
+---
+
+## Jalankan
 
 ```bash
-./run-e2e.sh          # cluster up, 11 e2e tests, teardown
+pip install -r requirements.txt
+export SECRET_KEY=dev DATA_DIR=./data
+python app.py                    # dev (Flask debug)
+# produksi persis seperti Railway:
+gunicorn app:app --worker-class gthread --workers 1 --threads 8 --timeout 120
 ```
 
-## Invariants — do not break these without reading the design note
-
-These are load-bearing. Each one is enforced by a test that will fail loudly.
-
-1. **`messages.seq` is the ordering key. Never `created_at`.**
-   `now()` is transaction-start time, so overlapping sends can commit in the
-   opposite order to their timestamps and a timestamp cursor permanently skips
-   the loser. Measured: 17 inverted pairs out of 40 concurrent sends.
-
-2. **seq is allocated by `UPDATE conversations SET last_seq = last_seq + 1
-   RETURNING last_seq`, inside the same transaction as the INSERT.**
-   The row lock is the serialisation point that makes seq order equal commit
-   order. Do not replace it with a SELECT-then-UPDATE, a sequence, or a Redis
-   counter without understanding what breaks.
-
-3. **Keep the send transaction short.** It holds a lock every other sender in
-   that conversation queues behind. No S3, no SFU calls, no fan-out inside it.
-
-4. **Fan out only after COMMIT.** If the process dies in between, the message is
-   durable and the next reconnect's sync recovers it. That is why there is no
-   outbox table.
-
-5. **Every send re-checks `conversation_participants`.** Never authorise from
-   socket room membership — rooms are joined at connect time and go stale.
-
-6. **History queries must return soft-deleted rows as tombstones**, not filter
-   them. Filtering punches permanent holes in the client's sequence and it
-   chases gaps that can never close.
-
-7. **Backfill needs both cursors:** `seq > $2 OR mutated_at > $3`. Edits and
-   deletes deliberately do not advance seq, so the seq cursor alone cannot see
-   them and offline clients show stale text forever.
-
-8. **`client_message_id` is unique per conversation.** A `23505` on
-   `messages_client_id_key` is the retry path, not an error — re-read the row
-   and ack it.
-
-9. **Client: dedupe on `id`, reconcile the optimistic copy on
-   `clientMessageId`.** Different questions. The server's broadcast and its ack
-   race, and both orders must produce exactly one bubble.
-
-10. **`transports: ["websocket"]` on both ends.** Polling would require sticky
-    sessions at the load balancer.
-
-11. **The Redis adapter's pub/sub clients must be separate connections** from
-    the participant cache. A subscriber-mode client cannot issue commands.
-
-12. **Presence only ever fans out to accepted contacts.** Broadcasting a
-    connect/disconnect to every user is O(users²) and is how a chat server
-    melts under real load, not just a privacy leak.
-
-13. **Taruna's per-login wipe deletes `conversation_participants` rows, and
-    hides -- never deletes -- accepted `contacts` on this user's own side.**
-    `contacts` is one row shared by both sides of a relationship, not a
-    per-user record; deleting "the Taruna's half" deletes the only row
-    there is and erases it from the Materi's own contact list too, breaking
-    "Materi is never cleared." (Found by a failing test, not by inspection --
-    the original plan wiped contacts too.) `requester_hidden`/
-    `addressee_hidden` (`migrations/008_contact_hiding.sql`) let each side
-    hide an accepted contact from its own view without touching the row or
-    the other side; the same "re-add by tag" flow this account already uses
-    to reopen a wiped conversation clears the flag again. Never a message or
-    a conversation itself. See `taruna.ts`.
-
-14. **`pending_release_seq` gates by strict `seq >`, ANDed across the whole
-    history/backfill clause** -- including the mutation-cursor arm. An OR'd
-    or partial gate lets an edit to an already-pending (still-hidden)
-    message leak it early through the mutation cursor.
-
-15. **A Taruna account can never create a push subscription.**
-    `POST /push/subscribe` checks `account_kind` before touching the
-    database, not after. A subscription is a standing record tying a
-    device to an account -- exactly what a Taruna session exists to avoid
-    leaving behind.
-
-## Layout
+## Struktur
 
 ```
-migrations/001_schema.sql            original schema
-migrations/002_realtime.sql          seq, client_message_id, dm_key, blocks, last_read_seq
-migrations/003_message_mutations.sql mutated_at + trigger (the second sync cursor)
-migrations/004_rest_surface.sql      refresh_tokens (rotation + reuse detection)
-migrations/005_account_kinds.sql     account_kind, conversation_participants.pending_release_seq
-migrations/006_push_subscriptions.sql push_subscriptions
-migrations/007_user_email.sql        users.email (notification address, not a credential)
-migrations/008_contact_hiding.sql    contacts.requester_hidden/addressee_hidden (per-side hide, Taruna wipe)
-src/taruna.ts                        the per-login wipe for Taruna accounts
-src/message-service.ts               the ONLY place a message is written or authorised
-src/message-store.ts                 client reconciliation, shared with the browser
-src/socket.ts                        auth middleware, rooms, message:send, sync, presence, typing
-src/presence.ts                      heartbeat/sweep/online-check, narrow-fan-out contact lookup
-src/push.ts                          Web Push (VAPID) -- Materi only
-src/email.ts                         email via Resend -- Materi only
-src/notify.ts                        shared orchestrator: push + email, offline participants only
-src/server.ts                        http + socket.io + redis adapter + the Express app + presence sweep loop
-src/auth.ts                          JWT + session_version revocation check
-src/refresh-token.ts                 rotation, with theft-shaped reuse detection
-src/tag.ts, password.ts, cookies.ts, rate-limit.ts, storage.ts   REST building blocks
-src/http/                            REST routers: auth, admin, social, conversations, uploads, push
-src/create-admin.ts                  bootstraps the first admin account (accounts are admin-created)
-public/index.html                    throwaway Materi test harness, served at "/" -- not the real UI
-public/sw.js                         service worker for push, registered by index.html only
-public/taruna.html                   throwaway Taruna test harness, served at "/taruna.html"
-public/admin.html                    account management for both: create/edit/disable/promote/re-kind users
-test/e2e.test.ts                     11 tests against a live two-instance cluster
-test/rest.test.ts                    REST integration tests, one instance
-test/rest-unit.test.ts               password/tag/cookie logic, no infra needed
+app.py                    seluruh backend (single file, ~1400 baris)
+template_lhp.docx         template Word — sumber kebenaran semua placeholder
+DATA_DANTON_DANKI.xlsx    data komando, 3 sheet: "TK I" / "TK II" / "TK III"
+templates/                index, login, login_admin, register_form, admin, preview
+static/logo.png           dipakai kop dokumen + favicon + og:image
+Procfile                  konfigurasi gunicorn (JANGAN ubah ke worker sync, lihat bawah)
 ```
 
-## Built vs designed
+## Environment variables
 
-**Built and tested:** schema, send path, backfill with both cursors, sync,
-socket auth with `session_version` revocation, client store (16 unit tests),
-cross-instance fan-out, the REST surface (auth + refresh rotation, admin
-user creation, contacts/blocks, idempotent DM creation, presigned uploads
-against a local-disk mock), presence (Redis ZSET + heartbeat + sweeper,
-narrow fan-out to contacts only, debounced disconnect), typing beyond
-the raw relay (participant check + rate limit), two account kinds --
-Materi (persistent session, full history) and Taruna (wiped conversation
-membership on every login -- contacts survive, see invariant 13 -- no
-refresh token issued, so a page refresh or tab close ends the session; a
-message sent to an offline Taruna sits in its conversation as normal and
-becomes visible again once the Taruna recreates the DM and explicitly
-requests the pending backlog), real Web Push for Materi accounts
-(a service worker + VAPID + a PWA manifest, so a notification arrives even
-with the tab closed -- iOS Safari refuses to show push from an ordinary
-tab at all, only an installed home-screen app, and Chrome silently
-suppresses its own permission prompt unless it's the direct result of a
-dedicated tap, which is why `index.html` has an explicit "Enable
-notifications" button rather than auto-requesting; verified through actual
-`webpush.sendNotification` dispatch against a real cryptographic
-subscription shape, since the last hop -- the OS popup itself -- needs a
-real browser's permission grant that automated tooling can't produce), and
-an email notification channel (`src/email.ts` via Resend) as a second,
-install-free, permission-prompt-free channel to the same offline
-participants.
+| Variable | Wajib | Catatan |
+|---|---|---|
+| `SECRET_KEY` | ya | session Flask |
+| `DATA_DIR` / `RAILWAY_VOLUME_MOUNT_PATH` | ya | folder persisten; tanpa ini data hilang tiap redeploy |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | ya | login `/login-admin` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` | ya | OAuth hanya untuk verifikasi saat DAFTAR |
+| `ANTHROPIC_API_KEY` | opsional | fitur scan timestamp foto; kosong → fitur balas 503 |
+| `DUITKU_MERCHANT_CODE` / `DUITKU_API_KEY` / `DUITKU_ENV` | opsional | kosong → dev mode, token langsung ditambah tanpa bayar |
 
-**Designed but not built:** calls (LiveKit token vending, ring-timeout
-reconciliation), real object storage in place of the local-disk upload mock,
-and all UI beyond the throwaway test harness. The design note covers each.
+Callback Duitku: `POST /api/topup/notification` (form-encoded, `resultCode == '00'` = lunas).
 
-## Testing discipline used here
+---
 
-Tests that pass first try are suspect. Both suites were validated by
-deliberately breaking the code and confirming the tests noticed — 9 mutants on
-the client store, 5 sabotages on the server. When running a sabotage matrix,
-verify a clean baseline **before and after**; a broken baseline once made an
-entire matrix meaningless here.
+## Alur akun & token
 
-## Not proven yet
+- **Daftar**: `/register` → Google OAuth (verifikasi identitas saja) → form nama/username/password → akun dibuat, dapat **1 token**.
+- **Login**: username + password. Google TIDAK dipakai lagi setelah daftar.
+- Satu Google ID hanya boleh dipakai sekali daftar (`get_user_by_google_id`).
+- Token: 1 token = 1 dokumen. Regenerasi **1 token/minggu, hanya kalau token == 0**.
+- Preview **tidak** memotong token; hanya `/api/generate` yang memotong.
 
-The `created_at` flaw is not caught by the e2e suite (its sends commit one at a
-time) — that proof is in `test_ordering.py`. No load testing; the ~135 msg/sec
-per conversation figure is from a small container. Two instances proves fan-out
-crosses a process boundary, nothing about ten.
+---
+
+## ⚠️ Jebakan yang sudah pernah menggigit
+
+Semua di bawah ini pernah jadi bug nyata. Tolong jangan di-"rapikan" tanpa baca.
+
+### 1. Urutan key di dict `simple` (fill_template) itu SIGNIFIKAN
+Replacement dijalankan berurutan, jadi string panjang harus diganti lebih dulu:
+
+- `'(ABRIGTARakhir)'` **harus sebelum** `'ABRIGTAR'` — kalau tidak, jadi `(BRIGKATARakhir)`.
+- `'DANTONTAR 1 KOMPI III'` **harus sebelum** `'KOMPI III'` dan `'PLETON 1'`.
+
+Placeholder asli ada di `template_lhp.docx` — cek ke sana, jangan tebak dari output.
+
+### 2. `{#` di CSS mematikan Jinja
+`@media(max-width:560px){#id{...}}` → Jinja baca `{#` sebagai pembuka komentar
+dan seluruh template gagal render. Selalu beri spasi: `){ #id`.
+
+### 3. Logo tabel harus inline, bukan floating
+`_anchor_pic_to_inline()` mengubah gambar anchored di tabel jadi inline sebelum
+template diisi. Gambar floating bergeser posisinya di converter PDF selain Word.
+Hanya `<pic:pic>` yang dikonversi — garis tanda tangan itu shape, jangan disentuh.
+
+### 4. Preview itu duplikat logika server (client-side)
+`buildPreviewHTML()` di `templates/index.html` menghitung ulang uraian, label kompi,
+dan blok tanda tangan **di browser** supaya instan. Kalau mengubah `fill_template`,
+`parse_tanggal`, `parse_waktu`, `_kompi_label`, atau `TINGKAT_CONFIG` di `app.py`,
+**ubah juga di sana** atau preview akan berbeda dari file yang diunduh.
+
+Cara cek cepat: bandingkan string uraian server vs `.uraian` di iframe preview.
+
+### 5. `parse_tanggal` menerima dua format
+`"SENIN, 23 AGUSTUS 2026"` dan `"SENIN 23 AGUSTUS 2026"` (tanpa koma).
+Tanpa penanganan ini nama hari terbaca sebagai tanggal dan semua bagian bergeser.
+
+### 6. Tingkat III memakai HURUF untuk kompi
+TK I & II → romawi (I–V). TK III → huruf (A–E), dan format jabatan Danton
+tanpa garis miring: `DANTON TAR 1A`, bukan `DANTON TAR 1/A`. Lihat `_kompi_label()`
+dan `_danton_jabatan()`.
+
+### 7. Override sementara: Danki Kompi I TK II
+Karena pergantian personel, Kompi I TK II memakai data **Danki II** dan tanda tangan
+tertulis `DANKITAR II`. Ada di dua tempat:
+- `app.py` → `danki_kompi_label` di `fill_template()`
+- `templates/index.html` → `dankiLabel` di `buildPreviewHTML()`
+
+Kalau personel kembali normal, hapus keduanya.
+
+### 8. Penyimpanan: jangan kembali ke `open(path,'w')`
+Semua penulisan JSON lewat `_write_json_atomic()` (temp file + `os.replace`) dan
+dilindungi `_STORE_LOCK`. Pernah terjadi: worker mati saat menulis → `users.json`
+terpotong → loader mengembalikan `{}` → penyimpanan berikutnya menghapus SEMUA akun.
+Loader sekarang memakai cache terakhir kalau file rusak, bukan dict kosong.
+
+### 9. Procfile: worker HARUS threaded
+`--workers 1` dengan worker sync = satu request pada satu waktu. Route yang
+memanggil API luar (Claude 30s, Duitku 15s, Google 10s) akan membekukan seluruh
+situs. Terukur: 3.64s → 0.01s setelah pakai `gthread --threads 8`.
+
+Tetap **1 worker** karena penyimpanan berbasis file diamankan lock dalam-proses;
+menambah worker = proses terpisah = lock tidak berlaku lagi.
+
+---
+
+## Cache
+
+- `_users_cache`, `_xlsx_cache` — invalidasi lewat `os.path.getmtime`.
+- Statistik pengunjung ditahan di memori, flush ke disk tiap `VISIT_FLUSH_SECS` (30s)
+  dan saat proses berhenti (`atexit`).
+- **Konsekuensi**: mengganti `DATA_DANTON_DANKI.xlsx` langsung terbaca (mtime berubah),
+  tapi mengedit `users.json` manual di disk baru terbaca setelah mtime berubah juga.
+
+---
+
+## Desain UI
+
+Sistem desain ala Apple, token ada di tiap `<style>`:
+ink `#1d1d1f` · canvas `#f5f5f7` · biru `#0071e3` **hanya** untuk tombol terisi ·
+tanpa shadow · radius kartu 28px · tombol pill · SF Pro dengan tracking negatif ·
+hierarki dari pergantian pita putih/abu, bukan garis atau warna.
+
+Aksen oranye `#b64400` maksimal sekali per halaman.
+
+---
+
+## Cara tes (tanpa deploy)
+
+```bash
+# 1. semua template render
+python3 -c "
+from jinja2 import Environment, FileSystemLoader
+env=Environment(loader=FileSystemLoader('templates'))
+print(env.get_template('index.html').render(request=None, user_tokens=1, user_name='x',
+  user_picture='', token_packages=[], duitku_configured=False)[:1])"
+
+# 2. generate dokumen langsung
+python3 -c "
+import os; os.environ['DATA_DIR']='/tmp/t'; os.makedirs('/tmp/t',exist_ok=True)
+import app
+app.fill_template({...}, [], '/tmp/out.docx')"
+
+# 3. lihat hasilnya sebagai gambar
+soffice --headless --convert-to pdf --outdir /tmp /tmp/out.docx
+pdftoppm -png -r 80 /tmp/out.pdf /tmp/page
+```
+
+---
+
+## Yang belum selesai
+
+- Sheet **TK I** di Excel masih kosong (placeholder). Format kolom:
+  `NO | NAMA | PANGKAT | JABATAN | NRP`, jabatan `DANKI TAR I`, `DANTON TAR 1/I`.
+- Beberapa NRP Danki TK III kosong (Danki A dan B).
+- Verifikasi merchant Duitku belum tuntas → produksi masih jalan di dev mode
+  kalau env var kosong.
+- `/api/preview` (server-side, `templates/preview.html`) sudah tidak dipakai UI
+  karena preview pindah ke client. Masih ada; aman dihapus kalau mau bersih-bersih.
