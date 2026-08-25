@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Form LHP Kegiatan Positif — AKPOL</title>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6151198102509068"
+     crossorigin="anonymous"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --ink:#1d1d1f; --deep-gray:#474747; --mid-gray:#707070;
+    --hairline:#d6d6d6; --cool-wash:#e8e8ed; --canvas:#f5f5f7;
+    --paper:#fff; --nav-elev:#fafafc;
+    --blue:#0071e3; --blue-hover:#0077ed; --link:#0066cc;
+    --ember:#b64400; --green:#1d7f4c; --danger:#b64400;
+    --readonly:#f5f5f7;
+    --font-display:'SF Pro Display',-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',system-ui,sans-serif;
+    --font-text:'SF Pro Text',-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',system-ui,sans-serif;
+    --r-card:28px; --r-input:12px; --r-pill:980px;
+  }
+  html{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  body{font-family:var(--font-text);background:var(--canvas);color:var(--ink);
+       font-size:17px;line-height:1.47;letter-spacing:-.022em;
+       font-feature-settings:"numr";min-height:100vh}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ══ Nav ══ */
+  header{position:sticky;top:0;z-index:60;height:52px;
+         background:rgba(250,250,252,.82);
+         backdrop-filter:saturate(180%) blur(20px);
+         -webkit-backdrop-filter:saturate(180%) blur(20px);
+         border-bottom:1px solid rgba(0,0,0,.06);
+         display:flex;align-items:center;padding:0 24px;gap:12px}
+  .logo{width:26px;height:26px;object-fit:contain;flex-shrink:0}
+  .hdr-text{min-width:0}
+  .hdr-title{font-family:var(--font-display);font-size:15px;font-weight:600;
+             letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hdr-sub{font-size:11px;color:var(--mid-gray);letter-spacing:-.01em;
+           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .user-avatar{width:28px;height:28px;border-radius:50%;object-fit:cover}
+  .token-badge{background:var(--cool-wash);color:var(--ink);border-radius:var(--r-pill);
+               padding:5px 14px;font-size:13px;font-weight:400;letter-spacing:-.01em;
+               white-space:nowrap;cursor:pointer;transition:background .18s}
+  .token-badge:hover{background:#dcdce2}
+  .btn-logout{color:var(--deep-gray);font-size:12px;text-decoration:none;white-space:nowrap}
+  .btn-logout:hover{color:var(--ink)}
+  .gold-bar{display:none}
+
+  /* ══ Layout ══ */
+  main{max-width:1000px;margin:0 auto;padding:40px 24px 96px}
+
+  /* ══ Card ══ */
+  .card{background:var(--paper);border-radius:var(--r-card);
+        margin-bottom:20px;overflow:hidden}
+  .card-header{font-family:var(--font-display);font-size:24px;font-weight:600;
+               letter-spacing:.007em;line-height:1.2;color:var(--ink);
+               padding:32px 36px 4px;display:flex;align-items:baseline;
+               gap:12px;flex-wrap:wrap}
+  .card-header.dark,.card-header.gold{color:var(--ink)}
+  .badge{font-size:12px;font-weight:400;color:var(--mid-gray);letter-spacing:-.01em}
+
+  /* ══ Fields ══ */
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;padding:24px 36px 32px}
+  .grid.three{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:820px){.grid,.grid.three{grid-template-columns:1fr 1fr}}
+  @media(max-width:560px){.grid,.grid.three{grid-template-columns:1fr;padding:20px 24px 26px}}
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0}
+  .field label{font-size:14px;color:var(--mid-gray);letter-spacing:-.01em}
+  .field input,.field select{width:100%;border:1px solid var(--hairline);
+        border-radius:var(--r-input);padding:12px 14px;
+        font-family:var(--font-text);font-size:17px;letter-spacing:-.022em;
+        color:var(--ink);background:var(--paper);
+        transition:border-color .18s,box-shadow .18s}
+  .field select{appearance:none;-webkit-appearance:none;cursor:pointer;
+        background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23707070' stroke-width='1.8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
+        background-repeat:no-repeat;background-position:right 14px center;padding-right:38px}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--blue);
+        box-shadow:0 0 0 4px rgba(0,113,227,.12)}
+  .field input.readonly{background:var(--canvas);color:var(--mid-gray);
+        border-color:transparent;cursor:default}
+  .field input.editable-komando{background:var(--paper);color:var(--ink);
+        border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,113,227,.12)}
+
+  /* ══ Tingkat info ══ */
+  #tingkat-info{margin:0 36px 28px;padding:14px 18px;background:var(--canvas);
+                border-radius:var(--r-input);font-size:14px;color:var(--deep-gray);
+                letter-spacing:-.01em;line-height:1.4}
+  @media(max-width:560px){ #tingkat-info{margin:0 24px 22px}}
+
+  /* ══ Komando ══ */
+  #komando-status{padding:0 36px;font-size:14px;color:var(--mid-gray);letter-spacing:-.01em}
+  #komando-status.ok{color:var(--green)}
+  #komando-status.err{color:var(--ember)}
+  .section-sep{padding:24px 36px 0;font-size:12px;font-weight:500;
+               color:var(--mid-gray);text-transform:uppercase;letter-spacing:.06em}
+  .komando-edit-bar{display:flex;align-items:center;justify-content:space-between;
+                    padding:16px 36px 0;flex-wrap:wrap;gap:10px}
+  .btn-edit-komando{background:transparent;border:1px solid rgba(0,0,0,.22);
+                    border-radius:var(--r-pill);padding:7px 16px;font-size:14px;
+                    font-family:var(--font-text);letter-spacing:-.01em;
+                    color:var(--ink);cursor:pointer;transition:background .18s;margin-left:auto}
+  .btn-edit-komando:hover{background:var(--cool-wash)}
+  .btn-edit-komando.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .edit-hint{font-size:14px;color:var(--link);display:none;letter-spacing:-.01em}
+  .edit-hint.show{display:block}
+  @media(max-width:560px){ #komando-status,.section-sep,.komando-edit-bar{padding-left:24px;padding-right:24px}}
+
+  /* ══ Analyze promo ══ */
+  .analyze-promo{display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;
+                 margin:24px 36px 0;padding:32px;background:var(--canvas);
+                 border-radius:var(--r-card)}
+  .ap-icon{display:none}
+  .ap-content{flex:1;min-width:240px}
+  .ap-title{font-family:var(--font-display);font-size:28px;font-weight:600;
+            letter-spacing:.005em;line-height:1.16;margin-bottom:10px}
+  .ap-desc{font-size:17px;color:var(--mid-gray);line-height:1.47;margin-bottom:18px}
+  .ap-desc strong{color:var(--ink);font-weight:600}
+  .ap-steps{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ap-step{background:var(--paper);border-radius:var(--r-pill);padding:6px 14px;
+           font-size:13px;color:var(--deep-gray);letter-spacing:-.01em;white-space:nowrap}
+  .ap-arrow{color:var(--mid-gray);font-size:13px}
+  .ap-btn-wrap{display:flex;flex-direction:column;gap:10px;flex-shrink:0}
+  .btn-analyze-big{background:var(--blue);color:#fff;border:none;
+                   border-radius:var(--r-pill);padding:12px 24px;
+                   font-family:var(--font-text);font-size:17px;font-weight:400;
+                   letter-spacing:-.022em;cursor:pointer;display:flex;
+                   align-items:center;gap:9px;white-space:nowrap;transition:background .2s}
+  .btn-analyze-big:hover{background:var(--blue-hover)}
+  .btn-analyze-big:disabled{background:var(--cool-wash);color:var(--mid-gray);cursor:not-allowed}
+  .analyze-spinner{font-size:13px;color:var(--mid-gray);display:none;
+                   align-items:center;gap:8px;letter-spacing:-.01em}
+  .analyze-spinner.show{display:flex}
+  .spin-sm{width:13px;height:13px;border:2px solid var(--hairline);
+           border-top-color:var(--ink);border-radius:50%;
+           animation:spin .7s linear infinite;flex-shrink:0}
+  @media(max-width:560px){.analyze-promo{margin:20px 24px 0;padding:24px}}
+
+  /* ══ Analyze result ══ */
+  .analyze-result{display:none;margin:16px 36px 0;background:var(--paper);
+                  border:1px solid var(--hairline);border-radius:var(--r-card);overflow:hidden}
+  .analyze-result.show{display:block}
+  .ar-header{font-family:var(--font-display);font-size:17px;font-weight:600;
+             padding:22px 28px 0;letter-spacing:.005em}
+  .ar-body{padding:18px 28px 4px}
+  .ar-row{display:flex;gap:14px;align-items:baseline;margin-bottom:12px}
+  .ar-label{font-size:14px;color:var(--mid-gray);min-width:76px;letter-spacing:-.01em}
+  .ar-val{font-size:17px;color:var(--ink);flex:1}
+  .ar-val.muted{color:var(--mid-gray)}
+  .ar-note{font-size:14px;color:var(--mid-gray);padding:14px 0 0;
+           border-top:1px solid var(--hairline);margin-top:6px}
+  .ar-actions{display:flex;gap:10px;padding:18px 28px 24px;flex-wrap:wrap}
+  .btn-ar-use{background:var(--blue);color:#fff;border:none;border-radius:var(--r-pill);
+              padding:10px 22px;font-family:var(--font-text);font-size:17px;
+              letter-spacing:-.022em;cursor:pointer;transition:background .2s}
+  .btn-ar-use:hover{background:var(--blue-hover)}
+  .btn-ar-dismiss{background:transparent;color:var(--ink);border:1px solid rgba(0,0,0,.22);
+                  border-radius:var(--r-pill);padding:10px 20px;font-size:17px;
+                  font-family:var(--font-text);letter-spacing:-.022em;cursor:pointer}
+  .btn-ar-dismiss:hover{background:var(--cool-wash)}
+  @media(max-width:560px){.analyze-result{margin:16px 24px 0}}
+
+  /* ══ Foto grid ══ */
+  .foto-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:28px 36px 36px}
+  @media(max-width:700px){.foto-grid{grid-template-columns:1fr 1fr;padding:24px}}
+  .foto-slot{display:flex;flex-direction:column;gap:10px}
+  .foto-preview{position:relative;aspect-ratio:4/3;background:var(--canvas);
+                border-radius:var(--r-input);display:flex;flex-direction:column;
+                align-items:center;justify-content:center;overflow:hidden;
+                color:var(--mid-gray);font-size:14px;transition:background .18s}
+  .foto-preview:hover{background:var(--cool-wash)}
+  .plus{font-size:26px;line-height:1;color:var(--mid-gray)}
+  .foto-label{display:none}
+  .btn-clear{background:transparent;color:var(--mid-gray);border:1px solid var(--hairline);
+             border-radius:var(--r-pill);padding:6px 0;font-size:13px;
+             font-family:var(--font-text);letter-spacing:-.01em;cursor:pointer;
+             transition:background .18s,color .18s}
+  .btn-clear:hover{background:var(--cool-wash);color:var(--ink)}
+
+  /* ══ Submit area ══ */
+  .submit-area{padding:32px 36px 36px}
+  @media(max-width:560px){.submit-area{padding:26px 24px 28px}}
+  .token-info-bar{display:flex;align-items:center;justify-content:space-between;
+                  background:var(--canvas);border-radius:var(--r-card);
+                  padding:22px 26px;margin-bottom:24px;flex-wrap:wrap;gap:14px}
+  .tib-left{font-size:17px;color:var(--deep-gray);letter-spacing:-.01em}
+  .tib-count{font-family:var(--font-display);font-size:28px;font-weight:600;
+             color:var(--ink);letter-spacing:0}
+  .tib-sub{font-size:14px;color:var(--mid-gray)}
+  .btn-topup{background:transparent;color:var(--ink);border:1px solid rgba(0,0,0,.22);
+             border-radius:var(--r-pill);padding:11px 22px;font-family:var(--font-text);
+             font-size:17px;letter-spacing:-.022em;cursor:pointer;transition:background .2s}
+  .btn-topup:hover{background:var(--cool-wash)}
+  .actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .btn-preview{background:transparent;color:var(--ink);border:1px solid rgba(0,0,0,.28);
+               border-radius:var(--r-pill);padding:12px 26px;font-family:var(--font-text);
+               font-size:17px;letter-spacing:-.022em;cursor:pointer;
+               display:flex;align-items:center;gap:9px;transition:background .2s}
+  .btn-preview:hover{background:var(--cool-wash)}
+  .btn-primary{background:var(--blue);color:#fff;border:none;border-radius:var(--r-pill);
+               padding:12px 28px;font-family:var(--font-text);font-size:17px;font-weight:400;
+               letter-spacing:-.022em;cursor:pointer;display:flex;align-items:center;
+               gap:9px;transition:background .2s}
+  .btn-primary:hover{background:var(--blue-hover)}
+  .btn-primary:disabled{background:var(--cool-wash);color:var(--mid-gray);cursor:not-allowed}
+  .btn-reset{background:transparent;color:var(--mid-gray);border:none;
+             font-family:var(--font-text);font-size:17px;letter-spacing:-.022em;
+             cursor:pointer;padding:12px 8px}
+  .btn-reset:hover{color:var(--ink)}
+  .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.35);
+           border-top-color:#fff;border-radius:50%;display:none;
+           animation:spin .7s linear infinite}
+  .spinner.show{display:inline-block}
+  .actions-row2{margin-top:20px;padding-top:20px;border-top:1px solid var(--hairline)}
+  .btn-wa{color:var(--link);font-size:17px;text-decoration:none;
+          display:inline-flex;align-items:center;gap:9px;letter-spacing:-.022em}
+  .btn-wa:hover{text-decoration:underline}
+  #status{font-size:17px;margin-top:18px;min-height:24px;letter-spacing:-.01em}
+  #status.ok{color:var(--green)}
+  #status.err{color:var(--ember)}
+  .status.ok{color:var(--green)}
+  .status.err{color:var(--ember)}
+
+  /* ══ Topup modal ══ */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);
+                 backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+                 z-index:1000;align-items:center;justify-content:center;padding:20px}
+  .modal-overlay.open{display:flex}
+  .modal{background:var(--paper);border-radius:var(--r-card);padding:44px 36px;
+         width:100%;max-width:460px;position:relative;max-height:90vh;overflow-y:auto}
+  .modal-close{position:absolute;top:20px;right:22px;background:var(--cool-wash);
+               border:none;width:30px;height:30px;border-radius:50%;font-size:15px;
+               cursor:pointer;color:var(--deep-gray);line-height:1}
+  .modal-close:hover{background:#dcdce2}
+  .modal h2{font-family:var(--font-display);font-size:32px;font-weight:600;
+            letter-spacing:.005em;margin-bottom:8px}
+  .modal .modal-sub{font-size:17px;color:var(--mid-gray);margin-bottom:26px;line-height:1.47}
+  .modal .modal-sub strong{color:var(--ink);font-weight:600}
+  .pkg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+  .pkg-card{background:var(--canvas);border:2px solid transparent;
+            border-radius:var(--r-input);padding:20px 10px;text-align:center;
+            cursor:pointer;transition:border-color .18s,background .18s}
+  .pkg-card:hover{background:var(--cool-wash)}
+  .pkg-card.selected{border-color:var(--blue);background:rgba(0,113,227,.06)}
+  .pkg-tokens{font-family:var(--font-display);font-size:32px;font-weight:600;
+              color:var(--ink);line-height:1}
+  .pkg-unit{font-size:12px;color:var(--mid-gray);margin:4px 0 8px}
+  .pkg-price{font-size:14px;color:var(--ink);letter-spacing:-.01em}
+  .pkg-note{font-size:11px;color:var(--ember);margin-top:4px}
+  .btn-pay{width:100%;background:var(--blue);color:#fff;border:none;
+           border-radius:var(--r-pill);padding:13px;font-family:var(--font-text);
+           font-size:17px;letter-spacing:-.022em;cursor:pointer;transition:background .2s}
+  .btn-pay:hover{background:var(--blue-hover)}
+  .btn-pay:disabled{background:var(--cool-wash);color:var(--mid-gray);cursor:not-allowed}
+  .modal-status{font-size:14px;margin-top:16px;text-align:center;min-height:22px;line-height:1.45}
+  .modal-status.ok{color:var(--green)}
+  .modal-status.err{color:var(--ember)}
+  .regen-info{background:var(--canvas);border-radius:var(--r-input);padding:14px 18px;
+              font-size:14px;color:var(--deep-gray);margin-bottom:22px;line-height:1.45}
+  .regen-info.waiting{background:#fff4ed;color:var(--ember)}
+
+  /* ══ Preview modal ══ */
+  .preview-modal{display:none;position:fixed;inset:0;z-index:500;
+                 background:var(--canvas);flex-direction:column}
+  .preview-modal.open{display:flex}
+  .preview-frame{width:100%;flex:1;border:none}
+  .preview-loading{position:absolute;inset:0;background:var(--canvas);
+                   display:flex;flex-direction:column;align-items:center;
+                   justify-content:center;gap:16px;color:var(--ink)}
+  .preview-loading.hide{display:none}
+  .preview-spin{width:32px;height:32px;border:3px solid var(--hairline);
+                border-top-color:var(--ink);border-radius:50%;
+                animation:spin .8s linear infinite}
+
+  /* ══ Floating WA ══ */
+  .wa-float{position:fixed;bottom:24px;right:24px;z-index:400;
+            background:var(--ink);color:#fff;border:none;border-radius:var(--r-pill);
+            padding:12px 22px;font-size:15px;letter-spacing:-.01em;
+            cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:9px;
+            transition:transform .18s,background .18s}
+  .wa-float:hover{background:#000;transform:translateY(-1px)}
+  @media(max-width:560px){.wa-float{padding:11px 18px;font-size:14px;bottom:16px;right:16px}}
+
+  /* ══ Footer ══ */
+  footer{text-align:center;font-size:12px;color:var(--mid-gray);
+         padding:40px 24px 32px;line-height:1.33;background:var(--canvas)}
+
+  @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+</style>
+<!-- Xendit: no client-side script needed -->
+<link rel="icon" type="image/png" href="/static/logo.png">
+<link rel="apple-touch-icon" href="/static/logo.png">
+</head>
+<body>
+
+<header>
+  <img class="logo" src="/static/logo.png" alt="">
+  <div class="hdr-text">
+    <div class="hdr-title">LHP Kegiatan Positif</div>
+    <div class="hdr-sub">Batalyon Manggala Satya</div>
+  </div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:14px;">
+    {% if user_picture %}
+    <img class="user-avatar" src="{{ user_picture }}" alt="{{ user_name }}" title="{{ user_name }}"
+         onerror="this.style.display='none'">
+    {% endif %}
+    <button type="button" class="token-badge" onclick="openTopup()" title="Kelola token">
+      <span id="token-count">{{ user_tokens }}</span> token
+    </button>
+    <a href="/logout" class="btn-logout">Keluar</a>
+  </div>
+</header>
+
+<main>
+<form id="lhp-form" enctype="multipart/form-data">
+
+  <!-- ── Data Pribadi ── -->
+  <div class="card">
+    <div class="card-header">Data pribadi</div>
+    <div class="grid">
+      <div class="field"><label>Nama</label>
+        <input type="text" name="Nama" placeholder="NAMA LENGKAP TARUNA" required></div>
+      <div class="field"><label>No Ak</label>
+        <input type="text" name="No Ak" placeholder="NO. AKADEMI PANJANG" required></div>
+      <div class="field"><label>Pangkat</label>
+        <select name="Pangkat" required>
+          <option value="BHAYANGKARA TARUNA">BHAYANGKARA TARUNA</option>
+          <option value="AJUN BRIGADIR TARUNA">AJUN BRIGADIR TARUNA</option>
+          <option value="BRIGADIR TARUNA">BRIGADIR TARUNA</option>
+          <option value="BRIGADIR KEPALA TARUNA">BRIGADIR KEPALA TARUNA</option>
+        </select></div>
+      <div class="field"><label>Tingkat</label>
+        <select name="Tingkat" id="f-tingkat" required onchange="onTingkatChange()">
+          <option value="1">Tingkat I</option>
+          <option value="2" selected>Tingkat II</option>
+          <option value="3">Tingkat III</option>
+        </select></div>
+      <div class="field"><label>Peleton</label>
+        <input type="number" name="Peleton" id="f-peleton" placeholder="cth. 2" min="1" required></div>
+      <div class="field"><label>Kompi</label>
+        <input type="number" name="Kompi" id="f-kompi" placeholder="cth. 4" min="1" required></div>
+    </div>
+    <!-- Info badge tingkat yang aktif -->
+    <div id="tingkat-info">BATALYON TARUNA TK II/60/MS · ANGKATAN KE-60, BATALYON MANGGALA SATYA</div>
+  </div>
+
+  <!-- ── Data Komando ── -->
+  <div class="card">
+    <div class="card-header dark">Data komando<span class="badge">Terisi otomatis</span></div>
+    <div id="komando-status">Isi peleton dan kompi untuk memuat data komando</div>
+
+    <!-- Edit toggle bar -->
+    <div class="komando-edit-bar">
+      <div class="edit-hint" id="edit-hint">
+        Mode edit aktif — data komando bisa diubah
+      </div>
+      <button type="button" class="btn-edit-komando" id="btn-edit-komando"
+              onclick="toggleKomandoEdit()">
+        Edit manual
+      </button>
+    </div>
+
+    <div class="section-sep">Danton</div>
+    <div class="grid three">
+      <div class="field"><label>Nama Danton</label>
+        <input class="readonly" type="text" name="Nama Danton" id="f-nama-danton" readonly placeholder="—"></div>
+      <div class="field"><label>Pangkat Danton</label>
+        <input class="readonly" type="text" name="Pangkat Danton" id="f-pangkat-danton" readonly placeholder="—"></div>
+      <div class="field"><label>NRP Danton</label>
+        <input class="readonly" type="text" name="NRP Danton" id="f-nrp-danton" readonly placeholder="—"></div>
+    </div>
+
+    <div class="section-sep">Danki</div>
+    <div class="grid three" style="padding-top:0">
+      <div class="field"><label>Nama Danki</label>
+        <input class="readonly" type="text" name="Nama Danki" id="f-nama-danki" readonly placeholder="—"></div>
+      <div class="field"><label>Pangkat Danki</label>
+        <input class="readonly" type="text" name="Pangkat Danki" id="f-pangkat-danki" readonly placeholder="—"></div>
+      <div class="field"><label>NRP Danki</label>
+        <input class="readonly" type="text" name="NRP Danki" id="f-nrp-danki" readonly placeholder="—"></div>
+    </div>
+  </div>
+
+  <!-- ── Dokumentasi ── -->
+  <div class="card">
+    <div class="card-header gold">Langkah 1 — Foto dokumentasi<span class="badge">Maksimal 4 foto</span></div>
+
+    <!-- Bar analisa foto — dipromosikan -->
+    <div class="analyze-promo">
+      
+      <div class="ap-content">
+        <div class="ap-title">Foto punya timestamp?<br>Formnya isi sendiri.</div>
+        <div class="ap-desc">
+          Upload foto dokumentasi yang punya <strong>timestamp tercetak</strong> di sudut foto —
+          sistem akan <strong>scan otomatis</strong> dan langsung isi kolom Tanggal, Waktu, dan
+          Tempat Kegiatan untukmu. Cukup klik satu tombol, selesai.
+        </div>
+        <div class="ap-steps">
+          <span class="ap-step">Upload foto</span>
+          <span class="ap-arrow">→</span>
+          <span class="ap-step">Scan timestamp</span>
+          <span class="ap-arrow">→</span>
+          <span class="ap-step">Form terisi</span>
+        </div>
+      </div>
+      <div class="ap-btn-wrap">
+        <button type="button" class="btn-analyze-big" id="btn-analyze" onclick="analyzePhoto()">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          Scan timestamp
+        </button>
+        <div class="analyze-spinner" id="analyze-spinner">
+          <div class="spin-sm"></div> Menganalisa
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel hasil analisa -->
+    <div class="analyze-result" id="analyze-result">
+      <div class="ar-header">Hasil scan</div>
+      <div class="ar-body">
+        <div class="ar-row">
+          <span class="ar-label">Tanggal</span>
+          <span class="ar-val" id="ar-tanggal">—</span>
+        </div>
+        <div class="ar-row">
+          <span class="ar-label">Waktu</span>
+          <span class="ar-val" id="ar-waktu">—</span>
+        </div>
+        <div class="ar-row">
+          <span class="ar-label">Tempat</span>
+          <span class="ar-val" id="ar-tempat">—</span>
+        </div>
+        <div class="ar-note" id="ar-note"></div>
+      </div>
+      <div class="ar-actions">
+        <button type="button" class="btn-ar-use" onclick="useAnalyzeResult()">
+          Gunakan data ini
+        </button>
+        <button type="button" class="btn-ar-dismiss" onclick="dismissAnalyze()">
+          Tutup
+        </button>
+      </div>
+    </div>
+
+    <div class="foto-grid">
+      <div class="foto-slot">
+        <div class="foto-preview" id="preview-1">
+          <span class="plus" id="plus-1">＋</span>
+          <span id="plus-label-1" style="margin-top:4px">Foto 1</span>
+          <img id="thumb-1" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">
+          <input type="file" id="foto-input-1" name="foto_1" accept="image/*" onchange="previewImage(this, 1)"
+                 style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
+        </div>
+        <div class="foto-label">Foto 1</div>
+        <button type="button" class="btn-clear" onclick="clearImage(1)">Hapus</button>
+      </div>
+      <div class="foto-slot">
+        <div class="foto-preview" id="preview-2">
+          <span class="plus" id="plus-2">＋</span>
+          <span id="plus-label-2" style="margin-top:4px">Foto 2</span>
+          <img id="thumb-2" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">
+          <input type="file" id="foto-input-2" name="foto_2" accept="image/*" onchange="previewImage(this, 2)"
+                 style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
+        </div>
+        <div class="foto-label">Foto 2</div>
+        <button type="button" class="btn-clear" onclick="clearImage(2)">Hapus</button>
+      </div>
+      <div class="foto-slot">
+        <div class="foto-preview" id="preview-3">
+          <span class="plus" id="plus-3">＋</span>
+          <span id="plus-label-3" style="margin-top:4px">Foto 3</span>
+          <img id="thumb-3" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">
+          <input type="file" id="foto-input-3" name="foto_3" accept="image/*" onchange="previewImage(this, 3)"
+                 style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
+        </div>
+        <div class="foto-label">Foto 3</div>
+        <button type="button" class="btn-clear" onclick="clearImage(3)">Hapus</button>
+      </div>
+      <div class="foto-slot">
+        <div class="foto-preview" id="preview-4">
+          <span class="plus" id="plus-4">＋</span>
+          <span id="plus-label-4" style="margin-top:4px">Foto 4</span>
+          <img id="thumb-4" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;inset:0;">
+          <input type="file" id="foto-input-4" name="foto_4" accept="image/*" onchange="previewImage(this, 4)"
+                 style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
+        </div>
+        <div class="foto-label">Foto 4</div>
+        <button type="button" class="btn-clear" onclick="clearImage(4)">Hapus</button>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- ── Data Kegiatan ── -->
+  <div class="card">
+    <div class="card-header">Langkah 2 — Data kegiatan</div>
+    <div class="grid">
+      <div class="field"><label>Nama Kegiatan</label>
+        <input type="text" name="Nama Kegiatan" placeholder="JUDUL KEGIATAN" required></div>
+      <div class="field"><label>Tanggal Kegiatan</label>
+        <input type="text" name="Tanggal Kegiatan" placeholder="cth. MINGGU, 17 MEI 2026" required></div>
+      <div class="field"><label>Waktu Kegiatan</label>
+        <input type="text" name="Waktu Kegiatan" placeholder="cth. 08.00 WIB" required></div>
+      <div class="field"><label>Tempat Kegiatan</label>
+        <input type="text" name="Tempat Kegiatan" placeholder="cth. LAPANGAN BHAYANGKARA" required></div>
+    </div>
+  </div>  <!-- ── Actions ── -->
+  <div class="card">
+    <div class="submit-area">
+
+      <!-- Token info bar -->
+      <div class="token-info-bar">
+        <div class="tib-left">
+          Token tersisa <span class="tib-count" id="token-count2">{{ user_tokens }}</span>
+          <span class="tib-sub"> &nbsp;· satu token untuk satu dokumen</span>
+        </div>
+        <button type="button" class="btn-topup" onclick="openTopup()">
+          Beli token
+        </button>
+      </div>
+
+      <!-- Primary action -->
+      <div class="actions">
+        <button type="button" class="btn-preview" id="btn-preview" onclick="openPreview()">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path d="M1 12S5 4 12 4s11 8 11 8-4 8-11 8S1 12 1 12z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          Lihat pratinjau
+        </button>
+        <button type="submit" class="btn-primary" id="btn-submit">
+          <span class="spinner" id="spinner"></span>
+          Unduh dokumen
+        </button>
+        <button type="button" class="btn-reset" onclick="resetForm()">Kosongkan form</button>
+      </div>
+
+      <!-- Secondary: WA bantuan -->
+      <div class="actions-row2">
+        <a class="btn-wa"
+           href="https://wa.me/6282117108415?text=Halo%2C%20saya%20ingin%20menanyakan%20kendala%20di%20website%20LHP%20AKPOL."
+           target="_blank" rel="noopener">
+          <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/>
+          </svg>
+          Butuh bantuan? Hubungi admin
+        </a>
+      </div>
+
+      <div id="status"></div>
+    </div>
+  </div>
+
+</form>
+</main>
+
+<!-- ── Preview Modal ── -->
+<div class="preview-modal" id="preview-modal">
+  <div class="preview-loading" id="preview-loading">
+    <div class="preview-spin"></div>
+    <div style="font-size:17px">Menyiapkan pratinjau</div>
+  </div>
+  <iframe class="preview-frame" id="preview-frame" src="about:blank"
+          sandbox="allow-scripts allow-same-origin"
+          ></iframe>
+</div>
+
+<!-- Floating WA Button -->
+<a class="wa-float"
+   href="https://wa.me/6282117108415?text=Halo%2C%20saya%20ingin%20menanyakan%20kendala%20di%20website%20LHP%20AKPOL."
+   target="_blank" rel="noopener">
+  <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+    <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/>
+  </svg>
+  Hubungi admin
+</a>
+
+<footer>Akademi Kepolisian · Batalyon Manggala Satya · Form LHP Kegiatan Positif</footer>
+
+<script>
+// ── Force uppercase on all text inputs ───────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('input[type=text], input[type=number]').forEach(inp => {
+    if (!inp.classList.contains('readonly')) {
+      inp.addEventListener('input', function() {
+        const pos = this.selectionStart;
+        this.value = this.value.toUpperCase();
+        this.setSelectionRange(pos, pos);
+      });
+    }
+  });
+});
+
+// ── Konfigurasi Tingkat ───────────────────────────────────────────────────────
+const TINGKAT_INFO = {
+  '1': { kop: 'BATALYON TARUNA TK I/61/X',    angkatan: 'ANGKATAN KE-61, BATALYON X' },
+  '2': { kop: 'BATALYON TARUNA TK II/60/MS',  angkatan: 'ANGKATAN KE-60, BATALYON MANGGALA SATYA' },
+  '3': { kop: 'BATALYON TARUNA TK III/59/BD', angkatan: 'ANGKATAN KE-59, BATALYON BHAYANGKARA DHARMA' },
+};
+
+// ── Komando edit mode state ──
+const KOMANDO_FIELDS = [
+  'f-nama-danton', 'f-pangkat-danton', 'f-nrp-danton',
+  'f-nama-danki',  'f-pangkat-danki',  'f-nrp-danki'
+];
+let komandoEditMode = false;
+
+function onTingkatChange() {
+  const tk  = document.getElementById('f-tingkat').value;
+  const cfg = TINGKAT_INFO[tk] || TINGKAT_INFO['2'];
+  document.getElementById('tingkat-info').textContent =
+    cfg.kop + ' · ' + cfg.angkatan;
+  // Reset komando fields & re-lookup kalau peleton+kompi sudah diisi
+  triggerLookup();
+}
+
+// ── Auto-fill Danton/Danki ────────────────────────────────────────────────────
+let lookupTimer = null;
+
+function triggerLookup() {
+  clearTimeout(lookupTimer);
+  lookupTimer = setTimeout(doLookup, 400);
+}
+
+async function doLookup() {
+  const peleton = document.getElementById('f-peleton').value.trim();
+  const kompi   = document.getElementById('f-kompi').value.trim();
+  const tingkat = document.getElementById('f-tingkat').value.trim();
+  const status  = document.getElementById('komando-status');
+  const fields  = ['f-nama-danton','f-pangkat-danton','f-nrp-danton',
+                   'f-nama-danki', 'f-pangkat-danki', 'f-nrp-danki'];
+
+  if (!peleton || !kompi) {
+    fields.forEach(id => document.getElementById(id).value = '');
+    status.textContent = 'Isi peleton dan kompi untuk memuat data komando';
+    status.className = '';
+    return;
+  }
+
+  try {
+    const res  = await fetch(`/api/lookup?peleton=${peleton}&kompi=${kompi}&tingkat=${tingkat}`);
+    const json = await res.json();
+    if (json.error) {
+      status.textContent = json.error;
+      status.className = 'err';
+      return;
+    }
+    const d = json.danton, dk = json.danki;
+    // Hanya isi autofill kalau tidak sedang mode edit manual
+    if (!komandoEditMode) {
+      document.getElementById('f-nama-danton').value    = d  ? d['Nama Danton']    : 'Tidak ditemukan';
+      document.getElementById('f-pangkat-danton').value = d  ? d['Pangkat Danton'] : '';
+      document.getElementById('f-nrp-danton').value     = d  ? d['NRP Danton']     : '';
+      document.getElementById('f-nama-danki').value     = dk ? dk['Nama Danki']    : 'Tidak ditemukan';
+      document.getElementById('f-pangkat-danki').value  = dk ? dk['Pangkat Danki'] : '';
+      document.getElementById('f-nrp-danki').value      = dk ? dk['NRP Danki']     : '';
+    }
+
+    if (json.label) {
+      status.textContent = json.label;
+      status.className = 'ok';
+    } else {
+      status.textContent = 'Data komando tidak ditemukan untuk kombinasi ini.';
+      status.className = 'err';
+    }
+  } catch(e) {
+    status.textContent = 'Tidak bisa memuat data komando.';
+    status.className = 'err';
+  }
+}
+
+document.getElementById('f-peleton').addEventListener('input', triggerLookup);
+document.getElementById('f-kompi').addEventListener('input', triggerLookup);
+document.getElementById('f-tingkat').addEventListener('change', onTingkatChange);
+
+// ── Image preview ─────────────────────────────────────────────────────────────
+function previewImage(input, idx) {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById(`thumb-${idx}`).src = e.target.result;
+    document.getElementById(`thumb-${idx}`).style.display = 'block';
+    document.getElementById(`plus-${idx}`).style.display = 'none';
+    document.getElementById(`plus-label-${idx}`).style.display = 'none';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function clearImage(idx) {
+  const input = document.getElementById(`foto-input-${idx}`);
+  // Reset by replacing the input element (most reliable on Android)
+  const newInput = input.cloneNode(true);
+  newInput.value = '';
+  input.parentNode.replaceChild(newInput, input);
+  newInput.addEventListener('change', function() { previewImage(this, idx); });
+  document.getElementById(`thumb-${idx}`).style.display = 'none';
+  document.getElementById(`thumb-${idx}`).src = '';
+  document.getElementById(`plus-${idx}`).style.display = '';
+  document.getElementById(`plus-label-${idx}`).style.display = '';
+}
+
+// Submit handled by token-aware listener below
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+function resetForm() {
+  document.getElementById('lhp-form').reset();
+  for (let i = 1; i <= 4; i++) clearImage(i);
+  ['f-nama-danton','f-pangkat-danton','f-nrp-danton',
+   'f-nama-danki','f-pangkat-danki','f-nrp-danki'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('komando-status').textContent = 'Isi peleton dan kompi untuk memuat data komando';
+  document.getElementById('komando-status').className = '';
+  document.getElementById('status').textContent = '';
+  document.getElementById('status').className = '';
+  // Reset tingkat info badge ke default (TK II)
+  onTingkatChange();
+}
+</script>
+<script>
+document.getElementById('lhp-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn=document.getElementById('btn-submit'), spinner=document.getElementById('spinner'), status=document.getElementById('status');
+  btn.disabled=true; spinner.classList.add('show'); status.textContent=''; status.className='';
+  try {
+    const res = await fetch('/api/generate', {method:'POST', body: new FormData(e.target)});
+    if (res.status===401) { window.location.href='/login'; return; }
+    if (res.status===402) {
+      const j=await res.json();
+      status.textContent=j.error; status.className='err'; return;
+    }
+    if (!res.ok) {
+      const j=await res.json().catch(()=>({}));
+      status.textContent=j.error||'Dokumen gagal dibuat. Coba lagi.'; status.className='err'; return;
+    }
+    const blob=await res.blob();
+    const name=(res.headers.get('Content-Disposition')||'').match(/filename="?([^"]+)"?/)?.[1]||'LHP.docx';
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+    status.textContent='Dokumen selesai — cek folder unduhan.'; status.className='ok';
+    const tb=await (await fetch('/api/token-balance')).json();
+    document.getElementById('token-count').textContent=tb.tokens;
+    const t2=document.getElementById('token-count2'); if(t2)t2.textContent=tb.tokens;
+  } catch(err) {
+    status.textContent='Tidak bisa terhubung. Coba lagi.'; status.className='err';
+  } finally { btn.disabled=false; spinner.classList.remove('show'); }
+});
+
+// ── Topup Modal ─────────────────────────────────────────────────────────────
+let selectedPkg = null;
+
+function openTopup() {
+  selectedPkg = null;
+  document.getElementById('modal-status').textContent = '';
+  document.getElementById('modal-status').className = 'modal-status';
+  document.getElementById('btn-pay').disabled = true;
+  document.getElementById('btn-pay').textContent = 'Pilih paket';
+  document.querySelectorAll('.pkg-card').forEach(c => c.classList.remove('selected'));
+  // Load regen info
+  loadRegenInfo();
+  document.getElementById('topup-overlay').classList.add('open');
+}
+
+function closeTopup() {
+  document.getElementById('topup-overlay').classList.remove('open');
+}
+
+async function loadRegenInfo() {
+  try {
+    const res  = await fetch('/api/token-balance');
+    const json = await res.json();
+    const box  = document.getElementById('regen-info-box');
+    if (json.did_regen) {
+      box.innerHTML = '<div class="regen-info">1 token gratis minggu ini sudah masuk ke akunmu.</div>';
+      document.getElementById('token-count').textContent = json.tokens;
+    } else if (json.next_regen) {
+      const next = new Date(json.next_regen);
+      const now  = new Date();
+      const diff = Math.max(0, next - now);
+      const days = Math.floor(diff / 86400000);
+      const hrs  = Math.floor((diff % 86400000) / 3600000);
+      if (json.tokens === 0) {
+        box.innerHTML = `<div class="regen-info waiting">Token gratis berikutnya dalam ${days} hari ${hrs} jam.</div>`;
+      } else {
+        box.innerHTML = `<div class="regen-info">Kamu dapat 1 token gratis saat token habis, sekitar ${days} hari lagi.</div>`;
+      }
+    } else {
+      box.innerHTML = '';
+    }
+  } catch(e) {
+    document.getElementById('regen-info-box').innerHTML = '';
+  }
+}
+
+function selectPkg(pkgId) {
+  selectedPkg = pkgId;
+  document.querySelectorAll('.pkg-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById(`pkg-${pkgId}`).classList.add('selected');
+  const labels = {'pkg_1':'1 Token — Rp5.000','pkg_5':'5 Token — Rp25.000','pkg_10':'10 Token — Rp40.000'};
+  document.getElementById('btn-pay').disabled = false;
+  document.getElementById('btn-pay').textContent = `Bayar ${labels[pkgId] || pkgId}`;
+}
+
+async function doPay() {
+  if (!selectedPkg) return;
+  const btn    = document.getElementById('btn-pay');
+  const status = document.getElementById('modal-status');
+  btn.disabled = true;
+  btn.textContent = 'Memproses';
+  status.textContent = '';
+  status.className = 'modal-status';
+  try {
+    const res  = await fetch('/api/topup/create', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({pkg_id: selectedPkg})
+    });
+    if (res.status === 401) { window.location.href = '/login'; return; }
+    const json = await res.json();
+    if (json.dev_mode) {
+      status.textContent = json.message;
+      status.className = 'modal-status ok';
+      const tb = await (await fetch('/api/token-balance')).json();
+      document.getElementById('token-count').textContent = tb.tokens;
+            if(document.getElementById('token-count2')) document.getElementById('token-count2').textContent = tb.tokens;
+      btn.textContent = 'Selesai';
+      return;
+    }
+    if (json.payment_url) {
+      // Xendit Invoice — buka halaman pembayaran di tab baru
+      window.open(json.payment_url, '_blank');
+      status.innerHTML = 'Halaman pembayaran terbuka di tab baru.<br>QRIS, GoPay, OVO, DANA, dan transfer bank tersedia. Token masuk otomatis setelah pembayaran selesai.';
+      status.className = 'modal-status ok';
+      btn.textContent = 'Cek status';
+      btn.disabled = false;
+      btn.onclick = () => checkPayStatus(json.order_id);
+    } else {
+      status.textContent = json.error || 'Transaksi gagal dibuat. Coba lagi.';
+      status.className = 'modal-status err';
+      btn.disabled = false; btn.textContent = 'Coba lagi';
+    }
+  } catch(e) {
+    status.textContent = 'Tidak bisa terhubung. Coba lagi.';
+    status.className = 'modal-status err';
+    btn.disabled = false; btn.textContent = 'Coba lagi';
+  }
+}
+
+async function checkPayStatus(orderId) {
+  const status = document.getElementById('modal-status');
+  try {
+    const res  = await fetch(`/api/topup/status/${orderId}`);
+    const json = await res.json();
+    if (json.status === 'paid') {
+      status.textContent = `Pembayaran diterima. ${json.tokens} token ditambahkan.`;
+      status.className = 'modal-status ok';
+      const tb = await (await fetch('/api/token-balance')).json();
+      document.getElementById('token-count').textContent = tb.tokens;
+            if(document.getElementById('token-count2')) document.getElementById('token-count2').textContent = tb.tokens;
+    } else {
+      status.textContent = `Status: ${json.status}. Cek lagi setelah pembayaran selesai.`;
+      status.className = 'modal-status';
+    }
+  } catch(e) {
+    status.textContent = 'Status tidak bisa dimuat.';
+    status.className = 'modal-status err';
+  }
+}
+
+// Tutup modal dengan Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeTopup();
+});
+
+
+// ── Analisa Timestamp Foto ───────────────────────────────────────────────────
+let _analyzeResult = null;
+
+async function analyzePhoto() {
+  // Cari foto pertama yang sudah diupload
+  let fotoFile = null;
+  for (let i = 1; i <= 4; i++) {
+    const inp = document.getElementById('foto-input-' + i);
+    if (inp && inp.files && inp.files.length > 0) {
+      fotoFile = inp.files[0];
+      break;
+    }
+  }
+  if (!fotoFile) {
+    alert('Upload minimal satu foto sebelum melakukan scan.');
+    return;
+  }
+
+  const btn     = document.getElementById('btn-analyze');
+  const spinner = document.getElementById('analyze-spinner');
+  const panel   = document.getElementById('analyze-result');
+
+  btn.disabled = true;
+  spinner.classList.add('show');
+  panel.classList.remove('show');
+  _analyzeResult = null;
+
+  try {
+    const fd = new FormData();
+    fd.append('foto', fotoFile);
+
+    const res  = await fetch('/api/analyze-photo', { method: 'POST', body: fd });
+    const json = await res.json();
+
+    if (!json.ok) {
+      alert(json.error || 'Foto gagal dianalisa.');
+      return;
+    }
+
+    const r = json.result;
+    _analyzeResult = r;
+
+    // Tampilkan hasil
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (val && val !== 'null') {
+        el.textContent = val;
+        el.className = 'ar-val';
+      } else {
+        el.textContent = 'Tidak ditemukan';
+        el.className = 'ar-val muted';
+      }
+    };
+
+    setVal('ar-tanggal', r.tanggal);
+    setVal('ar-waktu',   r.waktu);
+    setVal('ar-tempat',  r.tempat);
+
+    const noteEl = document.getElementById('ar-note');
+    noteEl.textContent = r.catatan || '';
+
+    if (!r.ditemukan) {
+      noteEl.textContent = 'Tidak ada timestamp yang terbaca di foto ini.';
+    }
+
+    panel.classList.add('show');
+  } catch(e) {
+    alert('Tidak bisa terhubung. Coba lagi.');
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('show');
+  }
+}
+
+function useAnalyzeResult() {
+  if (!_analyzeResult) return;
+  const r = _analyzeResult;
+
+  // Fill tanggal
+  if (r.tanggal && r.tanggal !== 'null') {
+    const tanggalInp = document.querySelector('input[name="Tanggal Kegiatan"]');
+    if (tanggalInp) {
+      tanggalInp.value = r.tanggal;
+      tanggalInp.dispatchEvent(new Event('input'));
+    }
+  }
+
+  // Fill waktu
+  if (r.waktu && r.waktu !== 'null') {
+    const waktuInp = document.querySelector('input[name="Waktu Kegiatan"]');
+    if (waktuInp) {
+      waktuInp.value = r.waktu;
+      waktuInp.dispatchEvent(new Event('input'));
+    }
+  }
+
+  // Fill tempat
+  if (r.tempat && r.tempat !== 'null') {
+    const tempatInp = document.querySelector('input[name="Tempat Kegiatan"]');
+    if (tempatInp) {
+      tempatInp.value = r.tempat;
+      tempatInp.dispatchEvent(new Event('input'));
+    }
+  }
+
+  dismissAnalyze();
+
+  // Scroll ke section data kegiatan
+  const kegiatan = document.querySelector('input[name="Nama Kegiatan"]');
+  if (kegiatan) kegiatan.closest('.card').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function dismissAnalyze() {
+  document.getElementById('analyze-result').classList.remove('show');
+  _analyzeResult = null;
+}
+
+
+// ── Toggle edit mode komando ─────────────────────────────────────────────────
+function toggleKomandoEdit() {
+  komandoEditMode = !komandoEditMode;
+  const btn  = document.getElementById('btn-edit-komando');
+  const hint = document.getElementById('edit-hint');
+
+  KOMANDO_FIELDS.forEach(id => {
+    const inp = document.getElementById(id);
+    if (!inp) return;
+    if (komandoEditMode) {
+      inp.removeAttribute('readonly');
+      inp.classList.remove('readonly');
+      inp.classList.add('editable-komando');
+    } else {
+      inp.setAttribute('readonly', true);
+      inp.classList.add('readonly');
+      inp.classList.remove('editable-komando');
+    }
+  });
+
+  if (komandoEditMode) {
+    btn.textContent = 'Selesai edit';
+    btn.classList.add('active');
+    hint.classList.add('show');
+    // Focus ke field pertama yang terisi
+    const first = KOMANDO_FIELDS.map(id => document.getElementById(id))
+                                 .find(el => el && el.value);
+    if (first) first.focus();
+  } else {
+    btn.textContent = 'Edit manual';
+    btn.classList.remove('active');
+    hint.classList.remove('show');
+  }
+}
+
+
+
+
+// ── Preview Document ─────────────────────────────────────────────────────────
+// ── Preview client-side (instant, tanpa server request) ──────────────────────
+
+function getField(name) {
+  const el = document.querySelector(`[name="${name}"]`);
+  return el ? el.value.trim() : '';
+}
+
+function buildPreviewHTML(data, fotoUrls) {
+  const WM = 'LHPAKPOL.CO';
+  const TINGKAT_CFG = {
+    '1': {kop:'BATALYON TARUNA TK I/61/X',   header:'LAPORAN KEGIATAN TARUNA TK. I/61/X',
+          suffix:'TK I/61/X',   angkatan:'ANGKATAN KE-61, BATALYON X'},
+    '2': {kop:'BATALYON TARUNA TK II/60/MS',  header:'LAPORAN KEGIATAN TARUNA TK. II/60/MS',
+          suffix:'TK II/60/MS',  angkatan:'ANGKATAN KE-60, BATALYON MANGGALA SATYA'},
+    '3': {kop:'BATALYON TARUNA TK III/59/BD', header:'LAPORAN KEGIATAN TARUNA TK. III/59/BD',
+          suffix:'TK III/59/BD', angkatan:'ANGKATAN KE-59, BATALYON BHAYANGKARA DHARMA'},
+  };
+  // Mirror parse_tanggal() / parse_waktu() di app.py supaya pratinjau sama persis
+  const MONTHS_ID=['','JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI',
+                   'JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
+  const MONTHS_SHORT={jan:1,feb:2,mar:3,apr:4,mei:5,jun:6,jul:7,agu:8,sep:9,okt:10,nov:11,des:12};
+  const HARI_ID=['SENIN','SELASA','RABU','KAMIS','JUMAT',"JUM'AT",'SABTU','MINGGU','AHAD'];
+  function parseTanggal(str){
+    const raw=(str||'').trim();
+    const parts=raw.split(',');
+    let hari='', datePart=raw;
+    if(parts.length>1){
+      hari=parts[0].trim().toUpperCase();
+      datePart=parts.slice(1).join(',').trim();
+    } else {
+      // Terima juga 'SENIN 23 AGUSTUS 2026' tanpa koma
+      const t0=raw.split(/\s+/);
+      if(t0.length && HARI_ID.includes(t0[0].replace(/[.,]/g,'').toUpperCase())){
+        hari=t0[0].replace(/[.,]/g,'').toUpperCase();
+        datePart=t0.slice(1).join(' ');
+      }
+    }
+    const tk=datePart.split(/\s+/);
+    const tgl=tk[0]||'';
+    const bulanRaw=(tk[1]||'').toLowerCase().replace(/\.$/,'');
+    const tahun=tk[2]||'';
+    const idx=MONTHS_SHORT[bulanRaw.slice(0,3)]||0;
+    return {hari, tgl, bulan: idx?MONTHS_ID[idx]:bulanRaw.toUpperCase(), tahun};
+  }
+  function parseWaktu(str){
+    return (str||'').trim().replace(/\s*(WIB|WITA|WIT)\s*$/i,'').replace(/:/g,'.').trim();
+  }
+  const KOMPI_III = {1:'A',2:'B',3:'C',4:'D',5:'E'};
+  const ROMAN = ['','I','II','III','IV','V','VI','VII','VIII','IX','X'];
+  const PANGKAT_ABBR = {
+    'BHAYANGKARA TARUNA':'BHATAR','AJUN BRIGADIR TARUNA':'ABRIGTAR',
+    'BRIGADIR TARUNA':'BRIGTAR','BRIGADIR KEPALA TARUNA':'BRIGKATAR'
+  };
+
+  const tk   = data.tingkat || '2';
+  const cfg  = TINGKAT_CFG[tk] || TINGKAT_CFG['2'];
+  const kompi_int = parseInt(data.kompi) || 1;
+  const kompiLabel = tk === '3' ? (KOMPI_III[kompi_int] || 'A') : (ROMAN[kompi_int] || 'I');
+  // Override sementara: Danki Kompi I TK II → tampilkan sebagai DANKITAR IV
+  const dankiLabel = (tk === '2' && kompi_int === 1) ? 'II' : kompiLabel;
+  const abbr = PANGKAT_ABBR[data.pangkat] || data.pangkat;
+
+  const _t = parseTanggal(data.tanggal);
+  const _w = parseWaktu(data.waktu);
+  const uraianText =
+    `--------PADA HARI ${_t.hari} TANGGAL ${_t.tgl} BULAN ${_t.bulan} TAHUN ${_t.tahun} ` +
+    `PUKUL ${_w} WIB, SAYA ${data.nama} TARUNA AKPOL, PANGKAT ${data.pangkat}, ` +
+    `NO AKADEMI ${data.noAk}, ${cfg.angkatan}, ` +
+    `TELAH MELAKSANAKAN KEGIATAN POSITIF BERUPA ${data.namaKegiatan.toUpperCase()}.-`;
+
+  // Buat thumbnail foto (dari object URL, max 3)
+  const fotoHTML = fotoUrls.length > 0
+    ? fotoUrls.map(u => `<img src="${u}" style="width:${Math.floor(160/fotoUrls.length)}px;
+        height:120px;object-fit:cover;margin:2px;border:1px solid #ccc;">`).join('')
+    : '<div style="color:#aaa;font-style:italic;padding:16px">— Tidak ada foto —</div>';
+
+  // Watermark positions
+  let wmItems = '';
+  for (let r = 0; r < 10; r++) {
+    for (let c = 0; c < 5; c++) {
+      wmItems += `<div style="position:absolute;left:${c*22}%;top:${r*11}%;
+        font-family:Arial,sans-serif;font-size:20px;font-weight:900;
+        color:rgba(0,0,0,.08);letter-spacing:4px;white-space:nowrap;
+        transform:rotate(-40deg);pointer-events:none;user-select:none">${WM}</div>`;
+    }
+  }
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Times New Roman',Times,serif;background:#f5f5f7;
+     padding:52px 0 20px;user-select:none;-webkit-user-select:none}
+.toolbar{position:fixed;top:0;left:0;right:0;height:52px;
+  background:rgba(250,250,252,.86);backdrop-filter:saturate(180%) blur(20px);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid rgba(0,0,0,.08);
+  color:#1d1d1f;display:flex;align-items:center;padding:0 20px;gap:12px;z-index:999;
+  font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',system-ui,sans-serif;
+  letter-spacing:-.01em}
+.t-title{font-size:15px;font-weight:600;flex:1}
+.t-sub{font-size:11px;color:#707070}
+.btn-dl{background:#0071e3;color:#fff;border:none;border-radius:980px;padding:9px 22px;
+  font-size:15px;font-weight:400;letter-spacing:-.01em;cursor:pointer;
+  display:flex;align-items:center;gap:6px;font-family:inherit}
+.btn-dl:hover{background:#0077ed}
+.btn-cl{background:transparent;color:#1d1d1f;border:1px solid rgba(0,0,0,.22);
+  border-radius:980px;padding:9px 18px;font-size:15px;font-weight:400;
+  letter-spacing:-.01em;cursor:pointer;font-family:inherit}
+.btn-cl:hover{background:#e8e8ed}
+.wm-badge{background:#e8e8ed;color:#707070;border:none;
+  border-radius:36px;padding:4px 12px;font-size:11px;font-weight:500;letter-spacing:.02em}
+.page-wrap{display:flex;justify-content:center;padding:16px 16px 40px}
+.page{width:210mm;min-height:297mm;background:#fff;padding:20mm 25mm 20mm 30mm;
+  border-radius:2px;position:relative;overflow:hidden}
+.wm-layer{position:absolute;inset:0;pointer-events:none;z-index:9999;overflow:hidden}
+hr.kop{border:none;border-top:3px solid #000;margin:4px 0 8px}
+.doc-title{text-align:center;font-size:11pt;font-weight:bold;text-decoration:underline;
+  margin:10px 0 16px;letter-spacing:.5px}
+.kt td{font-size:10pt;padding:2px 0;vertical-align:top}
+.kt td:nth-child(2){padding:2px 8px;text-align:center}
+.kt td:first-child{width:175px}
+.uraian{border:1px solid #000;padding:8px 10px;min-height:80px;font-size:10pt;
+  text-align:justify;line-height:1.6;margin:8px 0 14px;text-transform:uppercase}
+.sec-label{font-size:10pt;font-weight:bold;margin-bottom:6px}
+.foto-wrap{border:1px solid #ccc;padding:6px;min-height:100px;
+  display:flex;flex-wrap:wrap;align-items:center;background:#fafafa}
+.ttd-row{display:flex;justify-content:space-between;gap:24px;margin-top:18px}
+.ttd-blk{flex:1;text-align:center;font-size:9.5pt}
+.ttd-know{margin-top:22px;text-align:center;width:48%;font-size:9.5pt}
+.ttd-place{font-size:9.5pt;margin-bottom:2px}
+.ttd-title{font-weight:bold;margin-bottom:4px}
+.ttd-space{height:58px}
+.ttd-name{font-weight:bold;border-top:1px solid #000;padding-top:3px;
+  display:inline-block;min-width:170px}
+.ttd-rank{font-size:9pt}
+.notice{font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;
+  font-size:12px;color:#707070;text-align:center;padding:14px;letter-spacing:-.01em}
+</style></head><body>
+<div class="toolbar">
+  <div><div class="t-title">Pratinjau — ${data.nama}</div>
+       <div class="t-sub">${data.tanggal}</div></div>
+  <span class="wm-badge">PRATINJAU</span>
+  <button class="btn-cl" onclick="window.parent.closePreview()">Tutup</button>
+  <button class="btn-dl" onclick="window.parent.doDownload()">Unduh dokumen</button>
+</div>
+<div class="page-wrap"><div class="page">
+<div class="wm-layer">${wmItems}</div>
+
+<table style="width:100%;border-collapse:collapse;margin-bottom:4px">
+<tr>
+  <td style="width:72px;padding-right:10px;vertical-align:top">
+    <img src="/static/logo.png" style="width:68px;height:68px;object-fit:contain">
+  </td>
+  <td style="font-size:9pt;line-height:1.5;vertical-align:top">
+    <div style="font-size:11pt;font-weight:bold;text-align:center">KEPOLISIAN NEGARA REPUBLIK INDONESIA</div>
+    <div style="text-align:center">LEMBAGA PENDIDIKAN DAN PELATIHAN POLRI</div>
+    <div style="text-align:center">AKADEMI KEPOLISIAN</div>
+    <div style="text-align:center"><strong>${cfg.kop}</strong></div>
+  </td>
+</tr></table>
+<hr class="kop">
+<div class="doc-title">${cfg.header}</div>
+
+<table class="kt" style="width:100%;border-collapse:collapse">
+<tr><td>No. Akademi</td><td>:</td><td>${data.noAk}</td></tr>
+<tr><td>Nama</td><td>:</td><td>${data.nama}</td></tr>
+<tr><td>Pangkat</td><td>:</td><td>${data.pangkat}</td></tr>
+<tr><td>Kompi / Peleton</td><td>:</td><td>KOMPI ${kompiLabel} / PLETON ${data.peleton}</td></tr>
+<tr><td>Nama Kegiatan</td><td>:</td><td>${data.namaKegiatan}</td></tr>
+<tr><td>Tanggal &amp; Waktu</td><td>:</td><td>${data.tanggal}, ${data.waktu}</td></tr>
+<tr><td>Tempat</td><td>:</td><td>${data.tempat}</td></tr>
+</table>
+
+<div style="margin-top:12px">
+  <div class="sec-label">URAIAN KEGIATAN</div>
+  <div class="uraian">${uraianText}</div>
+</div>
+
+<div class="sec-label">DOKUMENTASI</div>
+<div class="foto-wrap">${fotoHTML}</div>
+
+<div class="ttd-row">
+  <div class="ttd-blk">
+    <div class="ttd-place">&nbsp;</div>
+    <div class="ttd-title">DANTONTAR ${data.peleton} KOMPI ${kompiLabel} ${cfg.suffix}</div>
+    <div class="ttd-space"></div>
+    <div class="ttd-name">${data.namaDanton}</div>
+    <div class="ttd-rank">${data.pangkatDanton} NRP ${data.nrpDanton}</div>
+  </div>
+  <div class="ttd-blk">
+    <div class="ttd-place">Semarang, ${data.tanggal}</div>
+    <div class="ttd-title">YANG MEMBUAT LAPORAN</div>
+    <div class="ttd-space"></div>
+    <div class="ttd-name">${data.nama}</div>
+    <div class="ttd-rank">${abbr} NO. AK ${data.noAk}</div>
+  </div>
+</div>
+
+<div class="ttd-know">
+  <div class="ttd-place">Mengetahui,</div>
+  <div class="ttd-title">DANKITAR ${dankiLabel} ${cfg.suffix}</div>
+  <div class="ttd-space"></div>
+  <div class="ttd-name">${data.namaDanki}</div>
+  <div class="ttd-rank">${data.pangkatDanki} NRP ${data.nrpDanki}</div>
+</div>
+</div></div>
+<div class="notice">Pratinjau. Watermark tidak muncul pada dokumen yang diunduh.</div>
+<script>
+document.addEventListener('contextmenu',e=>e.preventDefault());
+document.addEventListener('keydown',e=>{
+  if(e.key==='PrintScreen'||(e.metaKey&&e.shiftKey&&'345s'.includes(e.key))||
+     (e.metaKey&&e.key==='p')||(e.ctrlKey&&e.key==='p')){e.preventDefault();}
+  if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&e.key==='I'))e.preventDefault();
+});
+document.addEventListener('dragstart',e=>e.preventDefault());
+document.addEventListener('selectstart',e=>e.preventDefault());
+document.addEventListener('visibilitychange',()=>{
+  const p=document.querySelector('.page');
+  if(p)p.style.filter=document.hidden?'blur(10px)':'none';
+});
+<\/script></html>`;
+}
+
+function openPreview() {
+  const form   = document.getElementById('lhp-form');
+  const fields = ['Nama','No Ak','Pangkat','Tingkat','Peleton','Kompi',
+                  'Nama Danton','Pangkat Danton','NRP Danton',
+                  'Nama Danki','Pangkat Danki','NRP Danki',
+                  'Nama Kegiatan','Tanggal Kegiatan','Waktu Kegiatan','Tempat Kegiatan'];
+  for (const f of fields) {
+    const el = form.querySelector(`[name="${f}"]`);
+    if (!el || !el.value.trim()) {
+      el && el.focus();
+      const st = document.getElementById('status');
+      st.textContent = `Kolom "${f}" belum diisi.`;
+      st.className   = 'status err';
+      el && el.closest('.card').scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
+  }
+
+  // Ambil data dari form
+  const data = {
+    nama:         getField('Nama'),
+    noAk:         getField('No Ak'),
+    pangkat:      getField('Pangkat'),
+    tingkat:      getField('Tingkat'),
+    peleton:      getField('Peleton'),
+    kompi:        getField('Kompi'),
+    namaKegiatan: getField('Nama Kegiatan'),
+    tanggal:      getField('Tanggal Kegiatan'),
+    waktu:        getField('Waktu Kegiatan'),
+    tempat:       getField('Tempat Kegiatan'),
+    namaDanton:   getField('Nama Danton'),
+    pangkatDanton:getField('Pangkat Danton'),
+    nrpDanton:    getField('NRP Danton'),
+    namaDanki:    getField('Nama Danki'),
+    pangkatDanki: getField('Pangkat Danki'),
+    nrpDanki:     getField('NRP Danki'),
+  };
+
+  // Ambil preview foto yang sudah diupload (object URL)
+  const fotoUrls = [];
+  for (let i = 1; i <= 4; i++) {
+    const inp = document.getElementById(`foto-input-${i}`);
+    if (inp && inp.files && inp.files[0]) {
+      fotoUrls.push(URL.createObjectURL(inp.files[0]));
+    }
+  }
+
+  // Render langsung — tidak perlu server
+  const modal = document.getElementById('preview-modal');
+  const frame = document.getElementById('preview-frame');
+  const loading = document.getElementById('preview-loading');
+
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  const html = buildPreviewHTML(data, fotoUrls);
+  const doc  = frame.contentDocument || frame.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
+  loading.classList.add('hide');
+
+  // Revoke object URLs setelah render
+  setTimeout(() => fotoUrls.forEach(URL.revokeObjectURL), 3000);
+}
+
+function closePreview() {
+  const modal = document.getElementById('preview-modal');
+  const frame = document.getElementById('preview-frame');
+  modal.classList.remove('open');
+  frame.src = 'about:blank';
+  document.body.style.overflow = '';
+  document.getElementById('preview-loading').classList.remove('hide');
+}
+
+function doDownload() {
+  closePreview();
+  setTimeout(() => document.getElementById('btn-submit').click(), 150);
+}
+
+// Tutup dengan Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('preview-modal').classList.contains('open')) {
+    closePreview();
+  }
+});
+
+</script>
+
+
+
+
+
+<!-- ── Topup Modal ── -->
+<div class="modal-overlay" id="topup-overlay" onclick="if(event.target===this)closeTopup()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeTopup()">✕</button>
+    <h2>Beli token</h2>
+    <p class="modal-sub">Satu token untuk satu dokumen. Kalau token habis, kamu tetap
+      mendapat <strong>1 token gratis setiap minggu</strong>.</p>
+
+    <div id="regen-info-box"></div>
+
+    <div class="pkg-grid">
+      {% for pkg in token_packages %}
+      <div class="pkg-card" id="pkg-{{ pkg.id }}" onclick="selectPkg('{{ pkg.id }}')">
+        <div class="pkg-tokens">{{ pkg.tokens }}</div>
+        <div class="pkg-unit">token</div>
+        <div class="pkg-price">{{ pkg.desc }}</div>
+        {% if pkg.tokens >= 10 %}<div class="pkg-note">Paling hemat</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <button class="btn-pay" id="btn-pay" onclick="doPay()" disabled>
+      Pilih paket
+    </button>
+    <div class="modal-status" id="modal-status"></div>
+  </div>
+</div>
+
+</body>
+</html>

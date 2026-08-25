@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Masuk sebagai admin — LHP AKPOL</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/static/logo.png">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--ink:#1d1d1f;--mid-gray:#707070;--hairline:#d6d6d6;--cool-wash:#e8e8ed;
+        --canvas:#f5f5f7;--paper:#fff;--blue:#0071e3;--blue-hover:#0077ed;--ember:#b64400;
+        --font-display:'SF Pro Display',-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;
+        --font-text:'SF Pro Text',-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif}
+  html{-webkit-font-smoothing:antialiased}
+  body{font-family:var(--font-text);background:var(--canvas);color:var(--ink);
+       font-size:17px;line-height:1.47;letter-spacing:-.022em;min-height:100vh;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+  .mark{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:36px}
+  .mark img{width:52px;height:52px;object-fit:contain}
+  .mark h1{font-family:var(--font-display);font-size:24px;font-weight:600;letter-spacing:.005em}
+  .mark p{font-size:14px;color:var(--mid-gray)}
+  .card{background:var(--paper);border-radius:28px;padding:44px 36px;width:100%;max-width:400px}
+  .card h2{font-family:var(--font-display);font-size:32px;font-weight:600;
+           letter-spacing:.005em;margin-bottom:28px;text-align:center}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:14px;color:var(--mid-gray);margin-bottom:7px}
+  .field input{width:100%;border:1px solid var(--hairline);border-radius:12px;
+               padding:13px 15px;font-family:var(--font-text);font-size:17px;
+               letter-spacing:-.022em;color:var(--ink);transition:border-color .18s,box-shadow .18s}
+  .field input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,113,227,.12)}
+  .btn{width:100%;background:var(--blue);color:#fff;border:none;border-radius:980px;
+       padding:13px;font-family:var(--font-text);font-size:17px;letter-spacing:-.022em;
+       cursor:pointer;margin-top:6px;transition:background .2s}
+  .btn:hover{background:var(--blue-hover)}
+  .btn:disabled{background:var(--cool-wash);color:var(--mid-gray);cursor:not-allowed}
+  #err{font-size:14px;color:var(--ember);text-align:center;margin-top:14px;min-height:20px}
+  .back{display:block;text-align:center;margin-top:22px;font-size:12px;
+        color:var(--mid-gray);text-decoration:none}
+  .back:hover{color:var(--ink)}
+  :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="mark">
+  <img src="/static/logo.png" alt="">
+  <h1>LHP Kegiatan Positif</h1>
+  <p>Panel admin</p>
+</div>
+<div class="card">
+  <h2>Masuk</h2>
+  <div class="field">
+    <label for="username">Username</label>
+    <input type="text" id="username" autocomplete="username" placeholder="admin">
+  </div>
+  <div class="field">
+    <label for="password">Password</label>
+    <input type="password" id="password" autocomplete="current-password" placeholder="••••••">
+  </div>
+  <button class="btn" id="btn-login" onclick="doLogin()">Masuk</button>
+  <div id="err"></div>
+  <a href="/login" class="back">Kembali ke halaman utama</a>
+</div>
+<script>
+async function doLogin(){
+  const u=document.getElementById('username').value.trim();
+  const p=document.getElementById('password').value;
+  const err=document.getElementById('err'), btn=document.getElementById('btn-login');
+  if(!u||!p){err.textContent='Isi username dan password.';return;}
+  btn.disabled=true;btn.textContent='Memproses';
+  try{
+    const res=await fetch('/login-admin',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:u,password:p})});
+    const j=await res.json();
+    if(j.ok){window.location.href=j.redirect||'/admin';return;}
+    err.textContent=j.error||'Username atau password salah.';
+  }catch(e){err.textContent='Tidak bisa terhubung. Coba lagi.';}
+  btn.disabled=false;btn.textContent='Masuk';
+}
+document.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+</script>
+</body>
+</html>

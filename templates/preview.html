@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preview LHP — {{ nama }}</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Times New Roman',Times,serif;background:#f5f5f7;
+       min-height:100vh;padding:20px;
+       user-select:none;-webkit-user-select:none;-moz-user-select:none}
+
+  /* ── Watermark layer ── */
+  .watermark-layer{
+    position:fixed;inset:0;pointer-events:none;z-index:9999;
+    overflow:hidden;
+  }
+  .watermark-layer::before{
+    content:'';
+    position:absolute;inset:-50%;
+    width:200%;height:200%;
+    background-image:repeating-linear-gradient(
+      -45deg,
+      transparent 0px,
+      transparent 80px,
+      rgba(0,0,0,.045) 80px,
+      rgba(0,0,0,.045) 81px
+    );
+  }
+  .wm-text{
+    position:absolute;
+    font-family:'Arial',sans-serif;
+    font-size:22px;
+    font-weight:900;
+    color:rgba(0,0,0,.09);
+    letter-spacing:4px;
+    white-space:nowrap;
+    transform:rotate(-40deg);
+    pointer-events:none;
+    user-select:none;
+  }
+
+  /* ── Toolbar ── */
+  .toolbar{
+    position:fixed;top:0;left:0;right:0;height:52px;
+    background:rgba(250,250,252,.86);color:#1d1d1f;z-index:1000;
+    backdrop-filter:saturate(180%) blur(20px);
+    -webkit-backdrop-filter:saturate(180%) blur(20px);
+    border-bottom:1px solid rgba(0,0,0,.08);
+    display:flex;align-items:center;padding:0 20px;gap:14px;
+  }
+  .toolbar-title{font-size:14px;font-weight:700;flex:1;
+                  font-family:'Segoe UI',Arial,sans-serif}
+  .toolbar-sub{font-size:11px;color:#707070;
+                font-family:'Segoe UI',Arial,sans-serif}
+  .btn-download{background:#0071e3;color:#fff;border:none;border-radius:980px;
+                padding:9px 22px;font-size:15px;font-weight:400;cursor:pointer;
+                font-family:'Segoe UI',Arial,sans-serif;
+                display:flex;align-items:center;gap:7px;
+                transition:background .15s;white-space:nowrap;}
+  .btn-download:hover{background:#0077ed}
+  .btn-close{background:transparent;color:#1d1d1f;border:1px solid rgba(0,0,0,.22);
+              border-radius:980px;padding:9px 18px;font-size:15px;font-weight:400;cursor:pointer;
+              font-family:'Segoe UI',Arial,sans-serif;transition:background .15s;}
+  .btn-close:hover{background:#e8e8ed}
+  .wm-badge{background:#e8e8ed;border:none;
+             color:#707070;border-radius:36px;padding:4px 12px;font-size:11px;
+             font-weight:500;letter-spacing:.02em;
+             font-family:'Segoe UI',Arial,sans-serif;}
+
+  /* ── Page ── */
+  .page-wrap{margin-top:68px;display:flex;justify-content:center;
+             padding:0 0 40px;}
+  .page{
+    width:210mm;min-height:297mm;background:#fff;
+    padding:20mm 25mm 20mm 30mm;
+    border-radius:2px;
+    position:relative;
+  }
+
+  /* ── Document styles ── */
+  .kop-table{width:100%;border-collapse:collapse;margin-bottom:4px}
+  .kop-table td{vertical-align:top;font-size:10pt}
+  .kop-left{width:72px;padding-right:10px}
+  .kop-logo{width:68px;height:68px;object-fit:contain}
+  .kop-right{font-size:9pt;line-height:1.5}
+  .kop-polisi{font-size:11pt;font-weight:bold;text-align:center}
+  .kop-sub{font-size:9pt;text-align:center}
+  .kop-divider{border:none;border-top:3px solid #000;margin:4px 0 8px}
+
+  .doc-title{text-align:center;font-size:11pt;font-weight:bold;
+              text-decoration:underline;margin:10px 0 16px;letter-spacing:.5px}
+
+  .section{margin-bottom:8px}
+  .section-label{font-size:10pt;font-weight:bold;margin-bottom:4px}
+  .keterangan-table{width:100%;border-collapse:collapse;font-size:10pt}
+  .keterangan-table tr td:first-child{width:180px;vertical-align:top;padding:2px 0}
+  .keterangan-table tr td:nth-child(2){width:12px;text-align:center;
+                                        vertical-align:top;padding:2px 4px}
+  .keterangan-table tr td:last-child{vertical-align:top;padding:2px 0}
+
+  .uraian-box{border:1px solid #000;padding:8px 10px;min-height:80px;
+               font-size:10pt;text-align:justify;line-height:1.6;
+               margin-bottom:12px;text-transform:uppercase}
+
+  .foto-placeholder{border:1px dashed #999;min-height:120px;
+                     display:flex;align-items:center;justify-content:center;
+                     color:#888;font-size:10pt;font-style:italic;
+                     margin:8px 0;background:#fafafa}
+
+  /* Tanda tangan */
+  .ttd-section{margin-top:16px}
+  .ttd-row{display:flex;justify-content:space-between;gap:20px}
+  .ttd-block{flex:1;text-align:center;font-size:9.5pt}
+  .ttd-title{font-weight:bold;font-size:9.5pt;margin-bottom:4px}
+  .ttd-space{height:60px}
+  .ttd-name{font-weight:bold;font-size:9.5pt;
+             border-top:1px solid #000;padding-top:3px;
+             display:inline-block;min-width:160px}
+  .ttd-rank{font-size:9pt}
+  .ttd-nrp{font-size:9pt}
+
+  /* ── Anti-screenshot hint ── */
+  .preview-notice{
+    font-family:'Segoe UI',Arial,sans-serif;
+    font-size:11px;color:#888;text-align:center;
+    padding:10px;margin-top:4px;
+  }
+
+  /* Print: sembunyikan toolbar, tapi tetap ada watermark */
+  @media print{
+    .toolbar{display:none}
+    .page-wrap{margin-top:0}
+    body{background:#fff}
+  }
+</style>
+</head>
+<body>
+<!-- Watermark layer -->
+<div class="watermark-layer" id="wm-layer"></div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <div>
+    <div class="toolbar-title">Pratinjau dokumen</div>
+    <div class="toolbar-sub">{{ nama }} — {{ tanggal }}</div>
+  </div>
+  <span class="wm-badge">PRATINJAU</span>
+  <button class="btn-close" onclick="window.parent.closePreview()">Tutup</button>
+  <button class="btn-download" onclick="window.parent.doDownload()">
+    Unduh dokumen
+  </button>
+</div>
+
+<!-- Document page -->
+<div class="page-wrap">
+<div class="page" id="doc-page">
+
+  <!-- KOP SURAT -->
+  <table class="kop-table">
+    <tr>
+      <td class="kop-left">
+        <img class="kop-logo" src="/static/logo.png" alt="AKPOL">
+      </td>
+      <td class="kop-right">
+        <div class="kop-polisi">KEPOLISIAN NEGARA REPUBLIK INDONESIA</div>
+        <div class="kop-sub">LEMBAGA PENDIDIKAN DAN PELATIHAN POLRI</div>
+        <div class="kop-sub">AKADEMI KEPOLISIAN</div>
+        <div class="kop-sub"><strong>{{ kop }}</strong></div>
+      </td>
+    </tr>
+  </table>
+  <hr class="kop-divider">
+
+  <div class="doc-title">{{ header }}</div>
+
+  <!-- KETERANGAN -->
+  <div class="section">
+    <table class="keterangan-table">
+      <tr>
+        <td>No. Akademi</td><td>:</td>
+        <td>{{ no_ak }}</td>
+      </tr>
+      <tr>
+        <td>Nama</td><td>:</td>
+        <td>{{ nama }}</td>
+      </tr>
+      <tr>
+        <td>Pangkat</td><td>:</td>
+        <td>{{ pangkat }}</td>
+      </tr>
+      <tr>
+        <td>Kompi / Peleton</td><td>:</td>
+        <td>KOMPI {{ kompi }} / PLETON {{ peleton }}</td>
+      </tr>
+      <tr>
+        <td>Nama Kegiatan</td><td>:</td>
+        <td>{{ nama_kegiatan }}</td>
+      </tr>
+      <tr>
+        <td>Tanggal</td><td>:</td>
+        <td>{{ tanggal }}, {{ waktu }}</td>
+      </tr>
+      <tr>
+        <td>Tempat</td><td>:</td>
+        <td>{{ tempat }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- URAIAN -->
+  <div class="section" style="margin-top:10px">
+    <div class="section-label">URAIAN KEGIATAN</div>
+    <div class="uraian-box">{{ uraian }}</div>
+  </div>
+
+  <!-- DOKUMENTASI -->
+  <div class="section">
+    <div class="section-label">DOKUMENTASI</div>
+    {% if has_foto %}
+    <div class="foto-placeholder">Foto dokumentasi muncul pada dokumen yang diunduh</div>
+    {% else %}
+    <div class="foto-placeholder">Belum ada foto yang diupload</div>
+    {% endif %}
+  </div>
+
+  <!-- TANDA TANGAN -->
+  <div class="ttd-section">
+    <div class="ttd-row">
+
+      <!-- Danton -->
+      <div class="ttd-block">
+        <div class="ttd-title">
+          DANTONTAR {{ peleton }} KOMPI {{ kompi }}<br>
+          {{ tk_suffix }} YANG MEMBUAT LAPORAN
+        </div>
+        <div class="ttd-space"></div>
+        <div>
+          <div class="ttd-name">{{ nama_danton }}</div><br>
+          <div class="ttd-rank">{{ pangkat_abbr }} NRP {{ no_ak }}</div>
+          <div class="ttd-rank">{{ nama }}</div>
+        </div>
+      </div>
+
+      <!-- Danki -->
+      <div class="ttd-block">
+        <div class="ttd-title">
+          DANKITAR {{ kompi }}<br>
+          {{ tk_suffix }}
+        </div>
+        <div class="ttd-space"></div>
+        <div>
+          <div class="ttd-name">{{ nama_danki }}</div><br>
+          <div class="ttd-rank">{{ pangkat_danki }} NRP {{ nrp_danki }}</div>
+          <div class="ttd-rank">{{ pangkat_danton }} NRP {{ nrp_danton }}</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- .page -->
+</div><!-- .page-wrap -->
+
+<div class="preview-notice">
+  Pratinjau. Unduh dokumen untuk mendapatkan file resmi lengkap dengan foto.
+</div>
+
+<script>
+// ── Generate watermark teks diagonal ────────────────────────────────────────
+(function() {
+  const layer = document.getElementById('wm-layer');
+  const text  = 'LHPAKPOL.CO';
+  const cols  = 5, rows = 12;
+  const vw = Math.max(window.innerWidth, 1200);
+  const vh = Math.max(document.body.scrollHeight, 1600);
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const el = document.createElement('div');
+      el.className = 'wm-text';
+      el.textContent = text;
+      el.style.left = (c * (vw / cols) - 40) + 'px';
+      el.style.top  = (r * (vh / rows) - 20) + 'px';
+      layer.appendChild(el);
+    }
+  }
+})();
+
+// ── Anti-screenshot / anti-inspect measures ──────────────────────────────────
+// Disable klik kanan
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// Disable common screenshot shortcuts
+document.addEventListener('keydown', e => {
+  // PrintScreen, Cmd+Shift+3/4/5 (Mac), Cmd+P (print)
+  if (e.key === 'PrintScreen' ||
+      (e.metaKey && e.shiftKey && ['3','4','5','s'].includes(e.key)) ||
+      (e.metaKey && e.key === 'p') ||
+      (e.ctrlKey && e.key === 'p')) {
+    e.preventDefault();
+    return false;
+  }
+  // Disable devtools
+  if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+    e.preventDefault();
+  }
+});
+
+// Disable drag & select
+document.addEventListener('dragstart', e => e.preventDefault());
+document.addEventListener('selectstart', e => e.preventDefault());
+
+// Visibility change — blur overlay saat tab tidak aktif
+document.addEventListener('visibilitychange', () => {
+  document.getElementById('doc-page').style.filter =
+    document.hidden ? 'blur(8px)' : 'none';
+});
+</script>
+</body>
+</html>

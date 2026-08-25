@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buat akun — LHP AKPOL</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/static/logo.png">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--ink:#1d1d1f;--deep-gray:#474747;--mid-gray:#707070;--hairline:#d6d6d6;
+        --cool-wash:#e8e8ed;--canvas:#f5f5f7;--paper:#fff;
+        --blue:#0071e3;--blue-hover:#0077ed;--ember:#b64400;--green:#1d7f4c;
+        --font-display:'SF Pro Display',-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;
+        --font-text:'SF Pro Text',-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif}
+  html{-webkit-font-smoothing:antialiased}
+  body{font-family:var(--font-text);background:var(--canvas);color:var(--ink);
+       font-size:17px;line-height:1.47;letter-spacing:-.022em;min-height:100vh;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px}
+  .mark{display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:32px}
+  .mark img{width:48px;height:48px;object-fit:contain}
+  .mark h1{font-family:var(--font-display);font-size:32px;font-weight:600;
+           letter-spacing:.005em;text-align:center}
+  .mark p{font-size:17px;color:var(--mid-gray);text-align:center}
+  .card{background:var(--paper);border-radius:28px;padding:40px 36px;width:100%;max-width:440px}
+  .verified{display:flex;align-items:center;gap:12px;background:var(--canvas);
+            border-radius:12px;padding:14px 16px;margin-bottom:16px;font-size:14px}
+  .verified img{width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0}
+  .verified .v-label{color:var(--mid-gray);display:block;font-size:12px}
+  .verified .v-mail{color:var(--ink);font-weight:500;word-break:break-all}
+  .gift{background:var(--canvas);border-radius:12px;padding:14px 16px;
+        font-size:14px;color:var(--deep-gray);margin-bottom:26px;text-align:center}
+  .gift b{color:var(--ink);font-weight:600}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-size:14px;color:var(--mid-gray);margin-bottom:7px}
+  .field input{width:100%;border:1px solid var(--hairline);border-radius:12px;
+               padding:13px 15px;font-family:var(--font-text);font-size:17px;
+               letter-spacing:-.022em;color:var(--ink);transition:border-color .18s,box-shadow .18s}
+  .field input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,113,227,.12)}
+  .hint{font-size:12px;color:var(--mid-gray);margin-top:6px}
+  #username-status{font-size:12px;margin-top:5px;min-height:16px}
+  .bar{height:3px;border-radius:2px;background:var(--cool-wash);margin-top:8px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:2px;width:0;transition:width .3s,background .3s}
+  #strength-label{font-size:12px;margin-top:5px;min-height:16px}
+  .btn{width:100%;background:var(--blue);color:#fff;border:none;border-radius:980px;
+       padding:13px;font-family:var(--font-text);font-size:17px;letter-spacing:-.022em;
+       cursor:pointer;margin-top:8px;transition:background .2s}
+  .btn:hover{background:var(--blue-hover)}
+  .btn:disabled{background:var(--cool-wash);color:var(--mid-gray);cursor:not-allowed}
+  #err{font-size:14px;color:var(--ember);text-align:center;margin-top:14px;min-height:20px}
+  .back{display:block;text-align:center;margin-top:22px;font-size:12px;
+        color:var(--mid-gray);text-decoration:none}
+  .back:hover{color:var(--ink)}
+  :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="mark">
+  <img src="/static/logo.png" alt="">
+  <h1>Buat akun</h1>
+  <p>Satu langkah lagi sebelum mulai</p>
+</div>
+<div class="card">
+  <div class="verified">
+    {% if google_picture %}<img src="{{ google_picture }}" alt="" onerror="this.style.display='none'">{% endif %}
+    <div>
+      <span class="v-label">Terverifikasi lewat Google</span>
+      <span class="v-mail">{{ google_email }}</span>
+    </div>
+  </div>
+
+  <div class="gift">Akun baru langsung mendapat <b>1 token gratis</b></div>
+
+  <div class="field">
+    <label for="name">Nama lengkap</label>
+    <input type="text" id="name" value="{{ suggested_name }}" autocomplete="name" placeholder="Nama lengkap kamu">
+  </div>
+  <div class="field">
+    <label for="username">Username</label>
+    <input type="text" id="username" autocomplete="username" placeholder="pilih username"
+           oninput="checkUsername(this.value)">
+    <div class="hint">Huruf kecil, angka, titik, atau garis bawah. 3–30 karakter.</div>
+    <div id="username-status"></div>
+  </div>
+  <div class="field">
+    <label for="password">Password</label>
+    <input type="password" id="password" autocomplete="new-password" placeholder="Minimal 6 karakter"
+           oninput="checkStrength(this.value)">
+    <div class="bar"><div class="bar-fill" id="strength-fill"></div></div>
+    <div id="strength-label"></div>
+  </div>
+  <div class="field">
+    <label for="password2">Ulangi password</label>
+    <input type="password" id="password2" autocomplete="new-password" placeholder="Ketik ulang password">
+  </div>
+
+  <button class="btn" id="btn-daftar" onclick="doDaftar()">Buat akun</button>
+  <div id="err"></div>
+  <a href="/login" class="back">Kembali ke halaman masuk</a>
+</div>
+<script>
+let usernameTimer=null;
+function checkUsername(val){
+  const el=document.getElementById('username-status');
+  if(!val){el.textContent='';return;}
+  if(!/^[a-z0-9._-]{3,30}$/.test(val.toLowerCase())){
+    el.style.color='#b64400';el.textContent='Format username belum sesuai.';return;
+  }
+  el.style.color='#707070';el.textContent='Memeriksa';
+  clearTimeout(usernameTimer);
+  usernameTimer=setTimeout(async()=>{
+    try{
+      const j=await(await fetch('/api/check-username?u='+encodeURIComponent(val.toLowerCase()))).json();
+      if(j.available){el.style.color='#1d7f4c';el.textContent='Username tersedia.';}
+      else{el.style.color='#b64400';el.textContent='Username sudah dipakai.';}
+    }catch{el.textContent='';}
+  },500);
+}
+function checkStrength(val){
+  const fill=document.getElementById('strength-fill'),label=document.getElementById('strength-label');
+  let score=0;
+  if(val.length>=6)score++;
+  if(val.length>=10)score++;
+  if(/[A-Z]/.test(val)||/[0-9]/.test(val))score++;
+  if(/[^a-zA-Z0-9]/.test(val))score++;
+  const lv=[{w:'0%',c:'#d6d6d6',t:''},{w:'33%',c:'#b64400',t:'Lemah'},
+            {w:'60%',c:'#b8860b',t:'Cukup'},{w:'80%',c:'#1d7f4c',t:'Kuat'},
+            {w:'100%',c:'#1d7f4c',t:'Sangat kuat'}][Math.min(score,4)];
+  fill.style.width=lv.w;fill.style.background=lv.c;
+  label.textContent=lv.t;label.style.color=lv.c;
+}
+async function doDaftar(){
+  const name=document.getElementById('name').value.trim();
+  const username=document.getElementById('username').value.trim().toLowerCase();
+  const password=document.getElementById('password').value;
+  const password2=document.getElementById('password2').value;
+  const err=document.getElementById('err'),btn=document.getElementById('btn-daftar');
+  err.textContent='';
+  if(!name||!username||!password||!password2){err.textContent='Semua kolom harus diisi.';return;}
+  if(password!==password2){err.textContent='Password tidak sama.';return;}
+  if(password.length<6){err.textContent='Password minimal 6 karakter.';return;}
+  if(!/^[a-z0-9._-]{3,30}$/.test(username)){err.textContent='Format username belum sesuai.';return;}
+  btn.disabled=true;btn.textContent='Membuat akun';
+  try{
+    const res=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,username,password})});
+    const j=await res.json();
+    if(j.ok){window.location.href=j.redirect||'/';return;}
+    err.textContent=j.error||'Akun gagal dibuat.';
+  }catch(e){err.textContent='Tidak bisa terhubung. Coba lagi.';}
+  btn.disabled=false;btn.textContent='Buat akun';
+}
+document.addEventListener('keydown',e=>{if(e.key==='Enter')doDaftar();});
+</script>
+</body>
+</html>

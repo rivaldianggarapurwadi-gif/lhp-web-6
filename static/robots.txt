@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /login
+Allow: /register
+Disallow: /admin
+Disallow: /api/
+Disallow: /auth/
+
+Sitemap: https://lhp-web-6-production.up.railway.app/sitemap.xml
