@@ -86,6 +86,7 @@
 
   /* ── Feature cards ── */
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
   .card{background:var(--paper);border-radius:var(--r-card);padding:40px 36px}
   .band-white .card{background:var(--canvas)}
   .card-kicker{font-size:14px;font-weight:500;color:var(--ember);
@@ -146,10 +147,24 @@
   footer a{color:var(--link);text-decoration:none}
   footer a:hover{text-decoration:underline}
 
+  /* ── Pricing ── */
+  .pkg-card{position:relative;background:var(--paper);border:1px solid var(--hairline);
+            border-radius:var(--r-card);padding:32px 28px;text-align:center}
+  .pkg-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);
+             background:var(--ember);color:#fff;font-size:12px;font-weight:600;
+             padding:4px 14px;border-radius:var(--r-pill);white-space:nowrap}
+  .pkg-name{font-family:var(--font-display);font-size:20px;font-weight:600;
+            letter-spacing:-.01em;margin-bottom:6px}
+  .pkg-price{font-family:var(--font-display);font-size:34px;font-weight:600;
+             letter-spacing:-.02em;margin-bottom:4px}
+  .pkg-unit{font-size:13px;color:var(--mid-gray);margin-bottom:18px}
+  .pkg-desc{font-size:15px;color:var(--deep-gray);line-height:1.4}
+
   @media(max-width:760px){
     .hero{padding:64px 20px 56px}
     .band{padding:68px 20px}
     .grid-2{grid-template-columns:1fr}
+    .grid-3{grid-template-columns:1fr}
     .card{padding:32px 26px}
     .nav-links{gap:16px}
   }
@@ -166,6 +181,7 @@
     </a>
     <div class="nav-links">
       <a href="#cara">Cara kerja</a>
+      <a href="#harga">Harga</a>
       <a href="#masuk">Masuk</a>
     </div>
   </div>
@@ -236,6 +252,36 @@
   </div>
 </section>
 
+<!-- ══ Harga ══ -->
+<section class="band band-white" id="harga">
+  <div class="band-inner">
+    <h2 class="band-head">Produk &amp; harga.</h2>
+    <p class="band-lede">LHP Kegiatan Positif menjual <b>token</b> — satu token menerbitkan satu dokumen LHP dalam format Word resmi AKPOL. Akun baru dapat 1 token gratis, lalu 1 token gratis lagi setiap minggu. Butuh lebih cepat? Beli langsung di bawah ini, dibayar via Duitku (QRIS, e-wallet, transfer bank).</p>
+
+    <div class="grid-3">
+      <div class="pkg-card">
+        <p class="pkg-name">1 Token</p>
+        <p class="pkg-price">Rp5.000</p>
+        <p class="pkg-unit">Rp5.000 / dokumen</p>
+        <p class="pkg-desc">Untuk sesekali butuh satu dokumen LHP dengan cepat.</p>
+      </div>
+      <div class="pkg-card">
+        <p class="pkg-name">5 Token</p>
+        <p class="pkg-price">Rp25.000</p>
+        <p class="pkg-unit">Rp5.000 / dokumen</p>
+        <p class="pkg-desc">Stok untuk pemakaian rutin sebulan, tanpa perlu isi ulang tiap minggu.</p>
+      </div>
+      <div class="pkg-card">
+        <span class="pkg-badge">Paling hemat</span>
+        <p class="pkg-name">10 Token</p>
+        <p class="pkg-price">Rp40.000</p>
+        <p class="pkg-unit">Rp4.000 / dokumen</p>
+        <p class="pkg-desc">Harga per dokumen paling murah — cocok untuk satu peleton/kompi.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ══ Masuk ══ -->
 <section class="band band-gray" id="masuk">
   <div class="auth">
@@ -285,7 +331,11 @@
   <div class="foot-inner">
     <div class="foot-rule"></div>
     <p>Akademi Kepolisian · Batalyon Manggala Satya · Form LHP Kegiatan Positif</p>
-    <p style="margin-top:6px">Butuh bantuan? <a href="https://wa.me/6282117108415" target="_blank" rel="noopener">Hubungi admin</a></p>
+    <p style="margin-top:14px">
+      Email: <a href="mailto:rivaldi.anggara.purwadi@gmail.com">rivaldi.anggara.purwadi@gmail.com</a><br>
+      Telepon/WhatsApp: <a href="https://wa.me/6282117108415" target="_blank" rel="noopener">0821-1710-8415</a><br>
+      Alamat: Bumi Parahyangan Kencana Blok L 26 No 04
+    </p>
   </div>
 </footer>
 
