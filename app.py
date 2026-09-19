@@ -722,6 +722,57 @@ def _downscale_image(path, max_edge=1280, quality=82):
     except Exception:
         return path
 
+def _timestamp_font(size):
+    from PIL import ImageFont
+    for path in (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+    ):
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
+
+def _stamp_timestamp(image_path, tanggal, waktu, tempat):
+    """
+    Overlay a camera-style timestamp onto a photo that doesn't have one
+    burned in, using the Tanggal/Waktu/Tempat Kegiatan the user already
+    typed into the form -- not OCR'd from the image itself.
+    """
+    from PIL import Image, ImageDraw, ImageOps
+    with Image.open(image_path) as im:
+        im = ImageOps.exif_transpose(im)
+        if im.mode != 'RGB':
+            im = im.convert('RGB')
+        w, h = im.size
+        font_size = max(16, int(h * 0.032))
+        font = _timestamp_font(font_size)
+        lines = [f"{tanggal}  {waktu}"]
+        if tempat:
+            lines.append(tempat.upper())
+
+        draw = ImageDraw.Draw(im, 'RGBA')
+        line_h = int(font_size * 1.35)
+        pad = int(font_size * 0.5)
+        text_w = max(draw.textlength(line, font=font) for line in lines)
+        box_w = int(text_w + pad * 2)
+        box_h = line_h * len(lines) + pad
+        x0, y0 = pad, h - box_h - pad
+        draw.rectangle([x0, y0, x0 + box_w, y0 + box_h], fill=(0, 0, 0, 140))
+        ty = y0 + pad // 2
+        for line in lines:
+            draw.text((x0 + pad, ty), line, font=font, fill=(255, 205, 40, 255))
+            ty += line_h
+
+        out = image_path + '.stamped.jpg'
+        im.save(out, 'JPEG', quality=92)
+        return out
+
 def _insert_images(doc, placeholder, image_paths):
     from docx.shared import Inches
     from lxml import etree
@@ -1510,8 +1561,17 @@ def api_generate():
             ext = os.path.splitext(secure_filename(file.filename))[1] or '.jpg'
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, dir=UPLOAD_FOLDER)
             file.save(tmp.name); tmp.close()
-            image_paths.append(tmp.name)
-            image_tmpfiles.append(tmp.name)
+            path = tmp.name
+            image_tmpfiles.append(path)
+            if request.form.get(f'foto_{i}_stamp') == '1':
+                try:
+                    stamped = _stamp_timestamp(path, data['Tanggal Kegiatan'],
+                                                data['Waktu Kegiatan'], data['Tempat Kegiatan'])
+                    image_tmpfiles.append(stamped)
+                    path = stamped
+                except Exception:
+                    app.logger.error("stamp timestamp failed:\n%s", traceback.format_exc())
+            image_paths.append(path)
 
     out_tmp  = tempfile.NamedTemporaryFile(delete=False, suffix='.docx', dir=UPLOAD_FOLDER)
     out_path = out_tmp.name; out_tmp.close()
