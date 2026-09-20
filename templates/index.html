@@ -221,6 +221,12 @@
   #status{font-size:17px;margin-top:18px;min-height:24px;letter-spacing:-.01em}
   #status.ok{color:var(--green)}
   #status.err{color:var(--ember)}
+  .btn-manual-download{display:inline-flex;align-items:center;gap:8px;
+                        background:var(--canvas);color:var(--ink);
+                        border:1px solid var(--hairline);border-radius:var(--r-pill);
+                        padding:11px 22px;font-size:15px;font-family:var(--font-text);
+                        text-decoration:none;letter-spacing:-.01em;margin-top:12px}
+  .btn-manual-download:hover{background:var(--cool-wash)}
   .status.ok{color:var(--green)}
   .status.err{color:var(--ember)}
 
@@ -571,6 +577,7 @@
       </div>
 
       <div id="status"></div>
+      <div id="manual-download" style="display:none"></div>
     </div>
   </div>
 
@@ -728,6 +735,7 @@ function clearImage(idx) {
 function resetForm() {
   document.getElementById('lhp-form').reset();
   for (let i = 1; i <= 4; i++) clearImage(i);
+  clearManualDownload();
   ['f-nama-danton','f-pangkat-danton','f-nrp-danton',
    'f-nama-danki','f-pangkat-danki','f-nrp-danki'].forEach(id => {
     document.getElementById(id).value = '';
@@ -741,10 +749,30 @@ function resetForm() {
 }
 </script>
 <script>
+let _lastDownloadUrl = null;
+
+function clearManualDownload() {
+  const box = document.getElementById('manual-download');
+  box.style.display = 'none';
+  box.innerHTML = '';
+  if (_lastDownloadUrl) { URL.revokeObjectURL(_lastDownloadUrl); _lastDownloadUrl = null; }
+}
+
+function showManualDownload(url, name) {
+  const box = document.getElementById('manual-download');
+  box.innerHTML = '';
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.className = 'btn-manual-download';
+  a.textContent = 'Tidak muncul di folder unduhan? Klik di sini';
+  box.appendChild(a);
+  box.style.display = 'block';
+}
+
 document.getElementById('lhp-form').addEventListener('submit', async e => {
   e.preventDefault();
   const btn=document.getElementById('btn-submit'), spinner=document.getElementById('spinner'), status=document.getElementById('status');
   btn.disabled=true; spinner.classList.add('show'); status.textContent=''; status.className='';
+  clearManualDownload();
   try {
     const res = await fetch('/api/generate', {method:'POST', body: new FormData(e.target)});
     if (res.status===401) { window.location.href='/login'; return; }
@@ -758,8 +786,10 @@ document.getElementById('lhp-form').addEventListener('submit', async e => {
     }
     const blob=await res.blob();
     const name=(res.headers.get('Content-Disposition')||'').match(/filename="?([^"]+)"?/)?.[1]||'LHP.docx';
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+    _lastDownloadUrl = URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=_lastDownloadUrl; a.download=name; a.click();
     status.textContent='Dokumen selesai — cek folder unduhan.'; status.className='ok';
+    showManualDownload(_lastDownloadUrl, name);
     const tb=await (await fetch('/api/token-balance')).json();
     document.getElementById('token-count').textContent=tb.tokens;
     const t2=document.getElementById('token-count2'); if(t2)t2.textContent=tb.tokens;
@@ -1058,76 +1088,9 @@ function getField(name) {
   return el ? el.value.trim() : '';
 }
 
-function buildPreviewHTML(data, fotoUrls) {
+function buildPreviewShell(contentHtml, nama, tanggal) {
+  // Watermark positions -- presentational only, no business data here.
   const WM = 'LHPAKPOL.CO';
-  const TINGKAT_CFG = {
-    '1': {kop:'BATALYON TARUNA TK I/61/X',   header:'LAPORAN KEGIATAN TARUNA TK. I/61/X',
-          suffix:'TK I/61/X',   angkatan:'ANGKATAN KE-61, BATALYON X'},
-    '2': {kop:'BATALYON TARUNA TK II/60/MS',  header:'LAPORAN KEGIATAN TARUNA TK. II/60/MS',
-          suffix:'TK II/60/MS',  angkatan:'ANGKATAN KE-60, BATALYON MANGGALA SATYA'},
-    '3': {kop:'BATALYON TARUNA TK III/59/BD', header:'LAPORAN KEGIATAN TARUNA TK. III/59/BD',
-          suffix:'TK III/59/BD', angkatan:'ANGKATAN KE-59, BATALYON BHAYANGKARA DHARMA'},
-  };
-  // Mirror parse_tanggal() / parse_waktu() di app.py supaya pratinjau sama persis
-  const MONTHS_ID=['','JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI',
-                   'JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
-  const MONTHS_SHORT={jan:1,feb:2,mar:3,apr:4,mei:5,jun:6,jul:7,agu:8,sep:9,okt:10,nov:11,des:12};
-  const HARI_ID=['SENIN','SELASA','RABU','KAMIS','JUMAT',"JUM'AT",'SABTU','MINGGU','AHAD'];
-  function parseTanggal(str){
-    const raw=(str||'').trim();
-    const parts=raw.split(',');
-    let hari='', datePart=raw;
-    if(parts.length>1){
-      hari=parts[0].trim().toUpperCase();
-      datePart=parts.slice(1).join(',').trim();
-    } else {
-      // Terima juga 'SENIN 23 AGUSTUS 2026' tanpa koma
-      const t0=raw.split(/\s+/);
-      if(t0.length && HARI_ID.includes(t0[0].replace(/[.,]/g,'').toUpperCase())){
-        hari=t0[0].replace(/[.,]/g,'').toUpperCase();
-        datePart=t0.slice(1).join(' ');
-      }
-    }
-    const tk=datePart.split(/\s+/);
-    const tgl=tk[0]||'';
-    const bulanRaw=(tk[1]||'').toLowerCase().replace(/\.$/,'');
-    const tahun=tk[2]||'';
-    const idx=MONTHS_SHORT[bulanRaw.slice(0,3)]||0;
-    return {hari, tgl, bulan: idx?MONTHS_ID[idx]:bulanRaw.toUpperCase(), tahun};
-  }
-  function parseWaktu(str){
-    return (str||'').trim().replace(/\s*(WIB|WITA|WIT)\s*$/i,'').replace(/:/g,'.').trim();
-  }
-  const KOMPI_III = {1:'A',2:'B',3:'C',4:'D',5:'E'};
-  const ROMAN = ['','I','II','III','IV','V','VI','VII','VIII','IX','X'];
-  const PANGKAT_ABBR = {
-    'BHAYANGKARA TARUNA':'BHATAR','AJUN BRIGADIR TARUNA':'ABRIGTAR',
-    'BRIGADIR TARUNA':'BRIGTAR','BRIGADIR KEPALA TARUNA':'BRIGKATAR'
-  };
-
-  const tk   = data.tingkat || '2';
-  const cfg  = TINGKAT_CFG[tk] || TINGKAT_CFG['2'];
-  const kompi_int = parseInt(data.kompi) || 1;
-  const kompiLabel = tk === '3' ? (KOMPI_III[kompi_int] || 'A') : (ROMAN[kompi_int] || 'I');
-  // Override sementara: Danki Kompi I TK II → tampilkan sebagai DANKITAR IV
-  const dankiLabel = (tk === '2' && kompi_int === 1) ? 'II' : kompiLabel;
-  const abbr = PANGKAT_ABBR[data.pangkat] || data.pangkat;
-
-  const _t = parseTanggal(data.tanggal);
-  const _w = parseWaktu(data.waktu);
-  const uraianText =
-    `--------PADA HARI ${_t.hari} TANGGAL ${_t.tgl} BULAN ${_t.bulan} TAHUN ${_t.tahun} ` +
-    `PUKUL ${_w} WIB, SAYA ${data.nama} TARUNA AKPOL, PANGKAT ${data.pangkat}, ` +
-    `NO AKADEMI ${data.noAk}, ${cfg.angkatan}, ` +
-    `TELAH MELAKSANAKAN KEGIATAN POSITIF BERUPA ${data.namaKegiatan.toUpperCase()}.-`;
-
-  // Buat thumbnail foto (dari object URL, max 3)
-  const fotoHTML = fotoUrls.length > 0
-    ? fotoUrls.map(u => `<img src="${u}" style="width:${Math.floor(160/fotoUrls.length)}px;
-        height:120px;object-fit:cover;margin:2px;border:1px solid #ccc;">`).join('')
-    : '<div style="color:#aaa;font-style:italic;padding:16px">— Tidak ada foto —</div>';
-
-  // Watermark positions
   let wmItems = '';
   for (let r = 0; r < 10; r++) {
     for (let c = 0; c < 5; c++) {
@@ -1166,98 +1129,21 @@ body{font-family:'Times New Roman',Times,serif;background:#f5f5f7;
 .page{width:210mm;min-height:297mm;background:#fff;padding:20mm 25mm 20mm 30mm;
   border-radius:2px;position:relative;overflow:hidden}
 .wm-layer{position:absolute;inset:0;pointer-events:none;z-index:9999;overflow:hidden}
-hr.kop{border:none;border-top:3px solid #000;margin:4px 0 8px}
-.doc-title{text-align:center;font-size:11pt;font-weight:bold;text-decoration:underline;
-  margin:10px 0 16px;letter-spacing:.5px}
-.kt td{font-size:10pt;padding:2px 0;vertical-align:top}
-.kt td:nth-child(2){padding:2px 8px;text-align:center}
-.kt td:first-child{width:175px}
-.uraian{border:1px solid #000;padding:8px 10px;min-height:80px;font-size:10pt;
-  text-align:justify;line-height:1.6;margin:8px 0 14px;text-transform:uppercase}
-.sec-label{font-size:10pt;font-weight:bold;margin-bottom:6px}
-.foto-wrap{border:1px solid #ccc;padding:6px;min-height:100px;
-  display:flex;flex-wrap:wrap;align-items:center;background:#fafafa}
-.ttd-row{display:flex;justify-content:space-between;gap:24px;margin-top:18px}
-.ttd-blk{flex:1;text-align:center;font-size:9.5pt}
-.ttd-know{margin-top:22px;text-align:center;width:48%;font-size:9.5pt}
-.ttd-place{font-size:9.5pt;margin-bottom:2px}
-.ttd-title{font-weight:bold;margin-bottom:4px}
-.ttd-space{height:58px}
-.ttd-name{font-weight:bold;border-top:1px solid #000;padding-top:3px;
-  display:inline-block;min-width:170px}
-.ttd-rank{font-size:9pt}
 .notice{font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;
   font-size:12px;color:#707070;text-align:center;padding:14px;letter-spacing:-.01em}
 </style></head><body>
 <div class="toolbar">
-  <div><div class="t-title">Pratinjau — ${data.nama}</div>
-       <div class="t-sub">${data.tanggal}</div></div>
+  <div><div class="t-title">Pratinjau — ${nama}</div>
+       <div class="t-sub">${tanggal}</div></div>
   <span class="wm-badge">PRATINJAU</span>
   <button class="btn-cl" onclick="window.parent.closePreview()">Tutup</button>
   <button class="btn-dl" onclick="window.parent.doDownload()">Unduh dokumen</button>
 </div>
 <div class="page-wrap"><div class="page">
 <div class="wm-layer">${wmItems}</div>
-
-<table style="width:100%;border-collapse:collapse;margin-bottom:4px">
-<tr>
-  <td style="width:72px;padding-right:10px;vertical-align:top">
-    <img src="/static/logo.png" style="width:68px;height:68px;object-fit:contain">
-  </td>
-  <td style="font-size:9pt;line-height:1.5;vertical-align:top">
-    <div style="font-size:11pt;font-weight:bold;text-align:center">KEPOLISIAN NEGARA REPUBLIK INDONESIA</div>
-    <div style="text-align:center">LEMBAGA PENDIDIKAN DAN PELATIHAN POLRI</div>
-    <div style="text-align:center">AKADEMI KEPOLISIAN</div>
-    <div style="text-align:center"><strong>${cfg.kop}</strong></div>
-  </td>
-</tr></table>
-<hr class="kop">
-<div class="doc-title">${cfg.header}</div>
-
-<table class="kt" style="width:100%;border-collapse:collapse">
-<tr><td>No. Akademi</td><td>:</td><td>${data.noAk}</td></tr>
-<tr><td>Nama</td><td>:</td><td>${data.nama}</td></tr>
-<tr><td>Pangkat</td><td>:</td><td>${data.pangkat}</td></tr>
-<tr><td>Kompi / Peleton</td><td>:</td><td>KOMPI ${kompiLabel} / PLETON ${data.peleton}</td></tr>
-<tr><td>Nama Kegiatan</td><td>:</td><td>${data.namaKegiatan}</td></tr>
-<tr><td>Tanggal &amp; Waktu</td><td>:</td><td>${data.tanggal}, ${data.waktu}</td></tr>
-<tr><td>Tempat</td><td>:</td><td>${data.tempat}</td></tr>
-</table>
-
-<div style="margin-top:12px">
-  <div class="sec-label">URAIAN KEGIATAN</div>
-  <div class="uraian">${uraianText}</div>
-</div>
-
-<div class="sec-label">DOKUMENTASI</div>
-<div class="foto-wrap">${fotoHTML}</div>
-
-<div class="ttd-row">
-  <div class="ttd-blk">
-    <div class="ttd-place">&nbsp;</div>
-    <div class="ttd-title">DANTONTAR ${data.peleton} KOMPI ${kompiLabel} ${cfg.suffix}</div>
-    <div class="ttd-space"></div>
-    <div class="ttd-name">${data.namaDanton}</div>
-    <div class="ttd-rank">${data.pangkatDanton} NRP ${data.nrpDanton}</div>
-  </div>
-  <div class="ttd-blk">
-    <div class="ttd-place">Semarang, ${data.tanggal}</div>
-    <div class="ttd-title">YANG MEMBUAT LAPORAN</div>
-    <div class="ttd-space"></div>
-    <div class="ttd-name">${data.nama}</div>
-    <div class="ttd-rank">${abbr} NO. AK ${data.noAk}</div>
-  </div>
-</div>
-
-<div class="ttd-know">
-  <div class="ttd-place">Mengetahui,</div>
-  <div class="ttd-title">DANKITAR ${dankiLabel} ${cfg.suffix}</div>
-  <div class="ttd-space"></div>
-  <div class="ttd-name">${data.namaDanki}</div>
-  <div class="ttd-rank">${data.pangkatDanki} NRP ${data.nrpDanki}</div>
-</div>
+${contentHtml}
 </div></div>
-<div class="notice">Pratinjau. Watermark tidak muncul pada dokumen yang diunduh.</div>
+<div class="notice">Pratinjau — isi dokumen asli yang akan diunduh (watermark tidak muncul pada file unduhan).</div>
 <script>
 document.addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('keydown',e=>{
@@ -1274,7 +1160,7 @@ document.addEventListener('visibilitychange',()=>{
 <\/script></html>`;
 }
 
-function openPreview() {
+async function openPreview() {
   const form   = document.getElementById('lhp-form');
   const fields = ['Nama','No Ak','Pangkat','Tingkat','Peleton','Kompi',
                   'Nama Danton','Pangkat Danton','NRP Danton',
@@ -1292,50 +1178,38 @@ function openPreview() {
     }
   }
 
-  // Ambil data dari form
-  const data = {
-    nama:         getField('Nama'),
-    noAk:         getField('No Ak'),
-    pangkat:      getField('Pangkat'),
-    tingkat:      getField('Tingkat'),
-    peleton:      getField('Peleton'),
-    kompi:        getField('Kompi'),
-    namaKegiatan: getField('Nama Kegiatan'),
-    tanggal:      getField('Tanggal Kegiatan'),
-    waktu:        getField('Waktu Kegiatan'),
-    tempat:       getField('Tempat Kegiatan'),
-    namaDanton:   getField('Nama Danton'),
-    pangkatDanton:getField('Pangkat Danton'),
-    nrpDanton:    getField('NRP Danton'),
-    namaDanki:    getField('Nama Danki'),
-    pangkatDanki: getField('Pangkat Danki'),
-    nrpDanki:     getField('NRP Danki'),
-  };
-
-  // Ambil preview foto yang sudah diupload (object URL)
-  const fotoUrls = [];
-  for (let i = 1; i <= 4; i++) {
-    const inp = document.getElementById(`foto-input-${i}`);
-    if (inp && inp.files && inp.files[0]) {
-      fotoUrls.push(URL.createObjectURL(inp.files[0]));
-    }
-  }
-
-  // Render langsung — tidak perlu server
-  const modal = document.getElementById('preview-modal');
-  const frame = document.getElementById('preview-frame');
+  const modal   = document.getElementById('preview-modal');
+  const frame   = document.getElementById('preview-frame');
   const loading = document.getElementById('preview-loading');
 
   modal.classList.add('open');
   document.body.style.overflow = 'hidden';
+  loading.classList.remove('hide');
 
-  const html = buildPreviewHTML(data, fotoUrls);
-  const doc  = frame.contentDocument || frame.contentWindow.document;
-  doc.open(); doc.write(html); doc.close();
-  loading.classList.add('hide');
+  const nama    = getField('Nama');
+  const tanggal = getField('Tanggal Kegiatan');
+  const doc = frame.contentDocument || frame.contentWindow.document;
 
-  // Revoke object URLs setelah render
-  setTimeout(() => fotoUrls.forEach(URL.revokeObjectURL), 3000);
+  try {
+    // Render dokumen ASLI di server (fill_template yang sama dengan unduhan),
+    // lalu baca isinya kembali -- bukan duplikasi layout di JS. Tidak memotong token.
+    const res = await fetch('/api/preview', {method:'POST', body: new FormData(form)});
+    if (res.status === 401) { window.location.href = '/login'; return; }
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.ok) {
+      doc.open();
+      doc.write(`<div style="font-family:sans-serif;padding:32px;color:#b64400">${j.error || 'Gagal membuat pratinjau. Coba lagi.'}</div>`);
+      doc.close();
+      return;
+    }
+    doc.open(); doc.write(buildPreviewShell(j.html, nama, tanggal)); doc.close();
+  } catch (err) {
+    doc.open();
+    doc.write('<div style="font-family:sans-serif;padding:32px;color:#b64400">Tidak bisa terhubung. Coba lagi.</div>');
+    doc.close();
+  } finally {
+    loading.classList.add('hide');
+  }
 }
 
 function closePreview() {

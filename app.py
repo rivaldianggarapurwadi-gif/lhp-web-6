@@ -722,6 +722,121 @@ def _downscale_image(path, max_edge=1280, quality=82):
     except Exception:
         return path
 
+def _collect_and_stamp_photos(data):
+    """
+    Save uploaded foto_N files to temp paths, applying the timestamp overlay
+    to any marked foto_N_stamp=1. Shared by /api/generate and /api/preview so
+    preview always shows exactly what generate would produce.
+    """
+    import tempfile
+    image_paths, image_tmpfiles = [], []
+    for i in range(1, 5):
+        file = request.files.get(f'foto_{i}')
+        if file and file.filename:
+            ext = os.path.splitext(secure_filename(file.filename))[1] or '.jpg'
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, dir=UPLOAD_FOLDER)
+            file.save(tmp.name); tmp.close()
+            path = tmp.name
+            image_tmpfiles.append(path)
+            if request.form.get(f'foto_{i}_stamp') == '1':
+                try:
+                    stamped = _stamp_timestamp(path, data['Tanggal Kegiatan'],
+                                                data['Waktu Kegiatan'], data['Tempat Kegiatan'])
+                    image_tmpfiles.append(stamped)
+                    path = stamped
+                except Exception:
+                    app.logger.error("stamp timestamp failed:\n%s", traceback.format_exc())
+            image_paths.append(path)
+    return image_paths, image_tmpfiles
+
+def _run_image_bytes(run):
+    """Extract the embedded image (blob, content_type) from a run, if any."""
+    from docx.oxml.ns import qn
+    blips = run._element.findall('.//' + qn('a:blip'))
+    if not blips:
+        return None
+    rId = blips[0].get(qn('r:embed'))
+    if not rId:
+        return None
+    try:
+        part = run.part.related_parts[rId]
+        return part.blob, part.content_type
+    except KeyError:
+        return None
+
+def _docx_to_preview_html(docx_path):
+    """
+    Render an already-generated docx's ACTUAL content as HTML. This reads
+    back exactly what fill_template() wrote (text, formatting, embedded
+    photos) instead of re-implementing the layout rules in JS, so preview
+    can never drift from the real downloaded file (see invariant about
+    buildPreviewHTML in CLAUDE.md -- this replaces that duplication).
+    """
+    import base64
+    from docx import Document
+    from docx.text.paragraph import Paragraph
+    from docx.table import Table
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    doc = Document(docx_path)
+    ALIGN_MAP = {
+        WD_ALIGN_PARAGRAPH.CENTER: 'center',
+        WD_ALIGN_PARAGRAPH.RIGHT: 'right',
+        WD_ALIGN_PARAGRAPH.JUSTIFY: 'justify',
+    }
+
+    def esc(s):
+        return (s or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    def render_run(run):
+        img = _run_image_bytes(run)
+        if img:
+            data, ctype = img
+            b64 = base64.b64encode(data).decode()
+            return (f'<img src="data:{ctype};base64,{b64}" '
+                    f'style="max-width:260px;max-height:200px;object-fit:cover;'
+                    f'margin:3px;border:1px solid #ccc">')
+        text = esc(run.text)
+        if not text:
+            return ''
+        if run.underline: text = f'<u>{text}</u>'
+        if run.italic: text = f'<i>{text}</i>'
+        if run.bold: text = f'<b>{text}</b>'
+        return text
+
+    def render_paragraph(p):
+        align = ALIGN_MAP.get(p.alignment, 'left')
+        inner = ''.join(render_run(r) for r in p.runs)
+        has_img = '<img' in inner
+        if not inner.strip() and not has_img:
+            return '<p style="margin:0;min-height:1em">&nbsp;</p>'
+        display = 'block' if has_img else 'inline'
+        return (f'<p style="text-align:{align};margin:0 0 4px;line-height:1.5">'
+                f'<span style="display:{display}">{inner}</span></p>')
+
+    def render_table(tbl):
+        rows_html = []
+        for row in tbl.rows:
+            cells_html = []
+            for cell in row.cells:
+                cell_inner = ''.join(render_paragraph(p) for p in cell.paragraphs)
+                cells_html.append(
+                    '<td style="padding:2px 6px;vertical-align:top">' + cell_inner + '</td>')
+            rows_html.append('<tr>' + ''.join(cells_html) + '</tr>')
+        return ('<table style="border-collapse:collapse;width:100%;margin:4px 0">'
+                + ''.join(rows_html) + '</table>')
+
+    parts = []
+    for child in doc.element.body.iterchildren():
+        tag = child.tag.split('}')[-1]
+        if tag == 'p':
+            parts.append(render_paragraph(Paragraph(child, doc)))
+        elif tag == 'tbl':
+            parts.append(render_table(Table(child, doc)))
+
+    return ('<div style="font-family:\'Times New Roman\',Times,serif;'
+            'font-size:10pt;color:#000">' + ''.join(parts) + '</div>')
+
 def _timestamp_font(size):
     from PIL import ImageFont
     for path in (
@@ -1560,24 +1675,7 @@ def api_generate():
     if data['Tingkat'] not in ('1', '2', '3'):
         return jsonify({'error': 'Tingkat tidak valid'}), 400
 
-    image_paths, image_tmpfiles = [], []
-    for i in range(1, 5):
-        file = request.files.get(f'foto_{i}')
-        if file and file.filename:
-            ext = os.path.splitext(secure_filename(file.filename))[1] or '.jpg'
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, dir=UPLOAD_FOLDER)
-            file.save(tmp.name); tmp.close()
-            path = tmp.name
-            image_tmpfiles.append(path)
-            if request.form.get(f'foto_{i}_stamp') == '1':
-                try:
-                    stamped = _stamp_timestamp(path, data['Tanggal Kegiatan'],
-                                                data['Waktu Kegiatan'], data['Tempat Kegiatan'])
-                    image_tmpfiles.append(stamped)
-                    path = stamped
-                except Exception:
-                    app.logger.error("stamp timestamp failed:\n%s", traceback.format_exc())
-            image_paths.append(path)
+    image_paths, image_tmpfiles = _collect_and_stamp_photos(data)
 
     out_tmp  = tempfile.NamedTemporaryFile(delete=False, suffix='.docx', dir=UPLOAD_FOLDER)
     out_path = out_tmp.name; out_tmp.close()
@@ -1618,7 +1716,13 @@ if __name__ == '__main__':
 @app.route('/api/preview', methods=['POST'])
 @login_required
 def api_preview():
-    """Generate HTML preview dari data form. Tidak memotong token."""
+    """
+    Render the ACTUAL document as HTML. Runs the exact same fill_template()
+    used by /api/generate and reads the resulting docx back
+    (_docx_to_preview_html) instead of re-implementing the layout in JS, so
+    preview can never drift from the real downloaded file. Costs no token.
+    """
+    import tempfile
     fields = ['Nama','No Ak','Pangkat','Tingkat','Peleton','Kompi',
               'Nama Danton','Pangkat Danton','NRP Danton',
               'Nama Danki','Pangkat Danki','NRP Danki',
@@ -1632,51 +1736,20 @@ def api_preview():
     if data['Tingkat'] not in ('1','2','3'):
         return jsonify({'error': 'Tingkat tidak valid'}), 400
 
-    user = get_user(session['uid'])
-    user_name = user.get('name', session.get('name', '')) if user else ''
+    image_paths, image_tmpfiles = _collect_and_stamp_photos(data)
 
-    tingkat      = str(data['Tingkat'])
-    tk_cfg       = TINGKAT_CONFIG.get(tingkat, TINGKAT_CONFIG['2'])
-    kompi_label  = _kompi_label(data['Kompi'], tingkat)
-    pangkat      = data['Pangkat'].upper()
-    pangkat_abbr = pangkat_singkat(pangkat)
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.docx', dir=UPLOAD_FOLDER)
+    docx_path = tmp.name; tmp.close()
 
-    hari, tgl_num, bulan_str, tahun_str = parse_tanggal(data['Tanggal Kegiatan'])
-    waktu_clean  = parse_waktu(data['Waktu Kegiatan'])
+    try:
+        fill_template(data, image_paths, docx_path)
+        html = _docx_to_preview_html(docx_path)
+    except Exception:
+        app.logger.error("preview FAILED:\n%s", traceback.format_exc())
+        return jsonify({'error': 'Gagal membuat pratinjau. Coba lagi.'}), 500
+    finally:
+        for p in image_tmpfiles + [docx_path]:
+            try: os.remove(p)
+            except: pass
 
-    uraian = (
-        f"PADA HARI {hari} TANGGAL {tgl_num} BULAN {bulan_str} "
-        f"TAHUN {tahun_str} PUKUL {waktu_clean} WIB, SAYA {data['Nama']} "
-        f"TARUNA AKPOL, PANGKAT {pangkat}, NO AKADEMI {data['No Ak']}, "
-        f"{tk_cfg['angkatan']}, "
-        f"TELAH MELAKSANAKAN KEGIATAN POSITIF BERUPA {data['Nama Kegiatan'].upper()}.-"
-    )
-
-    has_foto = any(request.files.get(f'foto_{i}') and request.files.get(f'foto_{i}').filename
-                   for i in range(1, 5))
-
-    html = render_template('preview.html',
-        kop        = tk_cfg['kop'],
-        header     = tk_cfg['header'],
-        tk_suffix  = tk_cfg['tk_suffix'],
-        nama       = data['Nama'],
-        no_ak      = data['No Ak'],
-        pangkat    = pangkat,
-        pangkat_abbr = pangkat_abbr,
-        peleton    = data['Peleton'],
-        kompi      = kompi_label,
-        nama_kegiatan = data['Nama Kegiatan'],
-        tanggal    = data['Tanggal Kegiatan'],
-        waktu      = data['Waktu Kegiatan'],
-        tempat     = data['Tempat Kegiatan'],
-        uraian     = uraian,
-        nama_danton    = data['Nama Danton'],
-        pangkat_danton = data['Pangkat Danton'],
-        nrp_danton     = data['NRP Danton'],
-        nama_danki     = data['Nama Danki'],
-        pangkat_danki  = data['Pangkat Danki'],
-        nrp_danki      = data['NRP Danki'],
-        has_foto   = has_foto,
-        user_name  = user_name,
-    )
     return jsonify({'ok': True, 'html': html})
