@@ -1540,6 +1540,76 @@ def admin_visitor_stats():
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+def _prepare_timestamp_photo(stream):
+    """Decode the actual upload and send a bounded, correctly labelled JPEG."""
+    import base64
+    import io
+    import warnings
+    from PIL import Image, ImageOps, UnidentifiedImageError
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', Image.DecompressionBombWarning)
+            with Image.open(stream) as original:
+                image = ImageOps.exif_transpose(original)
+                image.thumbnail((1568, 1568), Image.Resampling.LANCZOS)
+                # Flatten transparent screenshots onto white, not black.
+                if image.mode in ('RGBA', 'LA') or 'transparency' in image.info:
+                    rgba = image.convert('RGBA')
+                    image = Image.new('RGB', rgba.size, 'white')
+                    image.paste(rgba, mask=rgba.getchannel('A'))
+                else:
+                    image = image.convert('RGB')
+                for quality in (90, 75, 60):
+                    output = io.BytesIO()
+                    image.save(output, format='JPEG', quality=quality)
+                    encoded = base64.b64encode(output.getvalue()).decode('ascii')
+                    # Conservative base64 budget, below provider image limits.
+                    if len(encoded) <= 4 * 1024 * 1024:
+                        return encoded
+    except (UnidentifiedImageError, OSError, ValueError,
+            Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+        raise ValueError('Foto tidak dapat dibaca atau resolusinya terlalu besar. '
+                         'Coba ekspor ulang sebagai JPG/PNG, lalu upload kembali.') from exc
+    raise ValueError('Foto terlalu besar untuk dipindai. Coba foto berukuran lebih kecil.')
+
+
+def _timestamp_api_error(error):
+    """Keep provider diagnostics in logs and show actionable Indonesian errors."""
+    try:
+        body = json.loads(error.read(16384).decode('utf-8', 'replace'))
+        detail = body.get('error', {}) if isinstance(body, dict) else {}
+        detail = detail if isinstance(detail, dict) else {}
+        message = str(detail.get('message', ''))
+        error_type = str(detail.get('type', 'unknown'))
+    except (ValueError, OSError):
+        message, error_type = '', 'unknown'
+    request_id = error.headers.get('request-id', '') if error.headers else ''
+    safe_message = message.replace(ANTHROPIC_API_KEY, '[redacted]') if ANTHROPIC_API_KEY else message
+    app.logger.error('Timestamp scan: Anthropic HTTP %s type=%s request_id=%s message=%s',
+                     error.code, error_type, request_id, safe_message[:500].replace('\n', ' '))
+    lower = message.lower()
+    if error.code == 402 or any(term in lower for term in
+            ('credit balance', 'insufficient credit', 'spend limit', 'spending limit', 'billing')):
+        return jsonify({'error': 'Layanan scan belum tersedia karena saldo atau batas pemakaian AI. '
+                                 'Hubungi admin; tanggal, waktu, dan tempat tetap bisa diisi manual.',
+                        'code': 'scan_billing_unavailable'}), 503
+    if error.code in (401, 403):
+        return jsonify({'error': 'Konfigurasi akses layanan scan perlu diperiksa admin. '
+                                 'Silakan isi tanggal, waktu, dan tempat secara manual.',
+                        'code': 'scan_access_unavailable'}), 503
+    if error.code in (400, 413) and ('image' in lower or error.code == 413):
+        return jsonify({'error': 'Foto ditolak layanan scan. Coba ekspor ulang sebagai JPG/PNG '
+                                 'atau gunakan foto berukuran lebih kecil.',
+                        'code': 'scan_image_rejected'}), 422
+    if error.code in (429, 500, 502, 503, 504, 529):
+        return jsonify({'error': 'Layanan scan sedang sibuk atau sementara tidak tersedia. Coba lagi nanti.',
+                        'code': 'scan_temporarily_unavailable'}), 503
+    return jsonify({'error': 'Layanan AI menolak permintaan scan. Hubungi admin untuk memeriksa log scan; '
+                             'tanggal, waktu, dan tempat tetap bisa diisi manual.',
+                    'code': 'scan_request_rejected'}), 502
+
+
 @app.route('/api/analyze-photo', methods=['POST'])
 @login_required
 def api_analyze_photo():
@@ -1550,33 +1620,17 @@ def api_analyze_photo():
     if not file or not file.filename:
         return jsonify({'error': 'Tidak ada foto yang dikirim.'}), 400
 
-    import base64, urllib.request, tempfile
+    import urllib.request, urllib.error
     ext = os.path.splitext(secure_filename(file.filename))[1].lower() or '.jpg'
     if ext not in {'.jpg', '.jpeg', '.png', '.heic', '.heif', '.webp'}:
         return jsonify({'error': f'Format tidak didukung ({ext}).'}), 400
 
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext, dir=UPLOAD_FOLDER)
-    file.save(tmp.name); tmp.close()
-    read_path = tmp.name
+    try:
+        img_b64 = _prepare_timestamp_photo(file.stream)
+    except ValueError as e:
+        return jsonify({'error': str(e), 'code': 'invalid_photo'}), 400
 
     try:
-        if ext in ('.heic', '.heif'):
-            try:
-                from PIL import Image
-                with Image.open(tmp.name) as im:
-                    conv = tmp.name + '.jpg'
-                    im.convert('RGB').save(conv, 'JPEG', quality=90)
-                    read_path = conv
-            except Exception:
-                pass
-
-        with open(read_path, 'rb') as f_img:
-            img_b64 = base64.b64encode(f_img.read()).decode()
-
-        media_map = {'.jpg':'image/jpeg','.jpeg':'image/jpeg',
-                     '.png':'image/png','.webp':'image/webp'}
-        media_type = media_map.get(os.path.splitext(read_path)[1].lower(), 'image/jpeg')
-
         prompt = (
             "Analisa foto ini. Cari timestamp, tanggal, waktu, dan lokasi yang TERCETAK di foto.\n\n"
             "Balas HANYA JSON (tanpa markdown):\n"
@@ -1601,7 +1655,7 @@ def api_analyze_photo():
                 "content": [
                     {"type": "image", "source": {
                         "type": "base64",
-                        "media_type": media_type,
+                        "media_type": "image/jpeg",
                         "data": img_b64
                     }},
                     {"type": "text", "text": prompt}
@@ -1626,17 +1680,16 @@ def api_analyze_photo():
         return jsonify({'ok': True, 'result': result})
 
     except urllib.error.HTTPError as e:
-        app.logger.error("Anthropic error %s: %s", e.code, e.read().decode()[:300])
-        return jsonify({'error': f'API error {e.code}. Cek ANTHROPIC_API_KEY.'}), 500
+        return _timestamp_api_error(e)
+    except (urllib.error.URLError, TimeoutError):
+        app.logger.warning('Timestamp scan: layanan AI tidak dapat dihubungi')
+        return jsonify({'error': 'Layanan scan tidak dapat dihubungi. Coba lagi nanti.',
+                        'code': 'scan_temporarily_unavailable'}), 503
     except json.JSONDecodeError:
         return jsonify({'error': 'Gagal memproses respons AI. Coba lagi.'}), 500
     except Exception:
         app.logger.error("analyze-photo:\n%s", traceback.format_exc())
         return jsonify({'error': 'Terjadi kesalahan. Coba lagi.'}), 500
-    finally:
-        for p in [tmp.name, tmp.name + '.jpg']:
-            try: os.remove(p)
-            except: pass
 
 @app.route('/api/lookup')
 @login_required
