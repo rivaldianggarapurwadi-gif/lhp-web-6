@@ -768,8 +768,12 @@ function showManualDownload(url, name) {
   box.style.display = 'block';
 }
 
+let _isSubmitting = false;
+
 document.getElementById('lhp-form').addEventListener('submit', async e => {
   e.preventDefault();
+  if (_isSubmitting) return;   // double-click / Enter-spam / lag-triggered re-fire guard
+  _isSubmitting = true;
   const btn=document.getElementById('btn-submit'), spinner=document.getElementById('spinner'), status=document.getElementById('status');
   btn.disabled=true; spinner.classList.add('show'); status.textContent=''; status.className='';
   clearManualDownload();
@@ -795,7 +799,7 @@ document.getElementById('lhp-form').addEventListener('submit', async e => {
     const t2=document.getElementById('token-count2'); if(t2)t2.textContent=tb.tokens;
   } catch(err) {
     status.textContent='Tidak bisa terhubung. Coba lagi.'; status.className='err';
-  } finally { btn.disabled=false; spinner.classList.remove('show'); }
+  } finally { btn.disabled=false; spinner.classList.remove('show'); _isSubmitting=false; }
 });
 
 // ── Topup Modal ─────────────────────────────────────────────────────────────

@@ -110,6 +110,12 @@ def _unhandled(e):
 # Satu proses + banyak thread (lihat Procfile), jadi cukup lock di dalam proses.
 _STORE_LOCK = threading.RLock()
 
+# Cegah satu akun men-generate dua dokumen sekaligus (double-click, network
+# lag bikin klik ulang, tab ganda) -- tanpa ini keduanya jalan dan token
+# terpotong dua kali untuk satu permintaan yang sama.
+_GENERATING_LOCK = threading.Lock()
+_GENERATING_USERS = set()
+
 def _write_json_atomic(path, data):
     """
     Tulis via file sementara lalu os.replace (atomic).
@@ -1657,6 +1663,19 @@ def api_lookup():
 def api_generate():
     import tempfile
     uid  = session['uid']
+
+    with _GENERATING_LOCK:
+        if uid in _GENERATING_USERS:
+            return jsonify({'error': 'Dokumen sebelumnya masih diproses. Tunggu sebentar, jangan klik berulang.'}), 429
+        _GENERATING_USERS.add(uid)
+    try:
+        return _do_generate(uid)
+    finally:
+        with _GENERATING_LOCK:
+            _GENERATING_USERS.discard(uid)
+
+def _do_generate(uid):
+    import tempfile
     user = get_user(uid)
     if not user or user.get('tokens', 0) < TOKENS_PER_DOC:
         return jsonify({'error': 'Token habis. Topup token untuk melanjutkan.',
