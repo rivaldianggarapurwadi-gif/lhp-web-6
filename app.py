@@ -1234,6 +1234,7 @@ def topup_create():
     if err:
         return jsonify({'error': err}), 400
 
+    import urllib.error
     try:
         user_email = (user.get('email') or user.get('google_email') or '').strip()
         if not user_email or '@' not in user_email:
@@ -1248,6 +1249,11 @@ def topup_create():
             app.logger.error("Duitku resp: %s", resp)
             return jsonify({'error': resp.get('message', 'Gagal membuat transaksi. Coba lagi.')}), 500
         return jsonify({'ok': True, 'payment_url': payment_url, 'order_id': order_id})
+    except urllib.error.HTTPError as e:
+        try: body = e.read().decode('utf-8', 'replace')
+        except Exception: body = '<no body>'
+        app.logger.error("Duitku HTTP %s error body: %s", e.code, body)
+        return jsonify({'error': 'Gagal membuat transaksi. Coba lagi.'}), 500
     except Exception:
         app.logger.error("Duitku error:\n%s", traceback.format_exc())
         return jsonify({'error': 'Gagal membuat transaksi. Coba lagi.'}), 500
