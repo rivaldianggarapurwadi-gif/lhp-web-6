@@ -1010,6 +1010,18 @@ def fill_template(data, image_paths, output_path):
     except Exception:
         app.logger.warning("anchor->inline gagal, memakai layout asli")
 
+    # Hapus kotak kosong di bawah judul disposisi agar blok tanda tangan naik.
+    # Cocokkan label, bukan nomor tabel/baris; pertahankan baris yang berisi isi.
+    for table in doc.tables:
+        rows = list(table.rows)
+        for heading, following in zip(rows, rows[1:]):
+            label = ''.join(heading._tr.xpath('.//w:t/text()')).strip()
+            if label == 'DISPOSISI DANTONTAR':
+                text = ''.join(following._tr.xpath('.//w:t/text()')).strip()
+                objects = following._tr.xpath('.//w:drawing | .//w:pict | .//w:object')
+                if not text and not objects:
+                    table._tbl.remove(following._tr)
+
     nama           = data['Nama']
     no_ak          = data['No Ak']
     pangkat        = data['Pangkat'].upper()
