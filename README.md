@@ -38,3 +38,27 @@ Tes regresi tanpa menghubungi API atau memotong token:
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+## Duitku checkout
+
+The checkout uses Duitku POP hosted invoices. Set `DUITKU_MERCHANT_CODE`,
+`DUITKU_API_KEY`, and `DUITKU_ENV` (`sandbox` or `production`) from the same
+Duitku merchant environment. When either credential is missing, checkout is
+disabled and callbacks cannot credit tokens. `PUBLIC_BASE_URL` defaults to
+`https://lhpakpol.co` and determines Duitku's return and callback URLs.
+For production, point Duitku's callback to
+`https://lhpakpol.co/api/topup/notification` and keep `DATA_DIR` on the
+persistent Railway volume. Payment is confirmed by a signed server callback,
+not by the browser redirect. Callback retries credit an order at most once.
+
+If `DUITKU_ENV` is missing, the application defaults to sandbox. Check whether
+the stored credentials belong to sandbox or production before deployment.
+If invoice creation fails, inspect Railway logs for `Duitku invoice`; the
+server records the provider response while the UI shows a safe generic error.
+
+Payment regression checks:
+
+```bash
+python -m unittest discover -s tests -v
+node tests/test_payment_ui.cjs
+```

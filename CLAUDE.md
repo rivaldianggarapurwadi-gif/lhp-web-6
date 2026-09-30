@@ -37,7 +37,8 @@ Procfile                  konfigurasi gunicorn (JANGAN ubah ke worker sync, liha
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | ya | login `/login-admin` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` | ya | OAuth hanya untuk verifikasi saat DAFTAR |
 | `ANTHROPIC_API_KEY` | opsional | fitur scan timestamp foto; kosong → fitur balas 503 |
-| `DUITKU_MERCHANT_CODE` / `DUITKU_API_KEY` / `DUITKU_ENV` | opsional | kosong → dev mode, token langsung ditambah tanpa bayar |
+| `DUITKU_MERCHANT_CODE` / `DUITKU_API_KEY` / `DUITKU_ENV` | untuk pembayaran | `DUITKU_ENV=sandbox` atau `production`; tanpa kode/key checkout nonaktif |
+| `PUBLIC_BASE_URL` | opsional | alamat publik untuk URL callback/return Duitku; default `https://lhpakpol.co` |
 
 Callback Duitku: `POST /api/topup/notification` (form-encoded, `resultCode == '00'` = lunas).
 
@@ -164,7 +165,7 @@ pdftoppm -png -r 80 /tmp/out.pdf /tmp/page
 - Sheet **TK I** di Excel masih kosong (placeholder). Format kolom:
   `NO | NAMA | PANGKAT | JABATAN | NRP`, jabatan `DANKI TAR I`, `DANTON TAR 1/I`.
 - Beberapa NRP Danki TK III kosong (Danki A dan B).
-- Verifikasi merchant Duitku belum tuntas → produksi masih jalan di dev mode
-  kalau env var kosong.
+- Pastikan `DUITKU_ENV` cocok dengan kredensial merchant. Jika belum diset,
+  aplikasi memakai sandbox; checkout tanpa kode/key gagal tertutup.
 - `/api/preview` (server-side, `templates/preview.html`) sudah tidak dipakai UI
   karena preview pindah ke client. Masih ada; aman dihapus kalau mau bersih-bersih.

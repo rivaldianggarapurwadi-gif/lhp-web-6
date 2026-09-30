@@ -297,7 +297,7 @@
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
   :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 </style>
-<!-- Xendit: no client-side script needed -->
+<!-- Duitku hosted checkout -->
 <link rel="icon" type="image/png" href="/static/logo.png">
 <link rel="apple-touch-icon" href="/static/logo.png">
 </head>
@@ -804,9 +804,25 @@ document.getElementById('lhp-form').addEventListener('submit', async e => {
 
 // ── Topup Modal ─────────────────────────────────────────────────────────────
 let selectedPkg = null;
+let paymentPoll = null;
+let paymentBusy = false;
+let activeOrder = null;
+function savedPayment(value) {
+  try {
+    if (value === undefined) return sessionStorage.getItem('lhp-payment-order');
+    if (value) sessionStorage.setItem('lhp-payment-order', value);
+    else sessionStorage.removeItem('lhp-payment-order');
+  } catch (_) { /* Checkout still works when browser storage is unavailable. */ }
+}
+function stopPaymentPoll() {
+  clearTimeout(paymentPoll);
+  paymentPoll = null;
+}
 
 function openTopup() {
   selectedPkg = null;
+  stopPaymentPoll();
+  document.getElementById('btn-pay').onclick = doPay;
   document.getElementById('modal-status').textContent = '';
   document.getElementById('modal-status').className = 'modal-status';
   document.getElementById('btn-pay').disabled = true;
@@ -815,9 +831,12 @@ function openTopup() {
   // Load regen info
   loadRegenInfo();
   document.getElementById('topup-overlay').classList.add('open');
+  activeOrder = savedPayment() || null;
+  if (activeOrder) checkPayStatus(activeOrder);
 }
 
 function closeTopup() {
+  stopPaymentPoll();
   document.getElementById('topup-overlay').classList.remove('open');
 }
 
@@ -849,6 +868,10 @@ async function loadRegenInfo() {
 }
 
 function selectPkg(pkgId) {
+  if (paymentBusy) return;
+  stopPaymentPoll();
+  activeOrder = null;
+  document.getElementById('btn-pay').onclick = doPay;
   selectedPkg = pkgId;
   document.querySelectorAll('.pkg-card').forEach(c => c.classList.remove('selected'));
   document.getElementById(`pkg-${pkgId}`).classList.add('selected');
@@ -857,70 +880,133 @@ function selectPkg(pkgId) {
   document.getElementById('btn-pay').textContent = `Bayar ${labels[pkgId] || pkgId}`;
 }
 
+function showPaymentLink(url) {
+  const box = document.getElementById('modal-status');
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'Buka halaman pembayaran';
+  box.append(document.createElement('br'), link);
+}
+
 async function doPay() {
-  if (!selectedPkg) return;
-  const btn    = document.getElementById('btn-pay');
+  if (!selectedPkg || paymentBusy) return;
+  paymentBusy = true;
+  const btn = document.getElementById('btn-pay');
   const status = document.getElementById('modal-status');
+  // Open during the click event so mobile browsers do not block the tab.
+  const paymentTab = window.open('about:blank', '_blank');
+  if (paymentTab) paymentTab.opener = null;
   btn.disabled = true;
   btn.textContent = 'Memproses';
   status.textContent = '';
   status.className = 'modal-status';
   try {
-    const res  = await fetch('/api/topup/create', {
+    const res = await fetch('/api/topup/create', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({pkg_id: selectedPkg})
     });
-    if (res.status === 401) { window.location.href = '/login'; return; }
+    if (res.status === 401) {
+      if (paymentTab) paymentTab.close();
+      window.location.href = '/login'; return;
+    }
     const json = await res.json();
-    if (json.dev_mode) {
-      status.textContent = json.message;
-      status.className = 'modal-status ok';
-      const tb = await (await fetch('/api/token-balance')).json();
-      document.getElementById('token-count').textContent = tb.tokens;
-            if(document.getElementById('token-count2')) document.getElementById('token-count2').textContent = tb.tokens;
-      btn.textContent = 'Selesai';
-      return;
-    }
-    if (json.payment_url) {
-      // Xendit Invoice — buka halaman pembayaran di tab baru
-      window.open(json.payment_url, '_blank');
-      status.innerHTML = 'Halaman pembayaran terbuka di tab baru.<br>QRIS, GoPay, OVO, DANA, dan transfer bank tersedia. Token masuk otomatis setelah pembayaran selesai.';
-      status.className = 'modal-status ok';
-      btn.textContent = 'Cek status';
-      btn.disabled = false;
-      btn.onclick = () => checkPayStatus(json.order_id);
-    } else {
-      status.textContent = json.error || 'Transaksi gagal dibuat. Coba lagi.';
-      status.className = 'modal-status err';
-      btn.disabled = false; btn.textContent = 'Coba lagi';
-    }
-  } catch(e) {
-    status.textContent = 'Tidak bisa terhubung. Coba lagi.';
+    if (!res.ok || !json.payment_url) throw new Error(json.error || 'Transaksi gagal dibuat. Coba lagi.');
+    activeOrder = json.order_id;
+    savedPayment(activeOrder);
+    if (paymentTab) paymentTab.location.href = json.payment_url;
+    status.textContent = 'Pilih metode yang tersedia di halaman Duitku. Token masuk setelah pembayaran dikonfirmasi.';
+    showPaymentLink(json.payment_url);
+    status.className = 'modal-status ok';
+    btn.textContent = 'Cek status';
+    btn.disabled = false;
+    btn.onclick = () => checkPayStatus(json.order_id);
+    schedulePaymentCheck(json.order_id);
+  } catch (e) {
+    if (paymentTab) paymentTab.close();
+    status.textContent = e.message || 'Tidak bisa terhubung. Coba lagi.';
     status.className = 'modal-status err';
-    btn.disabled = false; btn.textContent = 'Coba lagi';
+    btn.disabled = false;
+    btn.textContent = 'Coba lagi';
+    btn.onclick = doPay;
+  } finally {
+    paymentBusy = false;
+  }
+}
+
+function schedulePaymentCheck(orderId) {
+  stopPaymentPoll();
+  if (activeOrder === orderId && document.getElementById('topup-overlay').classList.contains('open')) {
+    paymentPoll = setTimeout(() => checkPayStatus(orderId), 5000);
   }
 }
 
 async function checkPayStatus(orderId) {
+  stopPaymentPoll();
   const status = document.getElementById('modal-status');
+  const btn = document.getElementById('btn-pay');
   try {
-    const res  = await fetch(`/api/topup/status/${orderId}`);
+    const res = await fetch(`/api/topup/status/${encodeURIComponent(orderId)}`);
+    if (activeOrder !== orderId) return;
+    if (res.status === 401) { window.location.href = '/login'; return; }
     const json = await res.json();
+    if (!res.ok) {
+      if (res.status === 404) { savedPayment(null); activeOrder = null; }
+      throw new Error(json.error || 'Status tidak bisa dimuat.');
+    }
     if (json.status === 'paid') {
+      savedPayment(null);
+      activeOrder = null;
       status.textContent = `Pembayaran diterima. ${json.tokens} token ditambahkan.`;
       status.className = 'modal-status ok';
-      const tb = await (await fetch('/api/token-balance')).json();
-      document.getElementById('token-count').textContent = tb.tokens;
-            if(document.getElementById('token-count2')) document.getElementById('token-count2').textContent = tb.tokens;
+      btn.textContent = 'Selesai';
+      btn.disabled = false;
+      btn.onclick = closeTopup;
+      const balance = await fetch('/api/token-balance');
+      if (balance.ok) {
+        const tb = await balance.json();
+        document.getElementById('token-count').textContent = tb.tokens;
+        document.getElementById('token-count2').textContent = tb.tokens;
+      }
+    } else if (json.status === 'failed') {
+      savedPayment(null);
+      activeOrder = null;
+      status.textContent = 'Pembayaran gagal atau kedaluwarsa. Pilih paket untuk mencoba lagi.';
+      status.className = 'modal-status err';
+      btn.disabled = true;
+      btn.textContent = 'Pilih paket';
+      btn.onclick = doPay;
     } else {
-      status.textContent = `Status: ${json.status}. Cek lagi setelah pembayaran selesai.`;
+      status.textContent = 'Menunggu konfirmasi pembayaran. Status diperbarui otomatis.';
+      if (json.payment_url) showPaymentLink(json.payment_url);
       status.className = 'modal-status';
+      btn.textContent = 'Cek status';
+      btn.disabled = false;
+      btn.onclick = () => checkPayStatus(orderId);
+      schedulePaymentCheck(orderId);
     }
   } catch(e) {
-    status.textContent = 'Status tidak bisa dimuat.';
+    if (activeOrder !== orderId && activeOrder !== null) return;
+    status.textContent = e.message || 'Status tidak bisa dimuat. Coba cek lagi.';
     status.className = 'modal-status err';
+    btn.disabled = !activeOrder;
+    btn.textContent = activeOrder ? 'Cek status' : 'Pilih paket';
+    btn.onclick = activeOrder ? () => checkPayStatus(orderId) : doPay;
   }
 }
+
+// A browser redirect is only a cue to query our server, never proof of payment.
+document.addEventListener('DOMContentLoaded', () => {
+const returnedOrder = new URLSearchParams(window.location.search).get('payment_order');
+if (returnedOrder) {
+  savedPayment(returnedOrder);
+  openTopup();
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete('payment_order');
+  window.history.replaceState({}, '', cleanUrl);
+}
+});
 
 // Tutup modal dengan Escape
 document.addEventListener('keydown', e => {

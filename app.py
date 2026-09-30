@@ -1,8 +1,8 @@
 """
 LHP Kegiatan Positif — Flask web app
-Google OAuth login, self-register (3 free tokens), weekly regen, Midtrans topup.
+Google-verified registration, weekly tokens, and Duitku hosted checkout.
 """
-import os, re, shutil, uuid, json, hashlib, hmac
+import os, re, shutil, uuid, json, hashlib, hmac, copy
 import logging, traceback, time
 import threading, atexit
 from datetime import datetime, timezone, timedelta
@@ -74,9 +74,13 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 DUITKU_MERCHANT_CODE = os.environ.get("DUITKU_MERCHANT_CODE", "")
 DUITKU_API_KEY       = os.environ.get("DUITKU_API_KEY", "")
 DUITKU_IS_PROD       = os.environ.get("DUITKU_ENV", "sandbox") == "production"
-DUITKU_BASE_URL      = ("https://passport.duitku.com/webapi/api/merchant"
+DUITKU_BASE_URL      = ("https://api-prod.duitku.com/api/merchant"
                         if DUITKU_IS_PROD
-                        else "https://sandbox.duitku.com/webapi/api/merchant")
+                        else "https://api-sandbox.duitku.com/api/merchant")
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://lhpakpol.co").rstrip('/')
+
+def duitku_configured():
+    return bool(DUITKU_MERCHANT_CODE and DUITKU_API_KEY)
 
 # Token packages
 TOKEN_PACKAGES = [
@@ -109,6 +113,14 @@ def _unhandled(e):
 
 # Satu proses + banyak thread (lihat Procfile), jadi cukup lock di dalam proses.
 _STORE_LOCK = threading.RLock()
+
+def store_locked(f):
+    """Protect the entire read/modify/write, not just individual file writes."""
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        with _STORE_LOCK:
+            return f(*args, **kwargs)
+    return wrapped
 
 # Cegah satu akun men-generate dua dokumen sekaligus (double-click, network
 # lag bikin klik ulang, tab ganda) -- tanpa ini keduanya jalan dan token
@@ -144,27 +156,30 @@ def _load_users():
     with _STORE_LOCK:
         mt = os.path.getmtime(USERS_FILE) if os.path.exists(USERS_FILE) else None
         if mt is None:
+            if _users_cache['mtime'] is not None:
+                raise FileNotFoundError('Previously existing users.json is missing')
             if _users_cache['data'] is None:
                 _users_cache['data'] = {}
-            return _users_cache['data']
+            return copy.deepcopy(_users_cache['data'])
         if _users_cache['data'] is not None and _users_cache['mtime'] == mt:
-            return _users_cache['data']
+            return copy.deepcopy(_users_cache['data'])
         try:
             with open(USERS_FILE, encoding='utf-8') as f:
-                _users_cache['data']  = json.load(f)
+                loaded = json.load(f)
+                if not isinstance(loaded, dict):
+                    raise ValueError('Invalid users store')
+                _users_cache['data'] = loaded
                 _users_cache['mtime'] = mt
         except Exception:
-            # JANGAN kembalikan {} — penyimpanan berikutnya akan menimpa
-            # seluruh akun. Pakai salinan terakhir yang masih baik.
-            app.logger.error("users.json gagal dibaca, memakai cache terakhir")
-            if _users_cache['data'] is None:
-                _users_cache['data'] = {}
-        return _users_cache['data']
+            # Never acknowledge a payment against uncertain account storage.
+            app.logger.error("users.json gagal dibaca; perubahan dibatalkan")
+            raise
+        return copy.deepcopy(_users_cache['data'])
 
 def _save_users(users):
     with _STORE_LOCK:
         _write_json_atomic(USERS_FILE, users)
-        _users_cache['data']  = users
+        _users_cache['data']  = copy.deepcopy(users)
         try:
             _users_cache['mtime'] = os.path.getmtime(USERS_FILE)
         except OSError:
@@ -186,6 +201,7 @@ def is_google_id_used(google_id):
     """Cek apakah google_id sudah pernah dipakai daftar."""
     return get_user_by_google_id(google_id) is not None
 
+@store_locked
 def create_user(username, password, name, google_id, google_email, google_picture=''):
     """Buat akun baru setelah verifikasi Google. Returns (user, error)."""
     from werkzeug.security import generate_password_hash
@@ -218,6 +234,7 @@ def create_user(username, password, name, google_id, google_email, google_pictur
     app.logger.info("New user registered: %s (google: %s)", key, google_email)
     return users[key], None
 
+@store_locked
 def delete_user(username):
     users = _load_users()
     key   = username.lower()
@@ -227,6 +244,7 @@ def delete_user(username):
     _save_users(users)
     return True
 
+@store_locked
 def use_token(username):
     users = _load_users()
     key   = username.lower()
@@ -238,6 +256,7 @@ def use_token(username):
     _save_users(users)
     return True
 
+@store_locked
 def add_tokens(username, amount):
     users = _load_users()
     key   = username.lower()
@@ -247,6 +266,7 @@ def add_tokens(username, amount):
     _save_users(users)
     return True
 
+@store_locked
 def try_weekly_regen(username):
     """Regenerasi 1 token/minggu HANYA jika token == 0."""
     users = _load_users()
@@ -277,24 +297,26 @@ def try_weekly_regen(username):
     return False, next_regen.isoformat()
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Order Store (Midtrans)
+# Order Store (Duitku)
 # ══════════════════════════════════════════════════════════════════════════════
 
+@store_locked
 def _load_orders():
     if not os.path.exists(ORDERS_FILE):
         return {}
-    try:
-        with open(ORDERS_FILE) as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    with open(ORDERS_FILE, encoding='utf-8') as f:
+        orders = json.load(f)
+    if not isinstance(orders, dict):
+        raise ValueError('Invalid orders store')
+    return orders
 
 def _save_orders(orders):
     with _STORE_LOCK:
         _write_json_atomic(ORDERS_FILE, orders)
 
+@store_locked
 def create_order(uid, pkg_id):
-    pkg    = PKG_MAP.get(pkg_id)
+    pkg    = PKG_MAP.get(pkg_id) if isinstance(pkg_id, str) else None
     if not pkg:
         return None, "Paket tidak valid"
     order_id = f"LHP-{uid[:8]}-{uuid.uuid4().hex[:8].upper()}"
@@ -314,17 +336,41 @@ def create_order(uid, pkg_id):
 def get_order(order_id):
     return _load_orders().get(order_id)
 
+@store_locked
 def complete_order(order_id):
     orders = _load_orders()
     if order_id not in orders:
         return False
     if orders[order_id]['status'] == 'paid':
         return True   # idempotent
+    order = orders[order_id]
+    users = _load_users()
+    user = users.get(order['uid'])
+    if user is None:
+        return False
+    # Balance and receipt are persisted together in one atomic file replace.
+    # A retry after a crash before the order update repairs status without
+    # crediting again. Keep receipts even when the user spends their tokens.
+    receipts = user.setdefault('payment_receipts', {})
+    if order_id not in receipts:
+        user['tokens'] = user.get('tokens', 0) + order['tokens']
+        receipts[order_id] = datetime.now(timezone.utc).isoformat()
+        _save_users(users)
     orders[order_id]['status']  = 'paid'
     orders[order_id]['paid_at'] = datetime.now(timezone.utc).isoformat()
     _save_orders(orders)
-    add_tokens(orders[order_id]['uid'], orders[order_id]['tokens'])
     return True
+
+@store_locked
+def update_order(order_id, **fields):
+    orders = _load_orders()
+    order = orders.get(order_id)
+    if order is None:
+        return
+    if order['status'] == 'paid':
+        fields.pop('status', None)
+    order.update(fields)
+    _save_orders(orders)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Visitor Tracking
@@ -482,46 +528,72 @@ def _google_userinfo(access_token):
         return json.loads(r.read())
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Midtrans helpers
+# Duitku helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _duitku_create_transaction(order_id, amount, name, email, description):
-    """Buat transaksi via Duitku API. Returns dict dengan 'paymentUrl'."""
+    """Create a Duitku POP hosted checkout using the current HMAC protocol."""
     import urllib.request
-    # Signature: MD5(merchantCode + amount + merchantOrderId + apiKey)
-    raw_sig  = f"{DUITKU_MERCHANT_CODE}{int(amount)}{order_id}{DUITKU_API_KEY}"
-    signature = hashlib.md5(raw_sig.encode()).hexdigest()
-    payload  = json.dumps({
-        "merchantCode":    DUITKU_MERCHANT_CODE,
-        "paymentAmount":   int(amount),
+    from urllib.parse import urlencode
+    timestamp = str(int(time.time() * 1000))
+    signature = hmac.new(DUITKU_API_KEY.encode(),
+                         (DUITKU_MERCHANT_CODE + timestamp).encode(),
+                         hashlib.sha256).hexdigest()
+    payload = json.dumps({
+        "paymentAmount": int(amount),
         "merchantOrderId": order_id,
-        "productDetails":  description,
-        "customerVaName":  name,
-        "email":           email,
-        "paymentMethod":   "NN",  # Semua metode tersedia
-        "returnUrl":       "https://lhpakpol.co/",
-        "callbackUrl":     "https://lhpakpol.co/api/topup/notification",
-        "signature":       signature,
-        "expiryPeriod":    1440,  # 24 jam dalam menit
+        "productDetails": description,
+        "customerVaName": name,
+        "email": email,
+        "paymentMethod": "",
+        "returnUrl": PUBLIC_BASE_URL + '/?' + urlencode({'payment_order': order_id}),
+        "callbackUrl": PUBLIC_BASE_URL + '/api/topup/notification',
+        "expiryPeriod": 1440,
     }).encode()
-    req = urllib.request.Request(
-        f"{DUITKU_BASE_URL}/createInvoice",
-        data=payload, method='POST')
-    req.add_header('Content-Type', 'application/json')
+    req = urllib.request.Request(DUITKU_BASE_URL + '/createInvoice',
+                                 data=payload, method='POST', headers={
+        'Content-Type': 'application/json',
+        'x-duitku-timestamp': timestamp,
+        'x-duitku-merchantcode': DUITKU_MERCHANT_CODE,
+        'x-duitku-signature': signature,
+    })
     with urllib.request.urlopen(req, timeout=15) as r:
         return json.loads(r.read())
 
-def _duitku_verify_callback(params: dict) -> bool:
-    """Verify Duitku callback signature."""
-    if not DUITKU_API_KEY:
-        return True  # dev mode
-    # MD5(merchantCode + amount + merchantOrderId + apiKey)
-    raw = (params.get('merchantCode','') +
-           params.get('amount','') +
-           params.get('merchantOrderId','') +
-           DUITKU_API_KEY)
-    expected = hashlib.md5(raw.encode()).hexdigest()
-    return hmac.compare_digest(expected, params.get('signature',''))
+
+def _duitku_verify_callback(params):
+    if not duitku_configured() or not isinstance(params, dict):
+        return False
+    keys = ('merchantCode', 'amount', 'merchantOrderId', 'signature')
+    if any(not isinstance(params.get(k), str) or not params[k] for k in keys):
+        return False
+    if params['merchantCode'] != DUITKU_MERCHANT_CODE:
+        return False
+    raw = params['merchantCode'] + params['amount'] + params['merchantOrderId']
+    expected = hmac.new(DUITKU_API_KEY.encode(), raw.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, params['signature'])
+
+
+def _payment_diagnostic(value):
+    """Keep provider diagnostics server-side and redact configured secrets."""
+    message = str(value)
+    for secret in (DUITKU_API_KEY, app.secret_key):
+        if secret:
+            message = message.replace(secret, '[redacted]')
+    return message.replace('\n', ' ').replace('\r', ' ')[:1200]
+
+
+def _valid_payment_url(value):
+    from urllib.parse import urlsplit
+    if not isinstance(value, str):
+        return False
+    try:
+        url = urlsplit(value)
+        host = url.hostname or ''
+        return (url.scheme == 'https' and not url.username and not url.password
+                and (host == 'duitku.com' or host.endswith('.duitku.com')))
+    except ValueError:
+        return False
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Utility helpers (carry over)
@@ -1148,7 +1220,7 @@ def index():
                            user_tokens=user.get('tokens', 0),
                            user_picture=user.get('picture',''),
                            token_packages=TOKEN_PACKAGES,
-                           duitku_configured=bool(DUITKU_MERCHANT_CODE))
+                           duitku_configured=duitku_configured())
 
 @app.route('/admin/login', methods=['GET'])
 def admin_login_redirect():
@@ -1343,19 +1415,21 @@ def token_balance():
     })
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Routes — Topup (Midtrans)
+# Routes — Topup (Duitku)
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.route('/api/topup/create', methods=['POST'])
 @login_required
 def topup_create():
-    data   = request.get_json() or {}
+    data   = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Permintaan tidak valid'}), 400
     pkg_id = data.get('pkg_id', '')
-    pkg    = PKG_MAP.get(pkg_id)
+    pkg    = PKG_MAP.get(pkg_id) if isinstance(pkg_id, str) else None
     if not pkg:
         return jsonify({'error': 'Paket tidak valid'}), 400
 
-    if not DUITKU_MERCHANT_CODE:
+    if not duitku_configured():
         return jsonify({'error': 'Pembayaran belum aktif. Coba lagi nanti.'}), 503
 
     uid  = session['uid']
@@ -1378,14 +1452,19 @@ def topup_create():
             f"{pkg['label']} — LHP AKPOL")
         # Duitku returns paymentUrl
         payment_url = resp.get('paymentUrl', '')
-        if not payment_url:
-            app.logger.error("Duitku resp: %s", resp)
-            return jsonify({'error': resp.get('message', 'Gagal membuat transaksi. Coba lagi.')}), 500
+        if resp.get('statusCode') != '00' or not _valid_payment_url(payment_url) or not resp.get('reference'):
+            app.logger.error('Duitku invoice rejected order=%s code=%s message=%s',
+                             order_id, resp.get('statusCode'),
+                             _payment_diagnostic(resp.get('statusMessage', resp.get('message', 'Invalid checkout response'))))
+            update_order(order_id, status='failed')
+            return jsonify({'error': 'Gagal membuat transaksi. Coba lagi.'}), 502
+        update_order(order_id, payment_url=payment_url, reference=resp['reference'])
         return jsonify({'ok': True, 'payment_url': payment_url, 'order_id': order_id})
     except urllib.error.HTTPError as e:
         try: body = e.read().decode('utf-8', 'replace')
         except Exception: body = '<no body>'
-        app.logger.error("Duitku HTTP %s error body: %s", e.code, body)
+        app.logger.error("Duitku invoice order=%s HTTP=%s detail=%s", order_id, e.code, _payment_diagnostic(body))
+        update_order(order_id, status='failed')
         return jsonify({'error': 'Gagal membuat transaksi. Coba lagi.'}), 500
     except Exception:
         app.logger.error("Duitku error:\n%s", traceback.format_exc())
@@ -1394,25 +1473,28 @@ def topup_create():
 @app.route('/api/topup/notification', methods=['POST'])
 def topup_notification():
     """Duitku callback — called by Duitku server after payment."""
-    # Duitku kirim callback sebagai POST form-encoded
-    params = request.form.to_dict() if request.form else (request.get_json() or {})
-
+    if not duitku_configured():
+        return 'Payments unavailable', 503
+    params = request.form.to_dict() if request.form else request.get_json(silent=True)
     if not _duitku_verify_callback(params):
-        app.logger.warning("Invalid Duitku callback signature")
         return 'Bad signature', 403
-
-    order_id    = params.get('merchantOrderId', '')
-    result_code = params.get('resultCode', '')   # '00' = success
-
+    order_id = params['merchantOrderId']
+    order = get_order(order_id)
+    if order is None:
+        return 'Unknown order', 404
+    # Compare against the price saved at checkout, never the current price list.
+    if params['amount'] != str(order['amount']):
+        return 'Amount mismatch', 400
+    if order.get('reference') and params.get('reference') != order['reference']:
+        return 'Reference mismatch', 400
+    result_code = params.get('resultCode')
     if result_code == '00':
-        if complete_order(order_id):
-            app.logger.info("Duitku order paid: %s", order_id)
+        if not complete_order(order_id):
+            return 'Unable to credit account', 503
     elif result_code in ('01', '02'):
-        orders = _load_orders()
-        if order_id in orders and orders[order_id]['status'] == 'pending':
-            orders[order_id]['status'] = 'failed'
-            _save_orders(orders)
-
+        update_order(order_id, status='failed')
+    else:
+        return 'Invalid result code', 400
     return 'OK'
 
 @app.route('/api/topup/status/<order_id>')
@@ -1421,7 +1503,8 @@ def topup_status(order_id):
     order = get_order(order_id)
     if not order or order['uid'] != session['uid']:
         return jsonify({'error': 'Order tidak ditemukan'}), 404
-    return jsonify({'status': order['status'], 'tokens': order['tokens']})
+    return jsonify({'status': order['status'], 'tokens': order['tokens'],
+                    'payment_url': order.get('payment_url') if order['status'] == 'pending' else None})
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Routes — Admin panel
@@ -1440,6 +1523,7 @@ def admin_panel():
 
 @app.route('/api/admin/create-user', methods=['POST'])
 @admin_required
+@store_locked
 def admin_create_user():
     from werkzeug.security import generate_password_hash
     data     = request.get_json() or {}
@@ -1496,6 +1580,7 @@ def admin_delete_user():
 
 @app.route('/api/admin/set-tokens', methods=['POST'])
 @admin_required
+@store_locked
 def admin_set_tokens():
     data = request.get_json() or {}
     uid  = data.get('uid', '').strip()
@@ -1514,6 +1599,7 @@ def admin_set_tokens():
 
 @app.route('/api/admin/reset-tokens', methods=['POST'])
 @admin_required
+@store_locked
 def admin_reset_tokens():
     data  = request.get_json() or {}
     uid   = data.get('uid', '').strip()
@@ -1526,6 +1612,7 @@ def admin_reset_tokens():
 
 @app.route('/api/admin/set-password', methods=['POST'])
 @admin_required
+@store_locked
 def admin_set_password():
     from werkzeug.security import generate_password_hash
     data     = request.get_json() or {}
