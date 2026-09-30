@@ -73,14 +73,20 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 # Duitku
 DUITKU_MERCHANT_CODE = os.environ.get("DUITKU_MERCHANT_CODE", "")
 DUITKU_API_KEY       = os.environ.get("DUITKU_API_KEY", "")
-DUITKU_IS_PROD       = os.environ.get("DUITKU_ENV", "sandbox") == "production"
+DUITKU_ENV           = os.environ.get("DUITKU_ENV", "").strip().lower()
+DUITKU_IS_PROD       = DUITKU_ENV == "production"
 DUITKU_BASE_URL      = ("https://api-prod.duitku.com/api/merchant"
                         if DUITKU_IS_PROD
                         else "https://api-sandbox.duitku.com/api/merchant")
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://lhpakpol.co").rstrip('/')
 
 def duitku_configured():
-    return bool(DUITKU_MERCHANT_CODE and DUITKU_API_KEY)
+    from urllib.parse import urlsplit
+    host = urlsplit(PUBLIC_BASE_URL).hostname
+    public_site = host in ('lhpakpol.co', 'www.lhpakpol.co')
+    return bool(DUITKU_MERCHANT_CODE and DUITKU_API_KEY
+                and DUITKU_ENV in ('sandbox', 'production')
+                and (not public_site or DUITKU_IS_PROD))
 
 # Token packages
 TOKEN_PACKAGES = [

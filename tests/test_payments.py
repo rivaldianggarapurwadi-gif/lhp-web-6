@@ -26,6 +26,7 @@ class PaymentTests(unittest.TestCase):
             'ORDERS_FILE': str(self.directory / 'orders.json'),
             '_users_cache': {'mtime': None, 'data': None},
             'DUITKU_MERCHANT_CODE': 'DTEST', 'DUITKU_API_KEY': 'secret-test-only',
+            'DUITKU_ENV': 'sandbox',
             'PUBLIC_BASE_URL': 'https://test.example',
             'DUITKU_BASE_URL': 'https://api-sandbox.duitku.com/api/merchant',
         }.items():
@@ -124,6 +125,13 @@ class PaymentTests(unittest.TestCase):
             self.assertEqual(self.notify(self.callback(order_id)).status_code, 503)
             self.assertEqual(self.client.post('/api/topup/create', json={'pkg_id':'pkg_5'}).status_code, 503)
         self.assertEqual(server.get_user('tester')['tokens'], 1)
+
+    def test_public_site_rejects_sandbox_or_unspecified_environment(self):
+        with patch.object(server, 'PUBLIC_BASE_URL', 'https://lhpakpol.co'):
+            self.assertEqual(self.client.post('/api/topup/create', json={'pkg_id':'pkg_5'}).status_code, 503)
+        with patch.object(server, 'DUITKU_ENV', ''):
+            self.assertEqual(self.client.post('/api/topup/create', json={'pkg_id':'pkg_5'}).status_code, 503)
+        self.remote.assert_not_called()
 
     def test_late_failure_cannot_downgrade_paid_order(self):
         order_id = self.order()

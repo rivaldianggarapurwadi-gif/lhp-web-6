@@ -166,6 +166,7 @@ pdftoppm -png -r 80 /tmp/out.pdf /tmp/page
   `NO | NAMA | PANGKAT | JABATAN | NRP`, jabatan `DANKI TAR I`, `DANTON TAR 1/I`.
 - Beberapa NRP Danki TK III kosong (Danki A dan B).
 - Pastikan `DUITKU_ENV` cocok dengan kredensial merchant. Jika belum diset,
-  aplikasi memakai sandbox; checkout tanpa kode/key gagal tertutup.
+  checkout nonaktif. Domain `lhpakpol.co` hanya mengizinkan mode production;
+  lakukan uji sandbox di hostname terpisah.
 - `/api/preview` (server-side, `templates/preview.html`) sudah tidak dipakai UI
   karena preview pindah ke client. Masih ada; aman dihapus kalau mau bersih-bersih.
