@@ -27,6 +27,9 @@ class TimestampScanTests(unittest.TestCase):
         self.key = patch.object(server, 'ANTHROPIC_API_KEY', 'test-key-never-sent')
         self.key.start()
         self.addCleanup(self.key.stop)
+        limit = patch.object(server, 'SCAN_DAILY_LIMIT', 1000)
+        limit.start()
+        self.addCleanup(limit.stop)
         self.client = server.app.test_client()
         with self.client.session_transaction() as session:
             session['uid'] = 'scan-test'
@@ -145,6 +148,49 @@ class TimestampScanTests(unittest.TestCase):
             session.clear()
         self.assertEqual(self.scan().status_code, 401)
         self.remote.assert_not_called()
+
+
+class ScanQuotaTests(TimestampScanTests):
+    def setUp(self):
+        super().setUp()
+        for path in (server.SCAN_USAGE_FILE,):
+            if os.path.exists(path):
+                os.remove(path)
+        limit = patch.object(server, 'SCAN_DAILY_LIMIT', 2)
+        limit.start()
+        self.addCleanup(limit.stop)
+
+    def test_daily_limit_blocks_before_provider_call(self):
+        self.assertEqual(self.scan().status_code, 200)
+        self.assertEqual(self.scan().status_code, 200)
+        calls = self.remote.call_count
+        response = self.scan()
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.json['code'], 'scan_daily_limit')
+        self.assertEqual(self.remote.call_count, calls)
+
+    def test_provider_failure_refunds_quota(self):
+        for _ in range(3):
+            self.provider_error(503, 'overloaded')
+            self.assertEqual(self.scan().status_code, 503)
+        self.remote.side_effect = None
+        self.assertEqual(self.scan().status_code, 200)
+
+    def test_invalid_photo_does_not_use_quota(self):
+        for _ in range(3):
+            self.assertEqual(self.scan(b'not an image').status_code, 400)
+        self.assertEqual(self.scan().status_code, 200)
+
+    def test_limit_is_per_account(self):
+        self.scan(); self.scan()
+        with self.client.session_transaction() as session:
+            session['uid'] = 'other-account'
+        self.assertEqual(self.scan().status_code, 200)
+
+    def test_new_day_resets_quota(self):
+        self.scan(); self.scan()
+        with patch.object(server, '_scan_today', return_value='2999-01-01'):
+            self.assertEqual(self.scan().status_code, 200)
 
 
 if __name__ == '__main__':

@@ -37,6 +37,7 @@ except Exception:
 USERS_FILE    = os.path.join(DATA_DIR, "users.json")
 ORDERS_FILE   = os.path.join(DATA_DIR, "orders.json")
 VISITORS_FILE = os.path.join(DATA_DIR, "visitors.json")
+SCAN_USAGE_FILE = os.path.join(DATA_DIR, "scan_usage.json")
 _LEGACY_USERS = os.path.join(BASE_DIR, "users.json")
 STORAGE_IS_PERSISTENT = os.path.abspath(DATA_DIR) != os.path.abspath(BASE_DIR)
 
@@ -69,6 +70,12 @@ GOOGLE_REDIRECT_URI  = os.environ.get("GOOGLE_REDIRECT_URI",
 
 # Anthropic (untuk analisa foto timestamp)
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+# Batas scan timestamp per akun per hari (WIB); tiap scan memakai saldo API
+# berbayar. 0 = tanpa batas.
+try:
+    SCAN_DAILY_LIMIT = int(os.environ.get("SCAN_DAILY_LIMIT", "10"))
+except ValueError:
+    SCAN_DAILY_LIMIT = 10
 
 # Duitku
 DUITKU_MERCHANT_CODE = os.environ.get("DUITKU_MERCHANT_CODE", "")
@@ -249,6 +256,48 @@ def delete_user(username):
     del users[key]
     _save_users(users)
     return True
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Scan quota (per akun per hari WIB)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _scan_today():
+    return datetime.now(timezone(timedelta(hours=7))).strftime('%Y-%m-%d')
+
+def _load_scan_usage():
+    try:
+        with open(SCAN_USAGE_FILE, encoding='utf-8') as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+@store_locked
+def reserve_scan(uid):
+    """Ambil satu jatah scan hari ini. Return (diizinkan, terpakai_setelahnya)."""
+    if SCAN_DAILY_LIMIT <= 0:
+        return True, 0
+    today = _scan_today()
+    usage = {k: v for k, v in _load_scan_usage().items()
+             if isinstance(v, dict) and v.get('day') == today}
+    used = int(usage.get(uid, {}).get('count', 0))
+    if used >= SCAN_DAILY_LIMIT:
+        return False, used
+    usage[uid] = {'day': today, 'count': used + 1}
+    _write_json_atomic(SCAN_USAGE_FILE, usage)
+    return True, used + 1
+
+@store_locked
+def release_scan(uid):
+    """Kembalikan jatah bila scan gagal di sisi layanan (bukan salah user)."""
+    if SCAN_DAILY_LIMIT <= 0:
+        return
+    today = _scan_today()
+    usage = _load_scan_usage()
+    rec = usage.get(uid)
+    if isinstance(rec, dict) and rec.get('day') == today and rec.get('count', 0) > 0:
+        rec['count'] -= 1
+        _write_json_atomic(SCAN_USAGE_FILE, usage)
 
 @store_locked
 def use_token(username):
@@ -1735,6 +1784,12 @@ def api_analyze_photo():
     except ValueError as e:
         return jsonify({'error': str(e), 'code': 'invalid_photo'}), 400
 
+    allowed, used = reserve_scan(session['uid'])
+    if not allowed:
+        return jsonify({'error': f'Batas scan harian tercapai ({SCAN_DAILY_LIMIT} scan per hari). '
+                                 'Coba lagi besok, atau isi tanggal, waktu, dan tempat secara manual.',
+                        'code': 'scan_daily_limit'}), 429
+
     try:
         prompt = (
             "Analisa foto ini. Cari timestamp, tanggal, waktu, dan lokasi yang TERCETAK di foto.\n\n"
@@ -1785,8 +1840,10 @@ def api_analyze_photo():
         return jsonify({'ok': True, 'result': result})
 
     except urllib.error.HTTPError as e:
+        release_scan(session['uid'])
         return _timestamp_api_error(e)
     except (urllib.error.URLError, TimeoutError):
+        release_scan(session['uid'])
         app.logger.warning('Timestamp scan: layanan AI tidak dapat dihubungi')
         return jsonify({'error': 'Layanan scan tidak dapat dihubungi. Coba lagi nanti.',
                         'code': 'scan_temporarily_unavailable'}), 503
