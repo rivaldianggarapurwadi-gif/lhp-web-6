@@ -75,6 +75,9 @@
   .field select{appearance:none;-webkit-appearance:none;cursor:pointer;
         background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23707070' stroke-width='1.8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
         background-repeat:no-repeat;background-position:right 14px center;padding-right:38px}
+  /* Tampil kapital tanpa mengubah value saat mengetik (lihat toUpperValues). */
+  .field input[type=text]{text-transform:uppercase}
+  .field input[type=text]::placeholder{text-transform:none}
   .field input:focus,.field select:focus{outline:none;border-color:var(--blue);
         box-shadow:0 0 0 4px rgba(0,113,227,.12)}
   .field input.readonly{background:var(--canvas);color:var(--mid-gray);
@@ -294,17 +297,22 @@
   footer{text-align:center;font-size:12px;color:var(--mid-gray);
          padding:40px 24px 32px;line-height:1.33;background:var(--canvas)}
 
+  /* Blur di atas halaman yang di-scroll berat untuk HP kelas menengah → scroll patah-patah. */
+  @media(max-width:820px){
+    header{background:rgba(250,250,252,.97);backdrop-filter:none;-webkit-backdrop-filter:none}
+    .modal-overlay{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(0,0,0,.55)}
+  }
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
   :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 </style>
 <!-- Duitku hosted checkout -->
-<link rel="icon" type="image/png" href="/static/logo.png">
-<link rel="apple-touch-icon" href="/static/logo.png">
+<link rel="icon" type="image/png" href="/static/logo-sm.png">
+<link rel="apple-touch-icon" href="/static/logo-sm.png">
 </head>
 <body>
 
 <header>
-  <img class="logo" src="/static/logo.png" alt="">
+  <img class="logo" src="/static/logo-sm.png" alt="">
   <div class="hdr-text">
     <div class="hdr-title">LHP Kegiatan Positif</div>
     <div class="hdr-sub">Batalyon Manggala Satya</div>
@@ -589,6 +597,7 @@
   <div class="preview-loading" id="preview-loading">
     <div class="preview-spin"></div>
     <div style="font-size:17px">Menyiapkan pratinjau</div>
+    <button type="button" class="btn-reset" onclick="closePreview()">Batal</button>
   </div>
   <iframe class="preview-frame" id="preview-frame" src="about:blank"
           sandbox="allow-scripts allow-same-origin"
@@ -608,16 +617,20 @@
 <footer>Akademi Kepolisian · Batalyon Manggala Satya · Form LHP Kegiatan Positif</footer>
 
 <script>
-// ── Force uppercase on all text inputs ───────────────────────────────────────
+// ── Uppercase ────────────────────────────────────────────────────────────────
+// Dulu value diubah ke kapital di setiap 'input' event. Di keyboard Android
+// (Gboard/SwiftKey) itu memutus komposisi kata → huruf dobel / kursor loncat,
+// dan setSelectionRange melempar error di input number. Sekarang tampilan
+// kapital lewat CSS, value baru dikapitalkan saat keluar kolom & sebelum kirim.
+function toUpperValues() {
+  document.querySelectorAll('#lhp-form input[type=text]').forEach(inp => {
+    const up = inp.value.toUpperCase();
+    if (inp.value !== up) inp.value = up;
+  });
+}
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('input[type=text], input[type=number]').forEach(inp => {
-    if (!inp.classList.contains('readonly')) {
-      inp.addEventListener('input', function() {
-        const pos = this.selectionStart;
-        this.value = this.value.toUpperCase();
-        this.setSelectionRange(pos, pos);
-      });
-    }
+  document.querySelectorAll('#lhp-form input[type=text]').forEach(inp => {
+    inp.addEventListener('change', () => { inp.value = inp.value.toUpperCase(); });
   });
 });
 
@@ -646,6 +659,7 @@ function onTingkatChange() {
 
 // ── Auto-fill Danton/Danki ────────────────────────────────────────────────────
 let lookupTimer = null;
+let lookupSeq = 0;   // jawaban lookup lama (jaringan lambat) tidak boleh menimpa yang baru
 
 function triggerLookup() {
   clearTimeout(lookupTimer);
@@ -660,16 +674,20 @@ async function doLookup() {
   const fields  = ['f-nama-danton','f-pangkat-danton','f-nrp-danton',
                    'f-nama-danki', 'f-pangkat-danki', 'f-nrp-danki'];
 
+  const seq = ++lookupSeq;
   if (!peleton || !kompi) {
-    fields.forEach(id => document.getElementById(id).value = '');
+    if (!komandoEditMode) fields.forEach(id => document.getElementById(id).value = '');
     status.textContent = 'Isi peleton dan kompi untuk memuat data komando';
     status.className = '';
     return;
   }
 
   try {
-    const res  = await fetch(`/api/lookup?peleton=${peleton}&kompi=${kompi}&tingkat=${tingkat}`);
+    const qs   = new URLSearchParams({peleton, kompi, tingkat});
+    const res  = await fetch(`/api/lookup?${qs}`);
+    if (res.status === 401) { window.location.href = '/login'; return; }
     const json = await res.json();
+    if (seq !== lookupSeq) return;
     if (json.error) {
       status.textContent = json.error;
       status.className = 'err';
@@ -694,6 +712,7 @@ async function doLookup() {
       status.className = 'err';
     }
   } catch(e) {
+    if (seq !== lookupSeq) return;
     status.textContent = 'Tidak bisa memuat data komando.';
     status.className = 'err';
   }
@@ -701,30 +720,82 @@ async function doLookup() {
 
 document.getElementById('f-peleton').addEventListener('input', triggerLookup);
 document.getElementById('f-kompi').addEventListener('input', triggerLookup);
-document.getElementById('f-tingkat').addEventListener('change', onTingkatChange);
+// f-tingkat sudah punya onchange="onTingkatChange()" di HTML-nya.
 
 // ── Image preview ─────────────────────────────────────────────────────────────
+// Foto kamera HP 3–12 MB per foto. Dulu dikirim utuh (sampai 4 foto) setiap
+// kali pratinjau DAN unduh → lambat sekali di data seluler. Sekarang foto
+// dikecilkan di browser sekali saat dipilih; server memang hanya memakai
+// 1280px. Kalau browser tidak bisa membaca formatnya (mis. HEIC di Chrome),
+// file asli yang dikirim dan server yang mengecilkannya.
+const PHOTO_MAX_EDGE = 1600;
+const photoJobs = {};   // idx → Promise<File|null> (versi yang akan dikirim)
+const thumbUrls = {};
+
+function shrinkPhoto(file) {
+  return new Promise(resolve => {
+    if (!file.type.startsWith('image/') || file.size < 400 * 1024) return resolve(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        c.toBlob(b => {
+          if (!b || b.size >= file.size) return resolve(file);
+          const name = (file.name || 'foto').replace(/\.[^.]*$/, '') + '.jpg';
+          resolve(new File([b], name, {type: 'image/jpeg'}));
+        }, 'image/jpeg', 0.88);
+      } catch (_) { URL.revokeObjectURL(url); resolve(file); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 function previewImage(input, idx) {
-  if (!input.files[0]) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById(`thumb-${idx}`).src = e.target.result;
-    document.getElementById(`thumb-${idx}`).style.display = 'block';
-    document.getElementById(`plus-${idx}`).style.display = 'none';
-    document.getElementById(`plus-label-${idx}`).style.display = 'none';
-  };
-  reader.readAsDataURL(input.files[0]);
+  const file = input.files[0];
+  if (!file) return;
+  if (thumbUrls[idx]) URL.revokeObjectURL(thumbUrls[idx]);
+  thumbUrls[idx] = URL.createObjectURL(file);
+  const thumb = document.getElementById(`thumb-${idx}`);
+  thumb.src = thumbUrls[idx];
+  thumb.style.display = 'block';
+  document.getElementById(`plus-${idx}`).style.display = 'none';
+  document.getElementById(`plus-label-${idx}`).style.display = 'none';
+  photoJobs[idx] = shrinkPhoto(file);
+}
+
+function getPhoto(idx) {
+  return photoJobs[idx] || Promise.resolve(null);
+}
+
+// FormData siap kirim: teks dikapitalkan, foto diganti versi kecil.
+async function buildFormData() {
+  toUpperValues();
+  const fd = new FormData(document.getElementById('lhp-form'));
+  for (let i = 1; i <= 4; i++) {
+    const f = await getPhoto(i);
+    if (f) fd.set(`foto_${i}`, f, f.name);
+  }
+  return fd;
 }
 
 function clearImage(idx) {
   const input = document.getElementById(`foto-input-${idx}`);
-  // Reset by replacing the input element (most reliable on Android)
+  // Reset by replacing the input element (most reliable on Android).
+  // cloneNode ikut menyalin onchange="previewImage(...)", jangan tambah listener lagi.
   const newInput = input.cloneNode(true);
   newInput.value = '';
   input.parentNode.replaceChild(newInput, input);
-  newInput.addEventListener('change', function() { previewImage(this, idx); });
+  delete photoJobs[idx];
+  if (thumbUrls[idx]) { URL.revokeObjectURL(thumbUrls[idx]); delete thumbUrls[idx]; }
   document.getElementById(`thumb-${idx}`).style.display = 'none';
-  document.getElementById(`thumb-${idx}`).src = '';
+  document.getElementById(`thumb-${idx}`).removeAttribute('src');
   document.getElementById(`plus-${idx}`).style.display = '';
   document.getElementById(`plus-label-${idx}`).style.display = '';
 }
@@ -778,7 +849,7 @@ document.getElementById('lhp-form').addEventListener('submit', async e => {
   btn.disabled=true; spinner.classList.add('show'); status.textContent=''; status.className='';
   clearManualDownload();
   try {
-    const res = await fetch('/api/generate', {method:'POST', body: new FormData(e.target)});
+    const res = await fetch('/api/generate', {method:'POST', body: await buildFormData()});
     if (res.status===401) { window.location.href='/login'; return; }
     if (res.status===402) {
       const j=await res.json();
@@ -1019,15 +1090,15 @@ let _analyzeResult = null;
 
 async function analyzePhoto() {
   // Cari foto pertama yang sudah diupload
-  let fotoFile = null;
+  let fotoIdx = 0;
   for (let i = 1; i <= 4; i++) {
     const inp = document.getElementById('foto-input-' + i);
     if (inp && inp.files && inp.files.length > 0) {
-      fotoFile = inp.files[0];
+      fotoIdx = i;
       break;
     }
   }
-  if (!fotoFile) {
+  if (!fotoIdx) {
     alert('Upload minimal satu foto sebelum melakukan scan.');
     return;
   }
@@ -1036,17 +1107,21 @@ async function analyzePhoto() {
   const spinner = document.getElementById('analyze-spinner');
   const panel   = document.getElementById('analyze-result');
 
+  if (btn.disabled) return;
   btn.disabled = true;
   spinner.classList.add('show');
   panel.classList.remove('show');
   _analyzeResult = null;
 
   try {
+    const fotoFile = await getPhoto(fotoIdx)
+                  || document.getElementById('foto-input-' + fotoIdx).files[0];
     const fd = new FormData();
-    fd.append('foto', fotoFile);
+    fd.append('foto', fotoFile, fotoFile.name);
 
     const res  = await fetch('/api/analyze-photo', { method: 'POST', body: fd });
-    const json = await res.json();
+    if (res.status === 401) { window.location.href = '/login'; return; }
+    const json = await res.json().catch(() => ({error: 'Server sedang sibuk. Coba lagi.'}));
 
     if (!json.ok) {
       alert(json.error || 'Foto gagal dianalisa.');
@@ -1215,8 +1290,10 @@ body{font-family:'Times New Roman',Times,serif;background:#f5f5f7;
 .btn-cl:hover{background:#e8e8ed}
 .wm-badge{background:#e8e8ed;color:#707070;border:none;
   border-radius:36px;padding:4px 12px;font-size:11px;font-weight:500;letter-spacing:.02em}
-.page-wrap{display:flex;justify-content:center;padding:16px 16px 40px}
-.page{width:210mm;min-height:297mm;background:#fff;padding:20mm 25mm 20mm 30mm;
+.page-wrap{display:flex;justify-content:center;padding:16px 8px 40px}
+@media(max-width:560px){.wm-badge,.t-sub{display:none}.toolbar{padding:0 10px;gap:8px}
+  .btn-dl,.btn-cl{padding:8px 14px;font-size:14px}}
+.page{width:210mm;flex-shrink:0;min-height:297mm;background:#fff;padding:20mm 25mm 20mm 30mm;
   border-radius:2px;position:relative;overflow:hidden}
 .wm-layer{position:absolute;inset:0;pointer-events:none;z-index:9999;overflow:hidden}
 .notice{font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;
@@ -1241,6 +1318,15 @@ document.addEventListener('keydown',e=>{
      (e.metaKey&&e.key==='p')||(e.ctrlKey&&e.key==='p')){e.preventDefault();}
   if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&e.key==='I'))e.preventDefault();
 });
+// Halaman A4 (210mm) lebih lebar dari layar HP: perkecil supaya pas, bukan geser ke samping.
+function fitPage(){
+  const p=document.querySelector('.page'); if(!p)return;
+  p.style.zoom=1;
+  const s=Math.min(1,(document.documentElement.clientWidth-16)/p.offsetWidth);
+  p.style.zoom=s;
+}
+fitPage();
+window.addEventListener('resize',fitPage);
 document.addEventListener('dragstart',e=>e.preventDefault());
 document.addEventListener('selectstart',e=>e.preventDefault());
 document.addEventListener('visibilitychange',()=>{
@@ -1250,7 +1336,10 @@ document.addEventListener('visibilitychange',()=>{
 <\/script></html>`;
 }
 
+let _previewBusy = false;
+
 async function openPreview() {
+  if (_previewBusy) return;
   const form   = document.getElementById('lhp-form');
   const fields = ['Nama','No Ak','Pangkat','Tingkat','Peleton','Kompi',
                   'Nama Danton','Pangkat Danton','NRP Danton',
@@ -1272,33 +1361,42 @@ async function openPreview() {
   const frame   = document.getElementById('preview-frame');
   const loading = document.getElementById('preview-loading');
 
+  _previewBusy = true;
   modal.classList.add('open');
   document.body.style.overflow = 'hidden';
   loading.classList.remove('hide');
 
+  const fd      = await buildFormData();
   const nama    = getField('Nama');
   const tanggal = getField('Tanggal Kegiatan');
-  const doc = frame.contentDocument || frame.contentWindow.document;
 
   try {
     // Render dokumen ASLI di server (fill_template yang sama dengan unduhan),
     // lalu baca isinya kembali -- bukan duplikasi layout di JS. Tidak memotong token.
-    const res = await fetch('/api/preview', {method:'POST', body: new FormData(form)});
+    const res = await fetch('/api/preview', {method:'POST', body: fd});
     if (res.status === 401) { window.location.href = '/login'; return; }
     const j = await res.json().catch(() => ({}));
+    // Pengguna sudah menutup pratinjau selagi menunggu: jangan buka lagi.
+    if (!modal.classList.contains('open')) return;
+    const doc = frame.contentDocument || frame.contentWindow.document;
     if (!res.ok || !j.ok) {
       doc.open();
-      doc.write(`<div style="font-family:sans-serif;padding:32px;color:#b64400">${j.error || 'Gagal membuat pratinjau. Coba lagi.'}</div>`);
+      doc.write(`<div style="font-family:sans-serif;padding:32px;color:#b64400">${j.error || 'Gagal membuat pratinjau. Coba lagi.'}` +
+                '<br><br><button onclick="window.parent.closePreview()">Tutup</button></div>');
       doc.close();
       return;
     }
     doc.open(); doc.write(buildPreviewShell(j.html, nama, tanggal)); doc.close();
   } catch (err) {
+    if (!modal.classList.contains('open')) return;
+    const doc = frame.contentDocument || frame.contentWindow.document;
     doc.open();
-    doc.write('<div style="font-family:sans-serif;padding:32px;color:#b64400">Tidak bisa terhubung. Coba lagi.</div>');
+    doc.write('<div style="font-family:sans-serif;padding:32px;color:#b64400">Tidak bisa terhubung. Coba lagi.' +
+              '<br><br><button onclick="window.parent.closePreview()">Tutup</button></div>');
     doc.close();
   } finally {
-    loading.classList.add('hide');
+    _previewBusy = false;
+    if (modal.classList.contains('open')) loading.classList.add('hide');
   }
 }
 

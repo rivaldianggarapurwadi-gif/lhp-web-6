@@ -114,6 +114,17 @@ situs. Terukur: 3.64s → 0.01s setelah pakai `gthread --threads 8`.
 Tetap **1 worker** karena penyimpanan berbasis file diamankan lock dalam-proses;
 menambah worker = proses terpisah = lock tidak berlaku lagi.
 
+### 10. Performa di HP (keluhan "lag/glitch")
+- Halaman web pakai `static/logo-sm.png` (18 KB). `logo.png` (705 KB) hanya untuk
+  dokumen Word & og:image — jangan dipasang lagi di `<img>`/favicon.
+- File `/static/` di-cache 7 hari (`_cache_static`). Kalau isi file berubah, **ganti namanya**.
+- Foto dikecilkan di browser (`shrinkPhoto`, 1600px) sebelum dikirim; semua kirim form
+  lewat `buildFormData()`, jangan `new FormData(form)` langsung.
+- Jangan ubah `value` input saat event `input` (kapitalisasi) — merusak keyboard Android.
+  Kapital lewat CSS + `toUpperValues()` sebelum kirim.
+- Preview sekarang dirender server (`/api/preview`), bukan `buildPreviewHTML()`;
+  poin 4 di atas sudah tidak berlaku.
+
 ---
 
 ## Cache

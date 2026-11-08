@@ -108,6 +108,18 @@ app.secret_key = os.environ.get("SECRET_KEY", "lhp-akpol-secret-2026-xK9mP")
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024
 logging.basicConfig(level=logging.INFO)
 
+# Tanpa ini Flask mengirim static dengan "no-cache", jadi HP mengunduh ulang
+# logo/ikon di setiap halaman. Ganti nama file kalau isinya berubah.
+STATIC_MAX_AGE = 7 * 24 * 3600
+
+@app.after_request
+def _cache_static(response):
+    if request.path.startswith('/static/') and response.status_code in (200, 304):
+        response.cache_control.public = True
+        response.cache_control.max_age = STATIC_MAX_AGE
+        response.cache_control.no_cache = None
+    return response
+
 @app.errorhandler(413)
 def _too_large(e):
     return jsonify({'error': 'Total ukuran foto terlalu besar. Coba kurangi jumlah/ukuran foto.'}), 413
@@ -842,6 +854,9 @@ def _downscale_image(path, max_edge=1280, quality=82):
     try:
         from PIL import Image, ImageOps
         with Image.open(path) as im:
+            # JPEG: decode langsung di resolusi yang lebih kecil (jauh lebih
+            # cepat untuk foto kamera 12MP+ daripada decode penuh lalu resize).
+            im.draft('RGB', (max_edge, max_edge))
             im = ImageOps.exif_transpose(im)
             if im.mode not in ('RGB', 'L'):
                 im = im.convert('RGB')
@@ -872,6 +887,12 @@ def _collect_and_stamp_photos(data):
             path = tmp.name
             image_tmpfiles.append(path)
             if request.form.get(f'foto_{i}_stamp') == '1':
+                # Kecilkan dulu: menstempel foto 12MP+ di resolusi penuh lambat
+                # dan hasilnya tetap dikecilkan ke 1280px di _insert_images.
+                small = _downscale_image(path, quality=92)
+                if small != path:
+                    image_tmpfiles.append(small)
+                    path = small
                 try:
                     stamped = _stamp_timestamp(path, data['Tanggal Kegiatan'],
                                                 data['Waktu Kegiatan'], data['Tempat Kegiatan'])

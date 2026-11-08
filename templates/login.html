@@ -17,8 +17,8 @@
 <meta property="og:site_name" content="LHP Kegiatan Positif AKPOL">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:image" content="https://lhpakpol.co/static/logo.png">
-<link rel="icon" type="image/png" href="/static/logo.png">
-<link rel="apple-touch-icon" href="/static/logo.png">
+<link rel="icon" type="image/png" href="/static/logo-sm.png">
+<link rel="apple-touch-icon" href="/static/logo-sm.png">
 <link rel="canonical" href="https://lhpakpol.co/login">
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -175,7 +175,7 @@
 <nav>
   <div class="nav-inner">
     <a class="nav-mark" href="/login">
-      <img src="/static/logo.png" alt="">
+      <img src="/static/logo-sm.png" alt="">
       <span>LHP Kegiatan Positif</span>
     </a>
     <div class="nav-links">
@@ -344,6 +344,7 @@ async function doLogin(){
   const p=document.getElementById('password').value;
   const err=document.getElementById('err');
   const btn=document.getElementById('btn-login');
+  if(btn.disabled)return;   // Enter + klik bersamaan → dua request login
   if(!u||!p){err.textContent='Isi username dan password.';return;}
   btn.disabled=true;btn.textContent='Memproses';
   try{
