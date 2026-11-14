@@ -894,7 +894,7 @@ def generate_taruna_visual_photo():
     base = 'https://taruna-visual-production-04a8.up.railway.app'
     upstream = urllib.request.Request(
         base + '/api/generate', data=json.dumps(payload).encode('utf-8'),
-        headers={'Content-Type': 'application/json', 'Origin': 'https://lhpakpol.co'},
+        headers={'Content-Type': 'application/json'},
         method='POST')
     try:
         with urllib.request.urlopen(upstream, timeout=190) as response:

@@ -47,7 +47,7 @@ class TarunaVisualTests(unittest.TestCase):
                 self.assertLess(max(stamped.getpixel((5, 290))), 50)
             request = remote.call_args.args[0]
             self.assertEqual(request.full_url, 'https://taruna-visual-production-04a8.up.railway.app/api/generate')
-            self.assertEqual(request.get_header('Origin'), 'https://lhpakpol.co')
+            self.assertIsNone(request.get_header('Origin'))
 
 
 if __name__ == '__main__':
