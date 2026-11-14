@@ -882,6 +882,62 @@ def _collect_and_stamp_photos(data):
             image_paths.append(path)
     return image_paths, image_tmpfiles
 
+@app.route('/api/taruna-visual/generate', methods=['POST'])
+@login_required
+def generate_taruna_visual_photo():
+    """Relay an opted-in face-photo request to Taruna Visual for the LHP form."""
+    import urllib.request
+    import urllib.error
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or payload.get('level') != 2 or payload.get('consent') is not True:
+        return jsonify({'error': 'Konfirmasi izin foto dan pilih Tingkat II.'}), 400
+    base = 'https://taruna-visual-production-04a8.up.railway.app'
+    upstream = urllib.request.Request(
+        base + '/api/generate', data=json.dumps(payload).encode('utf-8'),
+        headers={'Content-Type': 'application/json', 'Origin': 'https://lhpakpol.co'},
+        method='POST')
+    try:
+        with urllib.request.urlopen(upstream, timeout=190) as response:
+            result = json.load(response)
+        image = result.get('image', {})
+        if image.get('mimeType') not in ('image/jpeg', 'image/png', 'image/webp'):
+            raise ValueError('Taruna Visual tidak mengirim gambar.')
+        import base64
+        from io import BytesIO
+        from PIL import Image, ImageDraw, ImageFont, ImageOps
+        raw = base64.b64decode(image['data'], validate=True)
+        with Image.open(BytesIO(raw)) as source:
+            photo = ImageOps.exif_transpose(source).convert('RGB')
+        draw = ImageDraw.Draw(photo)
+        label = 'ILUSTRASI AI'
+        font = ImageFont.load_default(size=max(18, photo.width // 34))
+        margin = max(12, photo.width // 60)
+        box = draw.textbbox((0, 0), label, font=font)
+        height = box[3] - box[1] + margin * 2
+        draw.rectangle((0, photo.height - height, photo.width, photo.height), fill=(20, 20, 20))
+        draw.text((margin, photo.height - height + margin - box[1]), label,
+                  font=font, fill='white')
+        output = BytesIO()
+        photo.save(output, format='JPEG', quality=88)
+        result['image'] = {'mimeType': 'image/jpeg',
+                           'data': base64.b64encode(output.getvalue()).decode()}
+        return jsonify(result)
+    except urllib.error.HTTPError as exc:
+        try:
+            error = json.load(exc)
+            message = error.get('error', 'Taruna Visual menolak permintaan.')
+        except (ValueError, AttributeError):
+            message = 'Taruna Visual menolak permintaan.'
+        if exc.code == 401:
+            return jsonify({'error': 'Akses Taruna Visual ditolak. Periksa konfigurasi layanan.'}), 502
+        return jsonify({'error': message}), exc.code
+    except (urllib.error.URLError, TimeoutError):
+        app.logger.warning('Taruna Visual tidak dapat dihubungi', exc_info=True)
+        return jsonify({'error': 'Taruna Visual tidak dapat dihubungi. Coba lagi nanti.'}), 502
+    except (ValueError, KeyError, OSError):
+        app.logger.warning('Taruna Visual mengirim gambar yang tidak valid', exc_info=True)
+        return jsonify({'error': 'Foto dari Taruna Visual tidak dapat dibaca.'}), 502
+
 def _run_image_bytes(run):
     """Extract the embedded image (blob, content_type) from a run, if any."""
     from docx.oxml.ns import qn

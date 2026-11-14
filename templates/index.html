@@ -162,6 +162,12 @@
 
   /* ══ Foto grid ══ */
   .foto-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:28px 36px 36px}
+  .visual-selfies{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0 20px}
+  .visual-selfie{display:flex;flex-direction:column;gap:6px;padding:14px;border:1px solid #d8dee7;border-radius:14px;font-size:13px}
+  .visual-selfie input{max-width:100%;font-size:12px}
+  .visual-selfie img{width:100%;height:130px;object-fit:cover;border-radius:8px}
+  .visual-selfie[hidden],.visual-selfie img[hidden]{display:none}
+  @media(max-width:700px){.visual-selfies{grid-template-columns:1fr}}
   @media(max-width:700px){.foto-grid{grid-template-columns:1fr 1fr;padding:24px}}
   .foto-slot{display:flex;flex-direction:column;gap:10px}
   .foto-stamp-toggle{display:flex;align-items:center;gap:6px;font-size:12px;
@@ -454,6 +460,42 @@
       </div>
     </div>
 
+    <div class="visual-generator" id="visual-generator" style="margin:0 36px 8px;padding:20px;border:1px solid #d8dee7;border-radius:18px">
+      <strong>Buat foto dengan Taruna Visual</strong>
+      <p style="font-size:13px;color:#666">Untuk taruna laki-laki Tingkat II berseragam PDH. Hasil AI akan langsung masuk ke slot Foto Dokumentasi yang kosong. Foto AI adalah ilustrasi, bukan bukti kejadian nyata.</p>
+      <div role="group" aria-label="Pilihan selfie wajah" style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px">
+        <label><input type="radio" name="visual-mode" value="1" onchange="updateVisualMode()" checked> 1 selfie depan</label>
+        <label><input type="radio" name="visual-mode" value="3" onchange="updateVisualMode()"> 3 selfie arah (lebih akurat)</label>
+      </div>
+      <div class="visual-selfies">
+        <label class="visual-selfie">Selfie depan <small>Hadap lurus ke kamera.</small>
+          <input id="visual-face-front" type="file" accept="image/jpeg,image/png,image/webp" capture="user" onchange="previewVisualSelfie(this, 'front')">
+          <img id="visual-thumb-front" alt="Pratinjau selfie depan" hidden></label>
+        <label class="visual-selfie" data-visual-extra hidden>Selfie 45° kiri <small>Putar wajah sedikit ke kiri, wajah tetap jelas.</small>
+          <input id="visual-face-left" type="file" accept="image/jpeg,image/png,image/webp" capture="user" onchange="previewVisualSelfie(this, 'left')">
+          <img id="visual-thumb-left" alt="Pratinjau selfie arah kiri" hidden></label>
+        <label class="visual-selfie" data-visual-extra hidden>Selfie 45° kanan <small>Putar wajah sedikit ke kanan, wajah tetap jelas.</small>
+          <input id="visual-face-right" type="file" accept="image/jpeg,image/png,image/webp" capture="user" onchange="previewVisualSelfie(this, 'right')">
+          <img id="visual-thumb-right" alt="Pratinjau selfie arah kanan" hidden></label>
+      </div>
+      <p style="font-size:12px;color:#666">Di ponsel, ketuk tiap slot untuk membuka kamera depan. Di desktop, pilih foto dari perangkat. JPG, PNG, atau WebP; maksimal 10 MB per foto.</p>
+      <div class="grid">
+        <div class="field"><label>Kegiatan untuk foto</label>
+          <select id="visual-activity" onchange="updateVisualLocations()">
+            <option value="class">Mengikuti kuliah</option><option value="library">Belajar di perpustakaan</option>
+            <option value="handover">Menyerahkan bantuan</option><option value="sweeping">Membersihkan halaman</option>
+            <option value="traffic">Mengatur lalu lintas</option><option value="donation_count">Menghitung donasi di masjid</option>
+            <option value="saron">Memainkan saron</option><option value="gong">Memukul gong</option>
+            <option value="wayang">Memainkan wayang</option><option value="bonang">Memainkan bonang</option>
+            <option value="polsek">Berfoto di depan Polsek</option>
+          </select></div>
+        <div class="field"><label>Lokasi foto</label><select id="visual-location"></select></div>
+      </div>
+      <label style="display:block;margin:14px 0;font-size:13px"><input id="visual-consent" type="checkbox"> Saya memiliki izin atas foto wajah ini dan setuju mengirimkannya ke Taruna Visual dan Google Gemini untuk membuat ilustrasi AI.</label>
+      <button type="button" class="btn-preview" id="visual-generate" onclick="generateVisualPhoto()">Buat foto dan masukkan ke dokumentasi</button>
+      <div id="visual-status" role="status" style="font-size:13px;margin-top:10px"></div>
+    </div>
+
     <div class="foto-grid">
       <div class="foto-slot">
         <div class="foto-preview" id="preview-1">
@@ -703,6 +745,92 @@ document.getElementById('f-peleton').addEventListener('input', triggerLookup);
 document.getElementById('f-kompi').addEventListener('input', triggerLookup);
 document.getElementById('f-tingkat').addEventListener('change', onTingkatChange);
 
+// ── Taruna Visual ─────────────────────────────────────────────────────────────
+const visualLocations = {
+  class:['Ruang kelas'], library:['Perpustakaan'], handover:['Area parkir'],
+  sweeping:['Halaman gereja','Halaman beratap'], traffic:['Tepi jalan'],
+  donation_count:['Masjid'], saron:['Ruang gamelan'], gong:['Ruang gamelan'],
+  wayang:['Ruang gamelan'], bonang:['Ruang gamelan'], polsek:['Polsek Gajahmungkur']
+};
+function updateVisualLocations() {
+  const activity = document.getElementById('visual-activity').value;
+  document.getElementById('visual-location').replaceChildren(
+    ...visualLocations[activity].map(location => new Option(location, location)));
+}
+updateVisualLocations();
+
+function updateVisualMode() {
+  const three = document.querySelector('input[name="visual-mode"]:checked').value === '3';
+  document.querySelectorAll('[data-visual-extra]').forEach(el => { el.hidden = !three; });
+  if (!three) for (const direction of ['left','right']) {
+    document.getElementById(`visual-face-${direction}`).value = '';
+    const thumb = document.getElementById(`visual-thumb-${direction}`);
+    thumb.src = ''; thumb.hidden = true;
+  }
+}
+updateVisualMode();
+
+function previewVisualSelfie(input, direction) {
+  const thumb = document.getElementById(`visual-thumb-${direction}`);
+  if (!input.files[0]) { thumb.src = ''; thumb.hidden = true; return; }
+  const reader = new FileReader();
+  reader.onload = () => { thumb.src = reader.result; thumb.hidden = false; };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function visualPhotoData(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({mimeType:file.type, data:reader.result.split(',')[1]});
+    reader.onerror = () => reject(new Error('Foto wajah tidak dapat dibaca.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function generateVisualPhoto() {
+  const status = document.getElementById('visual-status');
+  const button = document.getElementById('visual-generate');
+  const three = document.querySelector('input[name="visual-mode"]:checked').value === '3';
+  const directions = three ? ['front','left','right'] : ['front'];
+  const files = directions.map(direction => document.getElementById(`visual-face-${direction}`).files[0]);
+  const slot = [1,2,3,4].find(i => !document.getElementById(`foto-input-${i}`).files.length);
+  const name = document.querySelector('input[name="Nama"]').value.trim();
+  status.textContent = '';
+  if (document.getElementById('f-tingkat').value !== '2') { status.textContent = 'Taruna Visual saat ini hanya mendukung Tingkat II.'; return; }
+  if (!name) { status.textContent = 'Isi Nama taruna terlebih dahulu.'; return; }
+  if (!slot) { status.textContent = 'Hapus salah satu foto dokumentasi sebelum membuat foto baru.'; return; }
+  if (files.some(f => !f || !['image/jpeg','image/png','image/webp'].includes(f.type) || f.size > 10*1024*1024)) {
+    status.textContent = three ? 'Lengkapi selfie depan, kiri, dan kanan. Gunakan JPG, PNG, atau WebP maksimal 10 MB per foto.'
+                               : 'Pilih selfie depan JPG, PNG, atau WebP maksimal 10 MB.'; return;
+  }
+  if (!document.getElementById('visual-consent').checked) { status.textContent = 'Konfirmasi izin penggunaan foto wajah terlebih dahulu.'; return; }
+  button.disabled = true;
+  status.textContent = 'Taruna Visual sedang membuat foto. Ini dapat memakan waktu beberapa menit…';
+  try {
+    const payload = {name:name.slice(0,30), level:2, sar:false,
+      activity:document.getElementById('visual-activity').value,
+      location:document.getElementById('visual-location').value,
+      ratio:'4:5', frame:'half_body', consent:true,
+      photos:await Promise.all(files.map(visualPhotoData))};
+    const response = await fetch('/api/taruna-visual/generate', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    if (response.status === 401) { window.location.href = '/login'; return; }
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Foto gagal dibuat.');
+    const mime = result.image?.mimeType;
+    if (!['image/jpeg','image/png','image/webp'].includes(mime) || !result.image.data) throw new Error('Taruna Visual tidak mengirim gambar yang dapat digunakan.');
+    const bytes = Uint8Array.from(atob(result.image.data), c => c.charCodeAt(0));
+    const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+    const generated = new File([bytes], `taruna-visual-${slot}.${ext}`, {type:mime});
+    const transfer = new DataTransfer(); transfer.items.add(generated);
+    const input = document.getElementById(`foto-input-${slot}`);
+    input.files = transfer.files;
+    previewImage(input, slot);
+    status.textContent = `Foto AI masuk ke Foto ${slot}. Periksa pratinjau sebelum mengunduh dokumen.`;
+  } catch (error) { status.textContent = error.message || 'Foto gagal dibuat.'; }
+  finally { button.disabled = false; }
+}
+
 // ── Image preview ─────────────────────────────────────────────────────────────
 function previewImage(input, idx) {
   if (!input.files[0]) return;
@@ -735,6 +863,13 @@ function clearImage(idx) {
 function resetForm() {
   document.getElementById('lhp-form').reset();
   for (let i = 1; i <= 4; i++) clearImage(i);
+  for (const direction of ['front','left','right']) {
+    const thumb = document.getElementById(`visual-thumb-${direction}`);
+    thumb.src = ''; thumb.hidden = true;
+  }
+  updateVisualMode();
+  updateVisualLocations();
+  document.getElementById('visual-status').textContent = '';
   clearManualDownload();
   ['f-nama-danton','f-pangkat-danton','f-nrp-danton',
    'f-nama-danki','f-pangkat-danki','f-nrp-danki'].forEach(id => {
