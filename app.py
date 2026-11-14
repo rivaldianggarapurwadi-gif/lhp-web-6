@@ -892,12 +892,29 @@ def generate_taruna_visual_photo():
     if not isinstance(payload, dict) or payload.get('level') != 2 or payload.get('consent') is not True:
         return jsonify({'error': 'Konfirmasi izin foto dan pilih Tingkat II.'}), 400
     base = 'https://taruna-visual-production-04a8.up.railway.app'
-    upstream = urllib.request.Request(
-        base + '/api/generate', data=json.dumps(payload).encode('utf-8'),
-        headers={'Content-Type': 'application/json'},
-        method='POST')
+    body = json.dumps(payload).encode('utf-8')
+    def upstream_request(origin=None):
+        headers = {'Content-Type': 'application/json'}
+        if origin:
+            headers['Origin'] = origin
+        return urllib.request.Request(base + '/api/generate', data=body,
+                                      headers=headers, method='POST')
     try:
-        with urllib.request.urlopen(upstream, timeout=190) as response:
+        try:
+            response = urllib.request.urlopen(upstream_request(), timeout=190)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 403:
+                raise
+            try:
+                error = json.load(exc)
+            except ValueError:
+                error = {}
+            if not isinstance(error, dict) or error.get('error') != 'Same origin required':
+                return jsonify({'error': 'Taruna Visual menolak permintaan.'}), 403
+            # Older Taruna Visual deployments require their own browser Origin
+            # even for server-to-server requests. Retry only that exact rejection.
+            response = urllib.request.urlopen(upstream_request(base), timeout=190)
+        with response:
             result = json.load(response)
         image = result.get('image', {})
         if image.get('mimeType') not in ('image/jpeg', 'image/png', 'image/webp'):

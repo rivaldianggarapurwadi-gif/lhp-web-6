@@ -5,7 +5,8 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+from urllib.error import HTTPError
 from PIL import Image
 
 with tempfile.TemporaryDirectory() as storage, patch.dict(os.environ, {'DATA_DIR': storage, 'SECRET_KEY': 'test-only'}):
@@ -36,7 +37,8 @@ class TarunaVisualTests(unittest.TestCase):
         Image.new('RGB', (400, 300), 'white').save(source, 'PNG')
         image = {'image': {'mimeType': 'image/png', 'data': base64.b64encode(source.getvalue()).decode()}}
         with patch('urllib.request.urlopen') as remote:
-            response = remote.return_value.__enter__.return_value
+            response = remote.return_value
+            response.__enter__.return_value = response
             response.read.return_value = json.dumps(image).encode()
             response.status = 200
             result = self.client.post('/api/taruna-visual/generate', json=self.payload)
@@ -48,6 +50,26 @@ class TarunaVisualTests(unittest.TestCase):
             request = remote.call_args.args[0]
             self.assertEqual(request.full_url, 'https://taruna-visual-production-04a8.up.railway.app/api/generate')
             self.assertIsNone(request.get_header('Origin'))
+
+    def test_retries_legacy_same_origin_rejection(self):
+        with self.client.session_transaction() as session:
+            session['uid'] = 'tester'
+        source = BytesIO()
+        Image.new('RGB', (400, 300), 'white').save(source, 'PNG')
+        image = {'image': {'mimeType': 'image/png', 'data': base64.b64encode(source.getvalue()).decode()}}
+        rejection = HTTPError('https://taruna-visual-production-04a8.up.railway.app/api/generate',
+                              403, 'Forbidden', {}, BytesIO(b'{"error":"Same origin required"}'))
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = json.dumps(image).encode()
+        with patch('urllib.request.urlopen', side_effect=[rejection, response]) as remote:
+            result = self.client.post('/api/taruna-visual/generate', json=self.payload)
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json['image']['mimeType'], 'image/jpeg')
+        self.assertEqual(remote.call_count, 2)
+        self.assertIsNone(remote.call_args_list[0].args[0].get_header('Origin'))
+        self.assertEqual(remote.call_args_list[1].args[0].get_header('Origin'),
+                         'https://taruna-visual-production-04a8.up.railway.app')
 
 
 if __name__ == '__main__':
