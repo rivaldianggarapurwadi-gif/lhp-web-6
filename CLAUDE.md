@@ -49,6 +49,10 @@ Callback Duitku: `POST /api/topup/notification` (form-encoded, `resultCode == '0
 - **Daftar**: `/register` → Google OAuth (verifikasi identitas saja) → form nama/username/password → akun dibuat, dapat **1 token**.
 - **Login**: username + password. Google TIDAK dipakai lagi setelah daftar.
 - Satu Google ID hanya boleh dipakai sekali daftar (`get_user_by_google_id`).
+- **Lupa akun**: `/lupa-akun` → Google OAuth (callback yang sama, `oauth_flow='recover'`)
+  → akun dicari lewat `google_id` → `/lupa-akun/reset` menampilkan username + set password
+  baru → langsung login. Sesi pemulihan berlaku 15 menit (`RECOVER_TTL_SECS`), sekali pakai.
+- Semua alur Google memakai `state` acak (`_start_google_flow`) yang dicek di callback.
 - **Dokumen biasa GRATIS** (form, preview, unduh). Token hanya untuk fitur AI.
 - **1 token = paket AI untuk 1 dokumen** (`consume_ai`, disimpan di `users[uid]['ai_pass']`):
   membuka scan timestamp (maks `AI_PASS_SCANS`=4), foto Taruna Visual (maks
