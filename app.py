@@ -1004,6 +1004,7 @@ def _docx_to_preview_html(docx_path):
     from docx.text.paragraph import Paragraph
     from docx.table import Table
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
 
     doc = Document(docx_path)
     ALIGN_MAP = {
@@ -1020,10 +1021,15 @@ def _docx_to_preview_html(docx_path):
         if img:
             data, ctype = img
             b64 = base64.b64encode(data).decode()
+            # Ukuran asli di dokumen (EMU → mm) supaya susunan foto sama dengan file Word.
+            ext = run._element.find('.//' + qn('wp:extent'))
+            size = ''
+            if ext is not None:
+                size = (f'width:{int(ext.get("cx")) / 36000:.1f}mm;'
+                        f'height:{int(ext.get("cy")) / 36000:.1f}mm;')
             return (f'<img src="data:{ctype};base64,{b64}" '
-                    f'style="max-width:260px;max-height:200px;object-fit:cover;'
-                    f'margin:3px;border:1px solid #ccc">')
-        text = esc(run.text)
+                    f'style="{size}vertical-align:bottom;margin:0">')
+        text = esc(run.text).replace('\n', '<br>')
         if not text:
             return ''
         if run.underline: text = f'<u>{text}</u>'
@@ -1115,8 +1121,30 @@ def _stamp_timestamp(image_path, tanggal, waktu, tempat):
         im.save(out, 'JPEG', quality=92)
         return out
 
+# Tata letak lampiran sesuai contoh format: 3 foto per baris, rata kiri di
+# margin, rapat tanpa jarak; foto ke-4 turun ke baris baru di kiri.
+# Tiap foto dimuat utuh di kotak 5 x 3,75 cm (4:3) -- tidak di-crop, supaya
+# timestamp di sudut foto tidak terpotong.
+PHOTO_BOX_W_CM = 5.0
+PHOTO_BOX_H_CM = 3.75
+PHOTOS_PER_ROW = 3
+PHOTO_GAP_AFTER_CM = 6.0   # jarak foto → blok "SEMARANG, … YANG MEMBUAT LAPORAN" (sesuai contoh)
+
+def _photo_size_cm(path):
+    from PIL import Image
+    try:
+        with Image.open(path) as im:
+            w, h = im.size
+            if im.getexif().get(0x0112) in (5, 6, 7, 8):   # EXIF rotasi 90°
+                w, h = h, w
+    except Exception:
+        return PHOTO_BOX_W_CM, None
+    scale = min(PHOTO_BOX_W_CM / w, PHOTO_BOX_H_CM / h)
+    return w * scale, h * scale
+
 def _insert_images(doc, placeholder, image_paths):
-    from docx.shared import Inches
+    from docx.shared import Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
     from lxml import etree
     target = None
     for para in _all_paragraphs(doc):
@@ -1124,13 +1152,29 @@ def _insert_images(doc, placeholder, image_paths):
             target = para; break
     if not target: return
     for r in target.runs: r.text = ''
+    target.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    fmt = target.paragraph_format
+    fmt.left_indent = fmt.first_line_indent = Cm(0)
+    fmt.space_after = Cm(PHOTO_GAP_AFTER_CM)
     _scaled_tmp = []
+    placed = 0
     for path in image_paths:
         if path and os.path.exists(path):
             small = _downscale_image(path)
             if small != path: _scaled_tmp.append(small)
+            if placed and placed % PHOTOS_PER_ROW == 0:
+                target.add_run().add_break()
             run = target.add_run()
-            try: run.add_picture(small, width=Inches(2.8))
+            w_cm, h_cm = _photo_size_cm(small)
+            try:
+                run.add_picture(small, width=Cm(w_cm),
+                                height=Cm(h_cm) if h_cm else None)
+                # python-docx tidak menulis dist*; Word menganggap 0, tapi
+                # LibreOffice/konverter PDF memberi ±0,32 cm → foto ke-3 turun baris.
+                for inline in run._element.xpath('.//wp:inline'):
+                    for k in ('distT', 'distB', 'distL', 'distR'):
+                        inline.set(k, '0')
+                placed += 1
             except: run.text = f'[{os.path.basename(path)}]'
     for p in _scaled_tmp:
         try: os.remove(p)
