@@ -630,6 +630,13 @@ def _start_google_flow(flow):
     (anti-CSRF: tanpa ini orang lain bisa menyelesaikan login Google mereka di
     browser korban)."""
     import secrets
+    from urllib.parse import urlparse
+    # Session cookie berlaku per domain. Kalau callback Google ada di domain lain
+    # (mis. *.up.railway.app sementara pengguna di lhpakpol.co), mulai alurnya di
+    # domain callback supaya state tersimpan di session yang sama dengan callback.
+    cb = urlparse(GOOGLE_REDIRECT_URI)
+    if cb.netloc and cb.netloc != request.host:
+        return redirect(f'{cb.scheme}://{cb.netloc}{request.path}')
     state = secrets.token_urlsafe(24)
     session['oauth_flow']  = flow
     session['oauth_state'] = state

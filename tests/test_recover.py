@@ -19,7 +19,8 @@ class RecoverTests(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         for name, value in (('USERS_FILE', os.path.join(tmp.name, 'users.json')),
                             ('_users_cache', {'mtime': None, 'data': None}),
-                            ('GOOGLE_CLIENT_ID', 'client-id')):
+                            ('GOOGLE_CLIENT_ID', 'client-id'),
+                            ('GOOGLE_REDIRECT_URI', 'http://localhost/auth/google/callback')):
             p = patch.object(server, name, value)
             p.start()
             self.addCleanup(p.stop)
@@ -73,6 +74,13 @@ class RecoverTests(unittest.TestCase):
             s['recover'] = {**s['recover'], 'exp': time.time() - 1}
         self.assertEqual(self.client.post('/api/recover/reset', json={'password': 'baru456'}).status_code, 400)
         self.assertTrue(check_password_hash(server.get_user('budi')['password'], 'lama123'))
+
+    def test_starts_on_callback_domain(self):
+        with patch.object(server, 'GOOGLE_REDIRECT_URI',
+                          'https://lhp.up.railway.app/auth/google/callback'):
+            for path in ('/lupa-akun', '/register'):
+                res = self.client.get(path)
+                self.assertEqual(res.location, 'https://lhp.up.railway.app' + path)
 
     def test_register_flow_still_works(self):
         self.google = {'id': 'g-new', 'email': 'new@example.com', 'name': 'Baru'}
