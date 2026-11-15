@@ -591,7 +591,7 @@
       <div class="token-info-bar">
         <div class="tib-left">
           Token tersisa <span class="tib-count" id="token-count2">{{ user_tokens }}</span>
-          <span class="tib-sub"> &nbsp;· satu token untuk satu dokumen</span>
+          <span class="tib-sub"> &nbsp;· unduh dokumen gratis; 1 token membuka fitur AI untuk satu dokumen</span>
         </div>
         <button type="button" class="btn-topup" onclick="openTopup()">
           Beli token
@@ -823,7 +823,9 @@ async function generateVisualPhoto() {
                                : 'Pilih selfie depan JPG, PNG, atau WebP maksimal 10 MB.'; return;
   }
   if (!document.getElementById('visual-consent').checked) { status.textContent = 'Konfirmasi izin penggunaan foto wajah terlebih dahulu.'; return; }
+  if (button.disabled) return;
   button.disabled = true;
+  if (!await confirmAiToken('visual')) { button.disabled = false; return; }
   status.textContent = 'Taruna Visual sedang membuat foto. Ini dapat memakan waktu beberapa menit…';
   try {
     const payload = {name:name.slice(0,30), level:2, sar:false,
@@ -836,6 +838,8 @@ async function generateVisualPhoto() {
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     if (response.status === 401) { window.location.href = '/login'; return; }
     const result = await response.json();
+    refreshTokens();
+    if (response.status === 402 && result.no_token) openTopup();
     if (!response.ok) throw new Error(result.error || 'Foto gagal dibuat.');
     const mime = result.image?.mimeType;
     if (!['image/jpeg','image/png','image/webp'].includes(mime) || !result.image.data) throw new Error('Taruna Visual tidak mengirim gambar yang dapat digunakan.');
@@ -982,6 +986,8 @@ document.getElementById('lhp-form').addEventListener('submit', async e => {
   if (_isSubmitting) return;   // double-click / Enter-spam / lag-triggered re-fire guard
   _isSubmitting = true;
   const btn=document.getElementById('btn-submit'), spinner=document.getElementById('spinner'), status=document.getElementById('status');
+  // Dokumen gratis; hanya "Belum ada timestamp" (tambah timestamp) yang memakai paket AI.
+  if (stampRequested() && !await confirmAiToken('stamp')) { _isSubmitting = false; return; }
   btn.disabled=true; spinner.classList.add('show'); status.textContent=''; status.className='';
   clearManualDownload();
   try {
@@ -989,7 +995,9 @@ document.getElementById('lhp-form').addEventListener('submit', async e => {
     if (res.status===401) { window.location.href='/login'; return; }
     if (res.status===402) {
       const j=await res.json();
-      status.textContent=j.error; status.className='err'; return;
+      status.textContent=j.error; status.className='err';
+      if (j.no_token) openTopup();
+      return;
     }
     if (!res.ok) {
       const j=await res.json().catch(()=>({}));
@@ -1221,6 +1229,50 @@ document.addEventListener('keydown', e => {
 });
 
 
+// ── Token untuk fitur AI ─────────────────────────────────────────────────────
+// Dokumen biasa gratis. Scan timestamp, tambah timestamp, dan foto AI memakai
+// "paket AI": 1 token per dokumen (server: consume_ai). Konfirmasi dulu
+// sebelum token terpotong; kalau paket dokumen ini sudah aktif, langsung jalan.
+const AI_LABEL = {scan: 'scan timestamp', visual: 'foto AI', stamp: 'tambah timestamp'};
+
+async function refreshTokens() {
+  try {
+    const tb = await (await fetch('/api/token-balance')).json();
+    document.getElementById('token-count').textContent = tb.tokens;
+    const t2 = document.getElementById('token-count2'); if (t2) t2.textContent = tb.tokens;
+    return tb;
+  } catch (_) { return null; }
+}
+
+async function confirmAiToken(kind) {
+  const tb = await refreshTokens();
+  if (!tb) return true;   // server tetap memeriksa; jangan blokir karena jaringan
+  const pass = tb.ai_pass;
+  if (pass && (kind === 'stamp' || pass[kind] > 0)) return true;
+  if (tb.tokens < 1) {
+    alert(`Fitur ${AI_LABEL[kind]} memakai 1 token per dokumen dan token kamu habis.\n\n` +
+          'Kamu tetap bisa mengunduh dokumen tanpa fitur AI secara gratis.');
+    openTopup();
+    return false;
+  }
+  const msg = pass
+    ? `Jatah ${AI_LABEL[kind]} untuk dokumen ini sudah habis.\nLanjutkan dengan 1 token lagi? (sisa token: ${tb.tokens})`
+    : 'Fitur AI memakai 1 token untuk dokumen ini.\n\n' +
+      'Token itu membuka scan timestamp, tambah timestamp, dan foto AI ' +
+      'sampai dokumen ini diunduh.\n\n' +
+      `Lanjutkan? (sisa token: ${tb.tokens})`;
+  return confirm(msg);
+}
+
+function stampRequested() {
+  for (let i = 1; i <= 4; i++) {
+    const inp = document.getElementById('foto-input-' + i);
+    const chk = document.querySelector(`input[name="foto_${i}_stamp"]`);
+    if (inp && inp.files && inp.files.length && chk && chk.checked) return true;
+  }
+  return false;
+}
+
 // ── Analisa Timestamp Foto ───────────────────────────────────────────────────
 let _analyzeResult = null;
 
@@ -1245,6 +1297,7 @@ async function analyzePhoto() {
 
   if (btn.disabled) return;
   btn.disabled = true;
+  if (!await confirmAiToken('scan')) { btn.disabled = false; return; }
   spinner.classList.add('show');
   panel.classList.remove('show');
   _analyzeResult = null;
@@ -1259,8 +1312,10 @@ async function analyzePhoto() {
     if (res.status === 401) { window.location.href = '/login'; return; }
     const json = await res.json().catch(() => ({error: 'Server sedang sibuk. Coba lagi.'}));
 
+    refreshTokens();
     if (!json.ok) {
       alert(json.error || 'Foto gagal dianalisa.');
+      if (json.no_token) openTopup();
       return;
     }
 
@@ -1568,7 +1623,7 @@ document.addEventListener('keydown', e => {
   <div class="modal">
     <button class="modal-close" onclick="closeTopup()">✕</button>
     <h2>Beli token</h2>
-    <p class="modal-sub">Satu token untuk satu dokumen. Kalau token habis, kamu tetap
+    <p class="modal-sub">Dokumen biasa gratis. Satu token membuka scan timestamp, tambah timestamp, dan foto AI untuk satu dokumen. Kalau token habis, kamu tetap
       mendapat <strong>1 token gratis setiap minggu</strong>.</p>
 
     <div id="regen-info-box"></div>

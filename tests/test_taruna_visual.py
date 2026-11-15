@@ -16,6 +16,12 @@ with tempfile.TemporaryDirectory() as storage, patch.dict(os.environ, {'DATA_DIR
 class TarunaVisualTests(unittest.TestCase):
     def setUp(self):
         self.client = server.app.test_client()
+        # Penagihan token diuji di test_ai_tokens.py; di sini cukup kontrak layanannya.
+        for name, fake in (('consume_ai', lambda uid, kind: (True, {'charged': False, 'undo': (kind, False, None)})),
+                           ('release_ai', lambda uid, undo: None)):
+            p = patch.object(server, name, fake)
+            p.start()
+            self.addCleanup(p.stop)
         self.payload = {'name': 'BUDI', 'level': 2, 'sar': False, 'activity': 'class',
                         'location': 'Ruang kelas', 'ratio': '4:5', 'frame': 'half_body',
                         'consent': True, 'photos': [{'mimeType': 'image/jpeg',
