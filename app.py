@@ -941,7 +941,71 @@ def _downscale_image(path, max_edge=1280, quality=82):
     except Exception:
         return path
 
-def _collect_and_stamp_photos(data):
+# ── Referensi foto untuk Taruna Visual ────────────────────────────────────────
+# Foto dokumentasi dikirim ke Taruna Visual (POST /api/references) HANYA jika
+# pengguna mencentang persetujuan di form (share_refs=1) dan token diatur.
+# Foto berisi wajah orang lain, jadi tanpa centang tidak ada yang dikirim.
+TARUNA_VISUAL_BASE      = os.environ.get('TARUNA_VISUAL_BASE',
+                                         'https://taruna-visual-production-04a8.up.railway.app').rstrip('/')
+TARUNA_VISUAL_REF_TOKEN = os.environ.get('TARUNA_VISUAL_REF_TOKEN', '')
+
+def _send_reference_photos(paths, data):
+    """Baca foto sekarang (file temp segera dihapus), kirim di thread latar
+    supaya unduhan dokumen tidak menunggu Taruna Visual."""
+    import base64
+    photos = []
+    for path in paths[:4]:
+        small = _downscale_image(path, max_edge=1600, quality=85)
+        try:
+            with open(small, 'rb') as f:
+                photos.append({'mimeType': 'image/jpeg', 'data': base64.b64encode(f.read()).decode()})
+        except OSError:
+            continue
+        finally:
+            if small != path:
+                try: os.remove(small)
+                except OSError: pass
+    if not photos:
+        return
+    # Tanpa nama/NRP: cukup konteks kegiatan untuk referensi adegan.
+    body = json.dumps({'consent': True, 'photos': photos, 'meta': {
+        'kegiatan': data.get('Nama Kegiatan', ''), 'tempat': data.get('Tempat Kegiatan', ''),
+        'tanggal': data.get('Tanggal Kegiatan', ''), 'tingkat': data.get('Tingkat', '')}}).encode()
+
+    def post():
+        import urllib.request
+        req = urllib.request.Request(TARUNA_VISUAL_BASE + '/api/references', data=body, method='POST',
+                                     headers={'Content-Type': 'application/json',
+                                              'X-LHP-Token': TARUNA_VISUAL_REF_TOKEN})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                app.logger.info('Referensi Taruna Visual terkirim: %s foto (HTTP %s)', len(photos), r.status)
+        except Exception as e:
+            app.logger.warning('Referensi Taruna Visual gagal dikirim: %s', e)
+    threading.Thread(target=post, daemon=True).start()
+
+# Setiap foto dokumentasi dipotong 1/10 bagian bawahnya sebelum masuk LHP.
+PHOTO_CROP_BOTTOM = 0.10
+
+def _crop_bottom(path, fraction=PHOTO_CROP_BOTTOM):
+    """Potong `fraction` tinggi foto dari bawah (setelah rotasi EXIF). Gagal → foto asli."""
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(path) as im:
+            im.draft('RGB', (2560, 2560))
+            im = ImageOps.exif_transpose(im)
+            if im.mode != 'RGB':
+                im = im.convert('RGB')
+            w, h = im.size
+            im = im.crop((0, 0, w, max(1, round(h * (1 - fraction)))))
+            out = path + '.crop.jpg'
+            im.save(out, 'JPEG', quality=92)
+            return out
+    except Exception:
+        app.logger.warning("crop foto gagal, pakai foto asli:\n%s", traceback.format_exc())
+        return path
+
+def _collect_and_stamp_photos(data, refs=None):
     """
     Save uploaded foto_N files to temp paths, applying the timestamp overlay
     to any marked foto_N_stamp=1. Shared by /api/generate and /api/preview so
@@ -957,6 +1021,15 @@ def _collect_and_stamp_photos(data):
             file.save(tmp.name); tmp.close()
             path = tmp.name
             image_tmpfiles.append(path)
+            # Potong dulu, baru stempel -- supaya stempel timestamp tidak ikut terpotong.
+            cropped = _crop_bottom(path)
+            if cropped != path:
+                image_tmpfiles.append(cropped)
+                path = cropped
+            # Kandidat referensi Taruna Visual: foto asli pengguna (sudah dipotong,
+            # tanpa stempel). Foto hasil Taruna Visual sendiri tidak dikirim balik.
+            if refs is not None and not file.filename.startswith('taruna-visual-'):
+                refs.append(path)
             if request.form.get(f'foto_{i}_stamp') == '1':
                 # Kecilkan dulu: menstempel foto 12MP+ di resolusi penuh lambat
                 # dan hasilnya tetap dikecilkan ke 1280px di _insert_images.
@@ -994,7 +1067,7 @@ def generate_taruna_visual_photo():
 def _taruna_visual_relay(payload):
     import urllib.request
     import urllib.error
-    base = 'https://taruna-visual-production-04a8.up.railway.app'
+    base = TARUNA_VISUAL_BASE
     body = json.dumps(payload).encode('utf-8')
     def upstream_request(origin=None):
         headers = {'Content-Type': 'application/json'}
@@ -1034,9 +1107,10 @@ def _taruna_visual_relay(payload):
         margin = max(12, photo.width // 60)
         box = draw.textbbox((0, 0), label, font=font)
         height = box[3] - box[1] + margin * 2
-        draw.rectangle((0, photo.height - height, photo.width, photo.height), fill=(20, 20, 20))
-        draw.text((margin, photo.height - height + margin - box[1]), label,
-                  font=font, fill='white')
+        # Label di ATAS: LHP memotong 1/10 bagian bawah tiap foto (PHOTO_CROP_BOTTOM),
+        # label penanda AI tidak boleh ikut terpotong.
+        draw.rectangle((0, 0, photo.width, height), fill=(20, 20, 20))
+        draw.text((margin, margin - box[1]), label, font=font, fill='white')
         output = BytesIO()
         photo.save(output, format='JPEG', quality=88)
         result['image'] = {'mimeType': 'image/jpeg',
@@ -1495,7 +1569,8 @@ def index():
                            user_tokens=user.get('tokens', 0),
                            user_picture=user.get('picture',''),
                            token_packages=TOKEN_PACKAGES,
-                           duitku_configured=duitku_configured())
+                           duitku_configured=duitku_configured(),
+                           refs_enabled=bool(TARUNA_VISUAL_REF_TOKEN))
 
 @app.route('/admin/login', methods=['GET'])
 def admin_login_redirect():
@@ -2222,7 +2297,9 @@ def _do_generate(uid):
         if not ok:
             return jsonify(ai), 402
 
-    image_paths, image_tmpfiles = _collect_and_stamp_photos(data)
+    share = request.form.get('share_refs') == '1' and bool(TARUNA_VISUAL_REF_TOKEN)
+    ref_paths = [] if share else None
+    image_paths, image_tmpfiles = _collect_and_stamp_photos(data, ref_paths)
 
     out_tmp  = tempfile.NamedTemporaryFile(delete=False, suffix='.docx', dir=UPLOAD_FOLDER)
     out_path = out_tmp.name; out_tmp.close()
@@ -2237,6 +2314,9 @@ def _do_generate(uid):
             except: pass
         if ai: release_ai(uid, ai['undo'])
         return jsonify({'error': f'Gagal membuat dokumen: {e}'}), 500
+    else:
+        if ref_paths:
+            _send_reference_photos(ref_paths, data)
     finally:
         for p in image_tmpfiles:
             try: os.remove(p)

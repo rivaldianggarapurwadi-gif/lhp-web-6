@@ -135,6 +135,21 @@ menambah worker = proses terpisah = lock tidak berlaku lagi.
 - Preview sekarang dirender server (`/api/preview`), bukan `buildPreviewHTML()`;
   poin 4 di atas sudah tidak berlaku.
 
+### 11. Foto: potong 1/10 bawah, label AI di atas
+- Setiap foto dipotong 10% bagian bawah (`_crop_bottom`, `PHOTO_CROP_BOTTOM`) **sebelum**
+  stempel timestamp, supaya stempel tidak ikut terpotong.
+- Label "ILUSTRASI AI" pada foto Taruna Visual sengaja di **atas** gambar. Jangan
+  pindahkan ke bawah: crop akan menghapus penanda AI dari dokumen resmi.
+
+### 12. Referensi foto ke Taruna Visual (opt-in)
+- Form punya centang `share_refs` (muncul hanya jika `TARUNA_VISUAL_REF_TOKEN` diatur).
+  Dicentang → setelah unduh sukses, foto pengguna (sudah dipotong, tanpa stempel, tanpa
+  nama/NRP) dikirim di thread latar ke `TARUNA_VISUAL_BASE/api/references`
+  (`_send_reference_photos`). Foto hasil Taruna Visual tidak dikirim balik.
+- Tanpa centang = tidak ada yang dikirim. Foto berisi wajah orang lain; jangan dijadikan default.
+- Env: `TARUNA_VISUAL_REF_TOKEN` (sama dengan `LHP_REFERENCE_TOKEN` di Taruna Visual),
+  opsional `TARUNA_VISUAL_BASE`.
+
 ---
 
 ## Cache

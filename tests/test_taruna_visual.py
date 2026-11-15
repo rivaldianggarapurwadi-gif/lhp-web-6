@@ -52,7 +52,8 @@ class TarunaVisualTests(unittest.TestCase):
             self.assertEqual(result.json['image']['mimeType'], 'image/jpeg')
             with Image.open(BytesIO(base64.b64decode(result.json['image']['data']))) as stamped:
                 self.assertEqual(stamped.size, (400, 300))
-                self.assertLess(max(stamped.getpixel((5, 290))), 50)
+                self.assertLess(max(stamped.getpixel((5, 5))), 50)      # label AI di atas
+                self.assertGreater(min(stamped.getpixel((5, 290))), 200)
             request = remote.call_args.args[0]
             self.assertEqual(request.full_url, 'https://taruna-visual-production-04a8.up.railway.app/api/generate')
             self.assertIsNone(request.get_header('Origin'))
