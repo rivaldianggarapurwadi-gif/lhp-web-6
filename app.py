@@ -60,7 +60,12 @@ ADMIN_USERNAME      = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD      = os.environ.get("ADMIN_PASSWORD", "admin123")
 TOKENS_NEW_USER     = 1          # token gratis saat daftar
 TOKENS_WEEKLY_REGEN = 1          # token regen per minggu (hanya jika token == 0)
-TOKENS_PER_DOC      = 1
+TOKENS_PER_DOC      = 1          # harga satu "paket AI" per dokumen (lihat consume_ai)
+# Dokumen tanpa fitur AI GRATIS. 1 token membuka scan timestamp, tambah
+# timestamp, dan foto Taruna Visual untuk SATU dokumen (sampai diunduh).
+# Batas per paket supaya 1 token tidak membiayai panggilan AI tanpa batas.
+AI_PASS_SCANS       = 4
+AI_PASS_VISUALS     = 4
 
 # Google OAuth
 GOOGLE_CLIENT_ID     = os.environ.get("GOOGLE_CLIENT_ID", "")
@@ -107,6 +112,18 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "lhp-akpol-secret-2026-xK9mP")
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024
 logging.basicConfig(level=logging.INFO)
+
+# Tanpa ini Flask mengirim static dengan "no-cache", jadi HP mengunduh ulang
+# logo/ikon di setiap halaman. Ganti nama file kalau isinya berubah.
+STATIC_MAX_AGE = 7 * 24 * 3600
+
+@app.after_request
+def _cache_static(response):
+    if request.path.startswith('/static/') and response.status_code in (200, 304):
+        response.cache_control.public = True
+        response.cache_control.max_age = STATIC_MAX_AGE
+        response.cache_control.no_cache = None
+    return response
 
 @app.errorhandler(413)
 def _too_large(e):
@@ -299,17 +316,64 @@ def release_scan(uid):
         rec['count'] -= 1
         _write_json_atomic(SCAN_USAGE_FILE, usage)
 
+def _ai_pass_view(user):
+    p = (user or {}).get('ai_pass')
+    return {'scan': p.get('scan', 0), 'visual': p.get('visual', 0)} if p else None
+
 @store_locked
-def use_token(username):
+def consume_ai(username, kind):
+    """
+    Pakai fitur AI ('scan' | 'visual' | 'stamp') untuk dokumen yang sedang dibuat.
+    Belum ada paket (atau jatah 'kind' habis) → potong 1 token, buka paket baru.
+    Return (ok, info); info['undo'] dipakai release_ai() kalau layanan gagal.
+    """
     users = _load_users()
     key   = username.lower()
-    if key not in users:
-        return False
-    if users[key].get('tokens', 0) < TOKENS_PER_DOC:
-        return False
-    users[key]['tokens'] -= TOKENS_PER_DOC
+    user  = users.get(key)
+    if not user:
+        return False, {'error': 'Akun tidak ditemukan.'}
+    prev = copy.deepcopy(user.get('ai_pass'))
+    p = copy.deepcopy(prev)
+    charged = False
+    if not p or (kind != 'stamp' and p.get(kind, 0) <= 0):
+        if user.get('tokens', 0) < TOKENS_PER_DOC:
+            return False, {'error': 'Fitur AI (scan timestamp, tambah timestamp, foto AI) memakai '
+                                    '1 token per dokumen. Token kamu habis — beli token dulu, '
+                                    'atau unduh dokumen tanpa fitur AI (gratis).',
+                           'no_token': True}
+        user['tokens'] -= TOKENS_PER_DOC
+        p = {'scan': AI_PASS_SCANS, 'visual': AI_PASS_VISUALS,
+             'started': datetime.now(timezone.utc).isoformat()}
+        charged = True
+    if kind != 'stamp':
+        p[kind] -= 1
+    user['ai_pass'] = p
     _save_users(users)
-    return True
+    return True, {'charged': charged, 'undo': (kind, charged, prev)}
+
+@store_locked
+def release_ai(username, undo):
+    """Batalkan consume_ai() bila layanan AI gagal (bukan salah pengguna)."""
+    kind, charged, prev = undo
+    users = _load_users()
+    user  = users.get(username.lower())
+    if not user:
+        return
+    if charged:
+        user['tokens'] = user.get('tokens', 0) + TOKENS_PER_DOC
+        if prev: user['ai_pass'] = prev
+        else:    user.pop('ai_pass', None)
+    elif user.get('ai_pass') and kind != 'stamp':
+        user['ai_pass'][kind] = user['ai_pass'].get(kind, 0) + 1
+    _save_users(users)
+
+@store_locked
+def end_ai_pass(username):
+    """Dokumen sudah diunduh → paket AI dokumen itu selesai."""
+    users = _load_users()
+    user  = users.get(username.lower())
+    if user and user.pop('ai_pass', None) is not None:
+        _save_users(users)
 
 @store_locked
 def add_tokens(username, amount):
@@ -842,6 +906,9 @@ def _downscale_image(path, max_edge=1280, quality=82):
     try:
         from PIL import Image, ImageOps
         with Image.open(path) as im:
+            # JPEG: decode langsung di resolusi yang lebih kecil (jauh lebih
+            # cepat untuk foto kamera 12MP+ daripada decode penuh lalu resize).
+            im.draft('RGB', (max_edge, max_edge))
             im = ImageOps.exif_transpose(im)
             if im.mode not in ('RGB', 'L'):
                 im = im.convert('RGB')
@@ -872,6 +939,12 @@ def _collect_and_stamp_photos(data):
             path = tmp.name
             image_tmpfiles.append(path)
             if request.form.get(f'foto_{i}_stamp') == '1':
+                # Kecilkan dulu: menstempel foto 12MP+ di resolusi penuh lambat
+                # dan hasilnya tetap dikecilkan ke 1280px di _insert_images.
+                small = _downscale_image(path, quality=92)
+                if small != path:
+                    image_tmpfiles.append(small)
+                    path = small
                 try:
                     stamped = _stamp_timestamp(path, data['Tanggal Kegiatan'],
                                                 data['Waktu Kegiatan'], data['Tempat Kegiatan'])
@@ -886,11 +959,22 @@ def _collect_and_stamp_photos(data):
 @login_required
 def generate_taruna_visual_photo():
     """Relay an opted-in face-photo request to Taruna Visual for the LHP form."""
-    import urllib.request
-    import urllib.error
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict) or payload.get('level') != 2 or payload.get('consent') is not True:
         return jsonify({'error': 'Konfirmasi izin foto dan pilih Tingkat II.'}), 400
+    uid = session['uid']
+    ok, info = consume_ai(uid, 'visual')
+    if not ok:
+        return jsonify(info), 402
+    resp = _taruna_visual_relay(payload)
+    status = resp[1] if isinstance(resp, tuple) else resp.status_code
+    if status != 200:
+        release_ai(uid, info['undo'])
+    return resp
+
+def _taruna_visual_relay(payload):
+    import urllib.request
+    import urllib.error
     base = 'https://taruna-visual-production-04a8.up.railway.app'
     body = json.dumps(payload).encode('utf-8')
     def upstream_request(origin=None):
@@ -983,6 +1067,7 @@ def _docx_to_preview_html(docx_path):
     from docx.text.paragraph import Paragraph
     from docx.table import Table
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
 
     doc = Document(docx_path)
     ALIGN_MAP = {
@@ -999,10 +1084,15 @@ def _docx_to_preview_html(docx_path):
         if img:
             data, ctype = img
             b64 = base64.b64encode(data).decode()
+            # Ukuran asli di dokumen (EMU → mm) supaya susunan foto sama dengan file Word.
+            ext = run._element.find('.//' + qn('wp:extent'))
+            size = ''
+            if ext is not None:
+                size = (f'width:{int(ext.get("cx")) / 36000:.1f}mm;'
+                        f'height:{int(ext.get("cy")) / 36000:.1f}mm;')
             return (f'<img src="data:{ctype};base64,{b64}" '
-                    f'style="max-width:260px;max-height:200px;object-fit:cover;'
-                    f'margin:3px;border:1px solid #ccc">')
-        text = esc(run.text)
+                    f'style="{size}vertical-align:bottom;margin:0">')
+        text = esc(run.text).replace('\n', '<br>')
         if not text:
             return ''
         if run.underline: text = f'<u>{text}</u>'
@@ -1094,8 +1184,30 @@ def _stamp_timestamp(image_path, tanggal, waktu, tempat):
         im.save(out, 'JPEG', quality=92)
         return out
 
+# Tata letak lampiran sesuai contoh format: 3 foto per baris, rata kiri di
+# margin, rapat tanpa jarak; foto ke-4 turun ke baris baru di kiri.
+# Tiap foto dimuat utuh di kotak 5 x 3,75 cm (4:3) -- tidak di-crop, supaya
+# timestamp di sudut foto tidak terpotong.
+PHOTO_BOX_W_CM = 5.0
+PHOTO_BOX_H_CM = 3.75
+PHOTOS_PER_ROW = 3
+PHOTO_GAP_AFTER_CM = 6.0   # jarak foto → blok "SEMARANG, … YANG MEMBUAT LAPORAN" (sesuai contoh)
+
+def _photo_size_cm(path):
+    from PIL import Image
+    try:
+        with Image.open(path) as im:
+            w, h = im.size
+            if im.getexif().get(0x0112) in (5, 6, 7, 8):   # EXIF rotasi 90°
+                w, h = h, w
+    except Exception:
+        return PHOTO_BOX_W_CM, None
+    scale = min(PHOTO_BOX_W_CM / w, PHOTO_BOX_H_CM / h)
+    return w * scale, h * scale
+
 def _insert_images(doc, placeholder, image_paths):
-    from docx.shared import Inches
+    from docx.shared import Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
     from lxml import etree
     target = None
     for para in _all_paragraphs(doc):
@@ -1103,13 +1215,29 @@ def _insert_images(doc, placeholder, image_paths):
             target = para; break
     if not target: return
     for r in target.runs: r.text = ''
+    target.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    fmt = target.paragraph_format
+    fmt.left_indent = fmt.first_line_indent = Cm(0)
+    fmt.space_after = Cm(PHOTO_GAP_AFTER_CM)
     _scaled_tmp = []
+    placed = 0
     for path in image_paths:
         if path and os.path.exists(path):
             small = _downscale_image(path)
             if small != path: _scaled_tmp.append(small)
+            if placed and placed % PHOTOS_PER_ROW == 0:
+                target.add_run().add_break()
             run = target.add_run()
-            try: run.add_picture(small, width=Inches(2.8))
+            w_cm, h_cm = _photo_size_cm(small)
+            try:
+                run.add_picture(small, width=Cm(w_cm),
+                                height=Cm(h_cm) if h_cm else None)
+                # python-docx tidak menulis dist*; Word menganggap 0, tapi
+                # LibreOffice/konverter PDF memberi ±0,32 cm → foto ke-3 turun baris.
+                for inline in run._element.xpath('.//wp:inline'):
+                    for k in ('distT', 'distB', 'distL', 'distR'):
+                        inline.set(k, '0')
+                placed += 1
             except: run.text = f'[{os.path.basename(path)}]'
     for p in _scaled_tmp:
         try: os.remove(p)
@@ -1540,6 +1668,7 @@ def token_balance():
         'tokens':     user.get('tokens', 0),
         'did_regen':  did_regen,
         'next_regen': next_regen,
+        'ai_pass':    _ai_pass_view(user),
     })
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1863,6 +1992,11 @@ def api_analyze_photo():
                                  'Coba lagi besok, atau isi tanggal, waktu, dan tempat secara manual.',
                         'code': 'scan_daily_limit'}), 429
 
+    ok, ai = consume_ai(session['uid'], 'scan')
+    if not ok:
+        release_scan(session['uid'])
+        return jsonify(ai), 402
+
     try:
         prompt = (
             "Analisa foto ini. Cari timestamp, tanggal, waktu, dan lokasi yang TERCETAK di foto.\n\n"
@@ -1914,16 +2048,20 @@ def api_analyze_photo():
 
     except urllib.error.HTTPError as e:
         release_scan(session['uid'])
+        release_ai(session['uid'], ai['undo'])
         return _timestamp_api_error(e)
     except (urllib.error.URLError, TimeoutError):
         release_scan(session['uid'])
+        release_ai(session['uid'], ai['undo'])
         app.logger.warning('Timestamp scan: layanan AI tidak dapat dihubungi')
         return jsonify({'error': 'Layanan scan tidak dapat dihubungi. Coba lagi nanti.',
                         'code': 'scan_temporarily_unavailable'}), 503
     except json.JSONDecodeError:
+        release_ai(session['uid'], ai['undo'])
         return jsonify({'error': 'Gagal memproses respons AI. Coba lagi.'}), 500
     except Exception:
         app.logger.error("analyze-photo:\n%s", traceback.format_exc())
+        release_ai(session['uid'], ai['undo'])
         return jsonify({'error': 'Terjadi kesalahan. Coba lagi.'}), 500
 
 @app.route('/api/lookup')
@@ -1962,13 +2100,16 @@ def api_generate():
         with _GENERATING_LOCK:
             _GENERATING_USERS.discard(uid)
 
+def _stamp_requested():
+    for i in range(1, 5):
+        f = request.files.get(f'foto_{i}')
+        if f and f.filename and request.form.get(f'foto_{i}_stamp') == '1':
+            return True
+    return False
+
 def _do_generate(uid):
     import tempfile
-    user = get_user(uid)
-    if not user or user.get('tokens', 0) < TOKENS_PER_DOC:
-        return jsonify({'error': 'Token habis. Topup token untuk melanjutkan.',
-                        'no_token': True}), 402
-
+    # Dokumen biasa gratis; token hanya untuk fitur AI (lihat consume_ai).
     fields = ['Nama','No Ak','Pangkat','Tingkat','Peleton','Kompi',
               'Nama Danton','Pangkat Danton','NRP Danton',
               'Nama Danki','Pangkat Danki','NRP Danki',
@@ -1981,6 +2122,14 @@ def _do_generate(uid):
         data[f] = val
     if data['Tingkat'] not in ('1', '2', '3'):
         return jsonify({'error': 'Tingkat tidak valid'}), 400
+
+    # "Tambah timestamp" termasuk fitur AI berbayar: pakai paket dokumen ini
+    # (atau buka paket baru dengan 1 token).
+    ai = None
+    if _stamp_requested():
+        ok, ai = consume_ai(uid, 'stamp')
+        if not ok:
+            return jsonify(ai), 402
 
     image_paths, image_tmpfiles = _collect_and_stamp_photos(data)
 
@@ -1995,13 +2144,14 @@ def _do_generate(uid):
         for p in image_tmpfiles + [out_path]:
             try: os.remove(p)
             except: pass
+        if ai: release_ai(uid, ai['undo'])
         return jsonify({'error': f'Gagal membuat dokumen: {e}'}), 500
     finally:
         for p in image_tmpfiles:
             try: os.remove(p)
             except: pass
 
-    use_token(uid)
+    end_ai_pass(uid)
 
     @after_this_request
     def cleanup(response):

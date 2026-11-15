@@ -32,6 +32,10 @@ async function check(mode, omit) {
   const context = {
     document,
     visualPhotoData: async file => ({mimeType: file.type, data: file.tag}),
+    shrinkPhoto: async file => file,
+    confirmAiToken: async () => true,
+    refreshTokens: async () => null,
+    openTopup: () => {},
     fetch: async (url, options) => {
       assert.equal(url, '/api/taruna-visual/generate');
       sent = JSON.parse(options.body);

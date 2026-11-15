@@ -33,6 +33,12 @@ class TimestampScanTests(unittest.TestCase):
         self.client = server.app.test_client()
         with self.client.session_transaction() as session:
             session['uid'] = 'scan-test'
+        # Penagihan token diuji di test_ai_tokens.py; di sini cukup kontrak layanannya.
+        for name, fake in (('consume_ai', lambda uid, kind: (True, {'charged': False, 'undo': (kind, False, None)})),
+                           ('release_ai', lambda uid, undo: None)):
+            p = patch.object(server, name, fake)
+            p.start()
+            self.addCleanup(p.stop)
         self.urlopen = patch('urllib.request.urlopen')
         self.remote = self.urlopen.start()
         self.addCleanup(self.urlopen.stop)

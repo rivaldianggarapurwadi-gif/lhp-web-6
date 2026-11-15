@@ -49,8 +49,14 @@ Callback Duitku: `POST /api/topup/notification` (form-encoded, `resultCode == '0
 - **Daftar**: `/register` → Google OAuth (verifikasi identitas saja) → form nama/username/password → akun dibuat, dapat **1 token**.
 - **Login**: username + password. Google TIDAK dipakai lagi setelah daftar.
 - Satu Google ID hanya boleh dipakai sekali daftar (`get_user_by_google_id`).
-- Token: 1 token = 1 dokumen. Regenerasi **1 token/minggu, hanya kalau token == 0**.
-- Preview **tidak** memotong token; hanya `/api/generate` yang memotong.
+- **Dokumen biasa GRATIS** (form, preview, unduh). Token hanya untuk fitur AI.
+- **1 token = paket AI untuk 1 dokumen** (`consume_ai`, disimpan di `users[uid]['ai_pass']`):
+  membuka scan timestamp (maks `AI_PASS_SCANS`=4), foto Taruna Visual (maks
+  `AI_PASS_VISUALS`=4), dan tambah timestamp. Jatah habis → token berikutnya membuka paket baru.
+  Paket selesai saat dokumen diunduh (`end_ai_pass` di `/api/generate`).
+- Layanan AI gagal → `release_ai` mengembalikan token/jatah. Preview dengan stempel tetap gratis.
+- Browser minta konfirmasi sebelum token terpotong (`confirmAiToken` di `index.html`).
+- Regenerasi **1 token/minggu, hanya kalau token == 0**.
 
 ---
 
@@ -113,6 +119,17 @@ situs. Terukur: 3.64s → 0.01s setelah pakai `gthread --threads 8`.
 
 Tetap **1 worker** karena penyimpanan berbasis file diamankan lock dalam-proses;
 menambah worker = proses terpisah = lock tidak berlaku lagi.
+
+### 10. Performa di HP (keluhan "lag/glitch")
+- Halaman web pakai `static/logo-sm.png` (18 KB). `logo.png` (705 KB) hanya untuk
+  dokumen Word & og:image — jangan dipasang lagi di `<img>`/favicon.
+- File `/static/` di-cache 7 hari (`_cache_static`). Kalau isi file berubah, **ganti namanya**.
+- Foto dikecilkan di browser (`shrinkPhoto`, 1600px) sebelum dikirim; semua kirim form
+  lewat `buildFormData()`, jangan `new FormData(form)` langsung.
+- Jangan ubah `value` input saat event `input` (kapitalisasi) — merusak keyboard Android.
+  Kapital lewat CSS + `toUpperValues()` sebelum kirim.
+- Preview sekarang dirender server (`/api/preview`), bukan `buildPreviewHTML()`;
+  poin 4 di atas sudah tidak berlaku.
 
 ---
 
