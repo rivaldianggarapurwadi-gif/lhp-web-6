@@ -611,7 +611,7 @@ def admin_required(f):
 # Google OAuth helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _google_auth_url():
+def _google_auth_url(state=None):
     import urllib.parse
     params = {
         'client_id':     GOOGLE_CLIENT_ID,
@@ -621,7 +621,19 @@ def _google_auth_url():
         'access_type':   'online',
         'prompt':        'select_account',
     }
+    if state:
+        params['state'] = state
     return 'https://accounts.google.com/o/oauth2/v2/auth?' + urllib.parse.urlencode(params)
+
+def _start_google_flow(flow):
+    """Mulai OAuth untuk 'register' atau 'recover'. state acak dicek di callback
+    (anti-CSRF: tanpa ini orang lain bisa menyelesaikan login Google mereka di
+    browser korban)."""
+    import secrets
+    state = secrets.token_urlsafe(24)
+    session['oauth_flow']  = flow
+    session['oauth_state'] = state
+    return redirect(_google_auth_url(state))
 
 def _google_exchange_code(code):
     """Exchange auth code for id_token + access_token. Returns dict or raises."""
@@ -1517,18 +1529,20 @@ def register():
     if not GOOGLE_CLIENT_ID:
         return render_template('login.html', google_configured=False,
                                error='Google OAuth belum dikonfigurasi.')
-    # Simpan state=register di session agar callback tahu ini alur daftar
-    session['oauth_flow'] = 'register'
-    return redirect(_google_auth_url())
+    return _start_google_flow('register')
 
 # ── Register step 2: callback Google ─────────────────────────────────────────
 
 @app.route('/auth/google/callback')
 def auth_google_callback():
     error = request.args.get('error')
+    expected_state = session.pop('oauth_state', None)
     if error:
         session.pop('oauth_flow', None)
         return redirect(url_for('login') + '?error=google_denied')
+    if not expected_state or not hmac.compare_digest(expected_state, request.args.get('state', '')):
+        session.pop('oauth_flow', None)
+        return redirect(url_for('login') + '?error=session_expired')
     code = request.args.get('code', '')
     if not code:
         session.pop('oauth_flow', None)
@@ -1557,13 +1571,83 @@ def auth_google_callback():
                 'suggested_name': name,
             }
             return redirect(url_for('register_form'))
+        elif flow == 'recover':
+            user = get_user_by_google_id(google_id)
+            if not user:
+                return redirect(url_for('login') + '?error=recover_not_found')
+            session['recover'] = {'uid': user['username'],
+                                  'google_email': email, 'picture': picture,
+                                  'exp': time.time() + RECOVER_TTL_SECS}
+            return redirect(url_for('recover_form'))
         else:
-            # Flow lain (tidak dipakai saat ini)
             return redirect(url_for('login'))
     except Exception:
         app.logger.error("Google OAuth error:\n%s", traceback.format_exc())
         session.pop('oauth_flow', None)
         return redirect(url_for('login') + '?error=oauth_failed')
+
+# ── Lupa akun ─────────────────────────────────────────────────────────────────
+# Semua akun diverifikasi Google saat daftar (google_id tersimpan), jadi
+# pemulihan = login Google yang sama lagi → tampilkan username + set password baru.
+# Tidak perlu kirim email.
+
+RECOVER_TTL_SECS = 15 * 60
+
+def _pending_recover():
+    rec = session.get('recover')
+    if not rec or rec.get('exp', 0) < time.time():
+        session.pop('recover', None)
+        return None, None
+    user = get_user(rec['uid'])
+    if not user:
+        session.pop('recover', None)
+        return None, None
+    return rec, user
+
+@store_locked
+def set_user_password(username, password):
+    from werkzeug.security import generate_password_hash
+    users = _load_users()
+    key = username.lower()
+    if key not in users:
+        return False
+    users[key]['password'] = generate_password_hash(password)
+    _save_users(users)
+    return True
+
+@app.route('/lupa-akun')
+def lupa_akun():
+    if 'uid' in session:
+        return redirect(url_for('index'))
+    if not GOOGLE_CLIENT_ID:
+        return redirect(url_for('login') + '?error=oauth_failed')
+    return _start_google_flow('recover')
+
+@app.route('/lupa-akun/reset', methods=['GET'])
+def recover_form():
+    rec, user = _pending_recover()
+    if not rec:
+        return redirect(url_for('login') + '?error=recover_expired')
+    return render_template('recover_form.html', username=user['username'],
+                           name=user.get('name', ''), google_email=rec['google_email'],
+                           google_picture=rec.get('picture', ''))
+
+@app.route('/api/recover/reset', methods=['POST'])
+def api_recover_reset():
+    rec, user = _pending_recover()
+    if not rec:
+        return jsonify({'error': 'Sesi pemulihan habis. Ulangi lewat "Lupa akun".'}), 400
+    password = (request.get_json(silent=True) or {}).get('password', '')
+    if len(password.strip()) < 6:
+        return jsonify({'error': 'Password minimal 6 karakter'}), 400
+    set_user_password(user['username'], password.strip())
+    session.pop('recover', None)
+    app.logger.info("Password reset via Google recovery: %s", user['username'])
+    session['uid']     = user['username']
+    session['role']    = 'user'
+    session['name']    = user['name']
+    session['picture'] = user.get('picture', '')
+    return jsonify({'ok': True, 'redirect': '/'})
 
 # ── Register step 3: form isi nama/username/password ──────────────────────────
 

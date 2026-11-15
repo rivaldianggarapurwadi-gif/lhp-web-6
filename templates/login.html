@@ -131,6 +131,9 @@
   .admin-link{display:block;text-align:center;margin-top:22px;font-size:12px;
               color:var(--mid-gray);text-decoration:none}
   .admin-link:hover{color:var(--ink)}
+  .forgot-link{display:block;text-align:center;margin-top:14px;font-size:14px;
+               color:var(--link);text-decoration:none}
+  .forgot-link:hover{text-decoration:underline}
   .notice{border-radius:var(--r-input);padding:12px 16px;font-size:14px;
           margin-bottom:22px;line-height:1.4}
   .notice-info{background:var(--canvas);color:var(--deep-gray)}
@@ -295,6 +298,10 @@
     <div class="notice notice-warn">Login Google gagal. Coba lagi.</div>
     {% elif request.args.get('error') == 'session_expired' %}
     <div class="notice notice-warn">Sesi berakhir. Ulangi pendaftaran.</div>
+    {% elif request.args.get('error') == 'recover_not_found' %}
+    <div class="notice notice-warn">Akun Google itu belum terdaftar. Pilih akun Google yang kamu pakai saat daftar, atau daftar baru.</div>
+    {% elif request.args.get('error') == 'recover_expired' %}
+    <div class="notice notice-warn">Sesi pemulihan habis. Ulangi lewat "Lupa username atau password".</div>
     {% endif %}
 
     <div class="field">
@@ -307,6 +314,9 @@
     </div>
     <button class="btn-fill btn-full" id="btn-login" onclick="doLogin()">Masuk</button>
     <div class="msg" id="err"></div>
+    {% if google_configured %}
+    <a href="/lupa-akun" class="forgot-link">Lupa username atau password?</a>
+    {% endif %}
 
     {% if google_configured %}
     <div class="divider">belum punya akun</div>
