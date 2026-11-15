@@ -830,7 +830,8 @@ async function generateVisualPhoto() {
       activity:document.getElementById('visual-activity').value,
       location:document.getElementById('visual-location').value,
       ratio:'4:5', frame:'half_body', consent:true,
-      photos:await Promise.all(files.map(visualPhotoData))};
+      // Selfie dikecilkan dulu (lihat shrinkPhoto): 3×10 MB base64 lewat data seluler sangat lambat.
+      photos:await Promise.all(files.map(async f => visualPhotoData(await shrinkPhoto(f))))};
     const response = await fetch('/api/taruna-visual/generate', {
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     if (response.status === 401) { window.location.href = '/login'; return; }
