@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profil — LHP AKPOL</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/static/logo-sm.png">
+{% include '_flow_style.html' %}
+<style>
+  .photos{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  @media(max-width:700px){.photos{grid-template-columns:1fr 1fr}}
+  .ph{display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--deep-gray)}
+  .ph b{color:var(--ink);font-weight:600;font-size:14px}
+  .ph small{color:var(--mid-gray);line-height:1.35}
+  .slot{position:relative;aspect-ratio:3/4;background:var(--canvas);border-radius:14px;overflow:hidden;
+        display:flex;align-items:center;justify-content:center;color:var(--mid-gray);font-size:26px;cursor:pointer}
+  .slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .slot input{position:absolute;inset:0;opacity:0;cursor:pointer}
+  .ph button{background:transparent;border:1px solid var(--hairline);border-radius:980px;padding:5px 0;
+             font-size:12px;color:var(--mid-gray);cursor:pointer;font-family:var(--font-text)}
+  .ph button:hover{background:var(--cool-wash);color:var(--ink)}
+  .consent{display:flex;gap:10px;align-items:flex-start;margin-top:20px;padding:14px 16px;background:var(--canvas);
+           border-radius:12px;font-size:13px;color:var(--deep-gray);line-height:1.45;cursor:pointer}
+  .consent input{margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--blue)}
+  .actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:8px}
+  .del-all{background:none;border:none;color:var(--mid-gray);font-size:13px;cursor:pointer;text-decoration:underline;margin-top:14px}
+</style>
+</head>
+<body>
+<header>
+  <img src="/static/logo-sm.png" alt="">
+  <span class="t">LHP Kegiatan Positif</span>
+  <div class="right">
+    <span class="pill">{{ user_tokens }} token</span>
+    <a href="/logout">Keluar</a>
+  </div>
+</header>
+
+<main>
+  <div class="steps">Langkah 1 dari 3 · Profil</div>
+  <h1>Halo, {{ user_name }}.</h1>
+  <p class="lede">Simpan identitas dan foto kamu sekali saja. Data ini otomatis dipakai setiap membuat LHP
+    dan foto AI Taruna Visual, jadi kamu tidak perlu mengisi ulang.</p>
+
+  <form id="profil-form" onsubmit="return false">
+  <div class="card">
+    <h2>Identitas</h2>
+    <p class="sub">Mengisi otomatis bagian "Data pribadi" di form LHP. Nama juga dipakai untuk papan nama di foto AI.</p>
+    <div class="grid">
+      <div class="field"><label for="nama">1. Nama</label>
+        <input type="text" id="nama" name="nama" value="{{ profile.nama or user_name|upper }}" placeholder="Nama lengkap taruna"></div>
+      <div class="field"><label for="tingkat">2. Tingkat</label>
+        <select id="tingkat" name="tingkat">
+          {% for v, l in [('1','Tingkat I'),('2','Tingkat II'),('3','Tingkat III')] %}
+          <option value="{{ v }}" {% if (profile.tingkat or '2') == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="pangkat">3. Pangkat</label>
+        <select id="pangkat" name="pangkat">
+          {% for p in pangkat_options %}<option value="{{ p }}" {% if profile.pangkat == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="peleton">4. Peleton</label>
+        <input type="number" id="peleton" name="peleton" min="1" value="{{ profile.peleton or '' }}" placeholder="cth. 2"></div>
+      <div class="field"><label for="kompi">5. Kompi</label>
+        <input type="number" id="kompi" name="kompi" min="1" value="{{ profile.kompi or '' }}" placeholder="cth. 4"></div>
+      <div class="field"><label for="no_ak">6. Nomor Ak</label>
+        <input type="text" id="no_ak" name="no_ak" value="{{ profile.no_ak or '' }}" placeholder="No. akademi"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Foto untuk Taruna Visual</h2>
+    <p class="sub">Dipakai saat membuat foto AI (mode token). Foto depan wajib; foto kiri dan kanan
+      membuat wajah lebih mirip; foto badan opsional untuk postur.</p>
+    <div class="photos">
+      {% for kind, title, hint in [('front','Muka depan','Hadap lurus, wajah jelas.'),
+                                   ('left','Muka 45° kiri','Opsional, isi bersama kanan.'),
+                                   ('right','Muka 45° kanan','Opsional, isi bersama kiri.'),
+                                   ('body','Badan','Opsional, seluruh badan.')] %}
+      <div class="ph">
+        <b>{{ title }}</b><small>{{ hint }}</small>
+        <label class="slot" id="slot-{{ kind }}">
+          <span id="plus-{{ kind }}" {% if kind in photos %}hidden{% endif %}>＋</span>
+          <img id="img-{{ kind }}" alt="" {% if kind in photos %}src="/profil/foto/{{ kind }}?v={{ range(100000)|random }}"{% else %}hidden{% endif %}>
+          <input type="file" accept="image/*" {% if kind != 'body' %}capture="user"{% endif %} data-kind="{{ kind }}" onchange="pick(this)">
+        </label>
+        <button type="button" onclick="removePhoto('{{ kind }}')" id="del-{{ kind }}" {% if kind not in photos %}hidden{% endif %}>Hapus</button>
+      </div>
+      {% endfor %}
+    </div>
+    <label class="consent">
+      <input type="checkbox" id="photo-consent" onchange="if (this.checked) setMsg('')" {% if profile.photo_consent_at %}checked{% endif %}>
+      <span>Saya setuju foto muka dan badan saya disimpan di akun ini dan hanya dikirim ke Taruna Visual
+        dan Google Gemini saat saya membuat foto AI. Foto bisa saya hapus kapan saja.</span>
+    </label>
+    {% if photos %}<button type="button" class="del-all" onclick="removePhoto('all')">Hapus semua foto saya</button>{% endif %}
+  </div>
+
+  <div class="actions">
+    <button type="button" class="btn" id="btn-next" onclick="saveAndContinue()">Simpan &amp; lanjut buat LHP</button>
+    <button type="button" class="btn btn-ghost" id="btn-save" onclick="save().then(ok => ok && setMsg('Profil tersimpan.', 'ok'))">Simpan saja</button>
+  </div>
+  <div class="msg" id="msg"></div>
+  </form>
+</main>
+
+<script>
+const picked = {};
+
+function setMsg(text, cls) {
+  const m = document.getElementById('msg'); m.textContent = text; m.className = 'msg ' + (cls || '');
+}
+
+// Foto kamera HP besar; kecilkan dulu di browser (server tetap menyimpan maks 1280px).
+function shrink(file) {
+  return new Promise(resolve => {
+    if (!file.type.startsWith('image/') || file.size < 400 * 1024) return resolve(file);
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => resolve(b && b.size < file.size ? new File([b], 'foto.jpg', {type: 'image/jpeg'}) : file), 'image/jpeg', 0.88);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
+function pick(input) {
+  const kind = input.dataset.kind, file = input.files[0];
+  if (!file) return;
+  picked[kind] = shrink(file);
+  const img = document.getElementById('img-' + kind);
+  img.src = URL.createObjectURL(file); img.hidden = false;
+  document.getElementById('plus-' + kind).hidden = true;
+}
+
+async function save() {
+  const fd = new FormData();
+  for (const id of ['nama','tingkat','pangkat','peleton','kompi','no_ak'])
+    fd.append(id, document.getElementById(id).value.trim().toUpperCase());
+  const kinds = Object.keys(picked);
+  if (kinds.length && !document.getElementById('photo-consent').checked) {
+    setMsg('Centang persetujuan penyimpanan foto terlebih dahulu.', 'err'); return false;
+  }
+  if (kinds.length) fd.append('photo_consent', '1');
+  for (const k of kinds) { const f = await picked[k]; fd.append('photo_' + k, f, f.name || 'foto.jpg'); }
+  const btns = [document.getElementById('btn-next'), document.getElementById('btn-save')];
+  btns.forEach(b => b.disabled = true);
+  setMsg('Menyimpan…');
+  try {
+    const res = await fetch('/api/profil', {method: 'POST', body: fd});
+    if (res.status === 401) { location.href = '/login'; return false; }
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) { setMsg(j.error || 'Gagal menyimpan. Coba lagi.', 'err'); return false; }
+    for (const k of kinds) { delete picked[k]; document.getElementById('del-' + k).hidden = false; }
+    setMsg('');
+    return true;
+  } catch (e) { setMsg('Tidak bisa terhubung. Coba lagi.', 'err'); return false; }
+  finally { btns.forEach(b => b.disabled = false); }
+}
+
+async function saveAndContinue() {
+  if (await save()) location.href = '/pilih';
+}
+
+async function removePhoto(kind) {
+  if (!confirm(kind === 'all' ? 'Hapus semua foto tersimpan?' : 'Hapus foto ini?')) return;
+  const res = await fetch('/api/profil/hapus-foto', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                    body: JSON.stringify({kind})});
+  if (!res.ok) { setMsg('Foto gagal dihapus.', 'err'); return; }
+  for (const k of (kind === 'all' ? ['front','left','right','body'] : [kind])) {
+    delete picked[k];
+    const img = document.getElementById('img-' + k); img.hidden = true; img.removeAttribute('src');
+    document.getElementById('plus-' + k).hidden = false;
+    document.getElementById('del-' + k).hidden = true;
+  }
+  setMsg('Foto dihapus.', 'ok');
+}
+</script>
+</body>
+</html>

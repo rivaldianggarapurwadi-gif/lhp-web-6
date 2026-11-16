@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pilih cara membuat LHP — LHP AKPOL</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" href="/static/logo-sm.png">
+{% include '_flow_style.html' %}
+<style>
+  .choices{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:700px){.choices{grid-template-columns:1fr}}
+  .choice{display:flex;flex-direction:column;margin:0}
+  .price{font-family:var(--font-display);font-size:28px;font-weight:600;margin:6px 0 2px}
+  .price small{font-size:14px;font-weight:400;color:var(--mid-gray);font-family:var(--font-text)}
+  .choice ul{list-style:none;margin:16px 0 24px;display:flex;flex-direction:column;gap:9px;font-size:15px;flex:1}
+  .choice li{display:flex;gap:9px;line-height:1.4}
+  .choice li::before{content:"✓";color:var(--green);font-weight:600;flex-shrink:0}
+  .choice li.no{color:var(--mid-gray)}
+  .choice li.no::before{content:"–";color:var(--mid-gray)}
+  .choice .btn{width:100%}
+  .note{font-size:13px;color:var(--mid-gray);margin-top:10px;line-height:1.45}
+  .note a{color:var(--link)}
+  .how{font-size:14px;color:var(--deep-gray);line-height:1.55}
+  .how b{color:var(--ink)}
+</style>
+</head>
+<body>
+<header>
+  <img src="/static/logo-sm.png" alt="">
+  <span class="t">LHP Kegiatan Positif</span>
+  <div class="right">
+    <a href="/profil">Profil</a>
+    <span class="pill">{{ user_tokens }} token</span>
+    <a href="/logout">Keluar</a>
+  </div>
+</header>
+
+<main>
+  <div class="steps">Langkah 2 dari 3 · Pilih cara</div>
+  <h1>Buat LHP gratis atau dengan token?</h1>
+  <p class="lede">Dokumen yang dihasilkan sama-sama file Word format resmi. Bedanya ada di fitur AI
+    yang membantu mengisi tanggal, waktu, tempat, dan foto dokumentasi.</p>
+
+  <div class="choices">
+    <div class="card choice">
+      <h2>LHP gratis</h2>
+      <div class="price">Rp0 <small>· tanpa token</small></div>
+      <ul>
+        <li>Data pribadi terisi otomatis dari profil</li>
+        <li>Data Danton &amp; Danki terisi otomatis</li>
+        <li>Unggah sendiri sampai 4 foto dokumentasi</li>
+        <li>Isi tanggal, waktu, dan tempat secara manual</li>
+        <li>Pratinjau dan unduh dokumen Word tanpa batas</li>
+        <li class="no">Tanpa scan timestamp otomatis</li>
+        <li class="no">Tanpa tambah timestamp di foto</li>
+        <li class="no">Tanpa foto AI Taruna Visual</li>
+      </ul>
+      <a class="btn btn-ghost" href="/?mode=gratis">Buat LHP gratis</a>
+    </div>
+
+    <div class="card choice">
+      <h2>LHP dengan token</h2>
+      <div class="price">1 token <small>· per dokumen</small></div>
+      <ul>
+        <li>Semua fitur LHP gratis</li>
+        <li><span><b>Scan timestamp</b>: tanggal, waktu, dan tempat dibaca otomatis dari foto (maks. {{ scans }}×)</span></li>
+        <li><span><b>Tambah timestamp</b> ke foto yang belum punya</span></li>
+        <li><span><b>Foto AI Taruna Visual</b> dari foto muka &amp; badan di profil (maks. {{ visuals }}×)</span></li>
+      </ul>
+      {% if ai_pass %}
+      <a class="btn" href="/?mode=token">Lanjutkan dokumen bertoken</a>
+      <p class="note">Paket AI untuk dokumen ini masih aktif, jadi tidak ada token baru yang terpakai.</p>
+      {% elif user_tokens > 0 %}
+      <a class="btn" href="/?mode=token">Buat LHP dengan token</a>
+      <p class="note">Sisa token: {{ user_tokens }}.</p>
+      {% else %}
+      <a class="btn" href="/?mode=token&amp;topup=1">Beli token</a>
+      <p class="note">Token kamu habis. Kamu tetap bisa membuat LHP gratis.</p>
+      {% endif %}
+      {% if not has_face %}
+      <p class="note">Foto AI butuh foto muka. <a href="/profil">Tambahkan di profil</a>.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Cara token dipakai</h2>
+    <p class="how">Token <b>tidak langsung terpotong</b> saat memilih mode token. Token baru terpakai ketika
+      kamu pertama kali menggunakan fitur AI pada dokumen itu, dan kamu akan diminta konfirmasi dulu.
+      Satu token berlaku sampai dokumen diunduh. Kalau layanan AI gagal, token dikembalikan otomatis.
+      Saat token habis, kamu mendapat 1 token gratis setiap minggu.</p>
+  </div>
+</main>
+</body>
+</html>

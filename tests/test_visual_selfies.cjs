@@ -1,4 +1,4 @@
-// Exercise the three-direction UI request and its documentation-photo attachment.
+// Taruna Visual from the form: face/body photos come from the saved profile (server side).
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
@@ -9,60 +9,58 @@ const end = html.indexOf('// ── Image preview', start);
 assert(start > 0 && end > start);
 const code = html.slice(start, end);
 
-async function check(mode, omit) {
+async function check({hasFace = true, tingkat = '2', consent = true} = {}) {
   const elements = new Map();
   const element = id => {
-    if (!elements.has(id)) elements.set(id, {files: [], value: '', textContent: '', disabled: false});
+    if (!elements.has(id)) elements.set(id, {files: [], value: '', textContent: '', innerHTML: '', disabled: false});
     return elements.get(id);
   };
-  element('f-tingkat').value = '2';
-  element('visual-consent').checked = true;
-  element('visual-activity').value = 'class';
-  element('visual-location').value = 'Ruang kelas';
-  for (const direction of ['front', 'left', 'right']) {
-    if (direction !== omit) element(`visual-face-${direction}`).files = [{type: 'image/jpeg', size: 10, tag: direction}];
-  }
+  element('f-tingkat').value = tingkat;
+  element('visual-consent').checked = consent;
+  element('visual-activity').value = 'imam_solat';
+  element('visual-location').value = 'Akpol';
   let sent;
   let previewed;
-  const document = {
-    getElementById: element,
-    querySelector: selector => selector === 'input[name="visual-mode"]:checked'
-      ? {value: mode} : {value: 'BUDI'},
-  };
   const context = {
-    document,
-    visualPhotoData: async file => ({mimeType: file.type, data: file.tag}),
-    shrinkPhoto: async file => file,
-    confirmAiToken: async () => true,
-    refreshTokens: async () => null,
-    openTopup: () => {},
+    HAS_FACE: hasFace,
+    document: {getElementById: element, querySelector: () => ({value: 'budi santoso'})},
     fetch: async (url, options) => {
       assert.equal(url, '/api/taruna-visual/generate');
       sent = JSON.parse(options.body);
       return {status: 200, ok: true, json: async () => ({image: {mimeType: 'image/jpeg', data: 'YQ=='}})};
     },
-    atob,
-    Uint8Array,
+    atob, Uint8Array,
     File: class { constructor(parts, name, options) { this.name = name; this.type = options.type; } },
     DataTransfer: class { constructor() { this.files = []; this.items = {add: file => this.files.push(file)}; } },
     previewImage: (_, slot) => { previewed = slot; },
+    confirmAiToken: async () => true,
+    refreshTokens: async () => null,
+    openTopup: () => {},
     window: {location: {}},
   };
   const generate = vm.runInNewContext(code + '\ngenerateVisualPhoto', context);
   await generate();
-  return {sent, previewed, status: element('visual-status').textContent,
-    attached: element('foto-input-1').files[0]};
+  return {sent, previewed, status: element('visual-status'), attached: element('foto-input-1').files[0]};
 }
 
 (async () => {
-  const three = await check('3');
-  assert.deepEqual(Array.from(three.sent.photos, photo => photo.data), ['front', 'left', 'right']);
-  assert.equal(three.previewed, 1);
-  assert.equal(three.attached.name, 'taruna-visual-1.jpg');
-  const one = await check('1');
-  assert.deepEqual(Array.from(one.sent.photos, photo => photo.data), ['front']);
-  const incomplete = await check('3', 'right');
-  assert.equal(incomplete.sent, undefined);
-  assert.match(incomplete.status, /depan, kiri, dan kanan/);
-  console.log('Visual selfie checks passed: front/left/right order, single option, incomplete set, photo attachment.');
+  const ok = await check();
+  assert.equal(ok.sent.photos, undefined, 'photos come from the profile on the server');
+  assert.equal(ok.sent.name, 'BUDI SANTOSO');
+  assert.equal(ok.sent.activity, 'imam_solat');
+  assert.equal(ok.sent.location, 'Akpol');
+  assert.equal(ok.previewed, 1);
+  assert.equal(ok.attached.name, 'taruna-visual-1.jpg');
+
+  const noFace = await check({hasFace: false});
+  assert.equal(noFace.sent, undefined);
+  assert.match(noFace.status.innerHTML, /href="\/profil"/);
+
+  const wrongLevel = await check({tingkat: '3'});
+  assert.equal(wrongLevel.sent, undefined);
+  assert.match(wrongLevel.status.textContent, /Tingkat II/);
+
+  const noConsent = await check({consent: false});
+  assert.equal(noConsent.sent, undefined);
+  console.log('Visual profile-photo checks passed: payload without photos, missing face, level, consent.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
