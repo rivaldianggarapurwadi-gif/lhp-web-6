@@ -36,6 +36,7 @@ except Exception:
 
 USERS_FILE    = os.path.join(DATA_DIR, "users.json")
 ORDERS_FILE   = os.path.join(DATA_DIR, "orders.json")
+PROFILES_DIR  = os.path.join(DATA_DIR, "profiles")   # foto muka/badan per akun
 VISITORS_FILE = os.path.join(DATA_DIR, "visitors.json")
 SCAN_USAGE_FILE = os.path.join(DATA_DIR, "scan_usage.json")
 _LEGACY_USERS = os.path.join(BASE_DIR, "users.json")
@@ -272,6 +273,7 @@ def delete_user(username):
         return False
     del users[key]
     _save_users(users)
+    shutil.rmtree(_profile_dir(key), ignore_errors=True)
     return True
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1114,6 +1116,18 @@ def generate_taruna_visual_photo():
     if not isinstance(payload, dict) or payload.get('level') != 2 or payload.get('consent') is not True:
         return jsonify({'error': 'Konfirmasi izin foto dan pilih Tingkat II.'}), 400
     uid = session['uid']
+    # Foto muka/badan diambil dari profil akun (tidak perlu unggah ulang tiap kali).
+    if not payload.get('photos'):
+        faces, body = _profile_visual_photos(uid)
+        if not faces:
+            return jsonify({'error': 'Simpan foto muka di halaman Profil terlebih dahulu.',
+                            'need_profile': True}), 400
+        payload['photos'] = faces
+        if body:
+            payload['bodyPhoto'] = body
+    if not str(payload.get('name') or '').strip():
+        prof = (get_user(uid) or {}).get('profile') or {}
+        payload['name'] = (prof.get('nama') or '')[:30]
     ok, info = consume_ai(uid, 'visual')
     if not ok:
         return jsonify(info), 402
@@ -1596,6 +1610,151 @@ def fill_template(data, image_paths, output_path):
 #   ADMIN  : /login-admin → POST username+password → /admin
 # ══════════════════════════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Profil: identitas + foto muka/badan untuk Taruna Visual
+# Disimpan per akun supaya tidak perlu diisi ulang tiap membuat LHP.
+# Foto = data biometrik: hanya disimpan dengan persetujuan, bisa dihapus kapan saja,
+# dan hanya dikirim ke Taruna Visual saat pengguna membuat foto AI.
+# ══════════════════════════════════════════════════════════════════════════════
+
+PROFILE_PHOTO_KINDS = ('front', 'left', 'right', 'body')
+# Identitas: Nama, Tingkat, Pangkat, Peleton, Kompi, Nomor Ak (urutan di halaman Profil).
+PROFILE_FIELDS = {'nama': 80, 'tingkat': 1, 'pangkat': 40, 'peleton': 3, 'kompi': 3, 'no_ak': 40}
+PANGKAT_TARUNA = ('BHAYANGKARA TARUNA', 'AJUN BRIGADIR TARUNA',
+                  'BRIGADIR TARUNA', 'BRIGADIR KEPALA TARUNA')
+
+def _profile_dir(uid):
+    return os.path.join(PROFILES_DIR, secure_filename(uid.lower()) or '_')
+
+def _profile_photo_path(uid, kind):
+    return os.path.join(_profile_dir(uid), kind + '.jpg')
+
+def _profile_photo_kinds(uid):
+    return [k for k in PROFILE_PHOTO_KINDS if os.path.exists(_profile_photo_path(uid, k))]
+
+def _save_profile_photo(uid, kind, stream):
+    """Simpan versi bersih: rotasi EXIF diterapkan, maks 1280px, JPEG tanpa metadata."""
+    from PIL import Image, ImageOps
+    with Image.open(stream) as im:
+        im.draft('RGB', (2560, 2560))
+        im = ImageOps.exif_transpose(im).convert('RGB')
+        im.thumbnail((1280, 1280), Image.LANCZOS)
+        os.makedirs(_profile_dir(uid), exist_ok=True)
+        tmp = _profile_photo_path(uid, kind) + '.tmp'
+        im.save(tmp, 'JPEG', quality=90)
+        os.replace(tmp, _profile_photo_path(uid, kind))
+
+@store_locked
+def save_profile(uid, fields):
+    users = _load_users()
+    user = users.get(uid.lower())
+    if not user:
+        return False
+    prof = dict(user.get('profile') or {})
+    prof.update(fields)
+    user['profile'] = prof
+    _save_users(users)
+    return True
+
+def _profile_visual_photos(uid):
+    """Foto profil untuk Taruna Visual: 1 atau 3 foto muka (+ badan bila ada)."""
+    import base64
+    kinds = _profile_photo_kinds(uid)
+    if 'front' not in kinds:
+        return None, None
+    faces = ['front', 'left', 'right'] if {'left', 'right'} <= set(kinds) else ['front']
+    def load(kind):
+        with open(_profile_photo_path(uid, kind), 'rb') as f:
+            return {'mimeType': 'image/jpeg', 'data': base64.b64encode(f.read()).decode()}
+    return [load(k) for k in faces], (load('body') if 'body' in kinds else None)
+
+@app.route('/profil')
+@login_required
+def profil():
+    if session.get('role') == 'admin':
+        return redirect(url_for('admin_panel'))
+    user = get_user(session['uid'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+    return render_template('profil.html', user_name=user['name'],
+                           user_tokens=user.get('tokens', 0),
+                           profile=user.get('profile') or {},
+                           photos=_profile_photo_kinds(user['username']),
+                           pangkat_options=PANGKAT_TARUNA,
+                           saved=request.args.get('saved') == '1')
+
+@app.route('/api/profil', methods=['POST'])
+@login_required
+def api_profil_save():
+    uid = session['uid']
+    fields = {}
+    for key, limit in PROFILE_FIELDS.items():
+        if key in request.form:
+            fields[key] = request.form.get(key, '').strip().upper()[:limit]
+    if fields.get('pangkat') and fields['pangkat'] not in PANGKAT_TARUNA:
+        return jsonify({'error': 'Pangkat tidak valid.'}), 400
+    if fields.get('tingkat') and fields['tingkat'] not in ('1', '2', '3'):
+        return jsonify({'error': 'Tingkat tidak valid.'}), 400
+    for key in ('peleton', 'kompi'):
+        if fields.get(key) and not fields[key].isdigit():
+            return jsonify({'error': f'{key.capitalize()} harus angka.'}), 400
+    uploads = {k: request.files.get('photo_' + k) for k in PROFILE_PHOTO_KINDS}
+    uploads = {k: f for k, f in uploads.items() if f and f.filename}
+    if uploads and request.form.get('photo_consent') != '1':
+        return jsonify({'error': 'Centang persetujuan penyimpanan foto terlebih dahulu.'}), 400
+    try:
+        for kind, f in uploads.items():
+            _save_profile_photo(uid, kind, f.stream)
+    except Exception:
+        app.logger.warning('foto profil gagal disimpan:\n%s', traceback.format_exc())
+        return jsonify({'error': 'Foto tidak dapat dibaca. Gunakan JPG, PNG, atau WebP.'}), 400
+    if uploads:
+        fields['photo_consent_at'] = datetime.now(timezone.utc).isoformat()
+    save_profile(uid, fields)
+    return jsonify({'ok': True, 'photos': _profile_photo_kinds(uid)})
+
+@app.route('/api/profil/hapus-foto', methods=['POST'])
+@login_required
+def api_profil_delete_photo():
+    kind = (request.get_json(silent=True) or {}).get('kind', '')
+    kinds = PROFILE_PHOTO_KINDS if kind == 'all' else (kind,)
+    if not set(kinds) <= set(PROFILE_PHOTO_KINDS):
+        return jsonify({'error': 'Jenis foto tidak valid.'}), 400
+    for k in kinds:
+        try: os.remove(_profile_photo_path(session['uid'], k))
+        except FileNotFoundError: pass
+    return jsonify({'ok': True, 'photos': _profile_photo_kinds(session['uid'])})
+
+@app.route('/profil/foto/<kind>')
+@login_required
+def profil_foto(kind):
+    if kind not in PROFILE_PHOTO_KINDS:
+        return ('', 404)
+    path = _profile_photo_path(session['uid'], kind)
+    if not os.path.exists(path):
+        return ('', 404)
+    resp = send_file(path, mimetype='image/jpeg', max_age=0)
+    resp.headers['Cache-Control'] = 'private, no-store'
+    return resp
+
+@app.route('/pilih')
+@login_required
+def pilih_mode():
+    if session.get('role') == 'admin':
+        return redirect(url_for('admin_panel'))
+    user = get_user(session['uid'])
+    if not user:
+        session.clear()
+        return redirect(url_for('login'))
+    try_weekly_regen(session['uid'])
+    user = get_user(session['uid'])
+    return render_template('pilih.html', user_name=user['name'],
+                           user_tokens=user.get('tokens', 0),
+                           ai_pass=_ai_pass_view(user),
+                           has_face=os.path.exists(_profile_photo_path(user['username'], 'front')),
+                           scans=AI_PASS_SCANS, visuals=AI_PASS_VISUALS)
+
 @app.route('/')
 def index():
     if 'uid' not in session:
@@ -1611,9 +1770,18 @@ def index():
         record_visit(request.headers.get('X-Forwarded-For', request.remote_addr))
     except Exception:
         pass
+    # Alur: /profil → /pilih → /?mode=gratis|token. Kembali dari Duitku → mode token.
+    mode = request.args.get('mode')
+    if request.args.get('payment_order'):
+        mode = 'token'
+    if mode not in ('gratis', 'token'):
+        return redirect(url_for('pilih_mode'))
     try_weekly_regen(session['uid'])
     user = get_user(session['uid'])
     return render_template('index.html',
+                           mode=mode,
+                           profile=user.get('profile') or {},
+                           profile_photos=_profile_photo_kinds(user['username']),
                            user_name=user['name'],
                            user_tokens=user.get('tokens', 0),
                            user_picture=user.get('picture',''),
@@ -1650,7 +1818,7 @@ def login():
     session['role']    = 'user'
     session['name']    = user['name']
     session['picture'] = user.get('picture', '')
-    return jsonify({'ok': True, 'redirect': '/'})
+    return jsonify({'ok': True, 'redirect': '/profil'})
 
 # ── Register step 1: mulai OAuth Google ───────────────────────────────────────
 
@@ -1779,7 +1947,7 @@ def api_recover_reset():
     session['role']    = 'user'
     session['name']    = user['name']
     session['picture'] = user.get('picture', '')
-    return jsonify({'ok': True, 'redirect': '/'})
+    return jsonify({'ok': True, 'redirect': '/profil'})
 
 # ── Register step 3: form isi nama/username/password ──────────────────────────
 
@@ -1822,7 +1990,7 @@ def api_register():
     session['role']    = 'user'
     session['name']    = user['name']
     session['picture'] = user.get('picture', '')
-    return jsonify({'ok': True, 'redirect': '/'})
+    return jsonify({'ok': True, 'redirect': '/profil'})
 
 # ── Admin login ───────────────────────────────────────────────────────────────
 

@@ -52,7 +52,8 @@ class RecoverTests(unittest.TestCase):
         res = self.client.post('/api/recover/reset', json={'password': 'baru456'})
         self.assertTrue(res.json['ok'])
         self.assertTrue(check_password_hash(server.get_user('budi')['password'], 'baru456'))
-        self.assertEqual(self.client.get('/').status_code, 200)          # logged in
+        self.assertEqual(res.json['redirect'], '/profil')               # first page after login
+        self.assertEqual(self.client.get('/profil').status_code, 200)    # logged in
         # one-time: the recovery session is gone
         self.assertEqual(self.client.post('/api/recover/reset', json={'password': 'lagi789'}).status_code, 400)
 

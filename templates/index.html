@@ -170,6 +170,14 @@
   .visual-selfie input{max-width:100%;font-size:12px}
   .visual-selfie img{width:100%;height:130px;object-fit:cover;border-radius:8px}
   .visual-selfie[hidden],.visual-selfie img[hidden]{display:none}
+  .visual-profile{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0 18px;padding:12px 14px;
+                  background:var(--canvas);border-radius:var(--r-input);font-size:13px;color:var(--deep-gray)}
+  .visual-profile a{color:var(--link)}
+  .visual-profile-photos{display:flex;gap:6px}
+  .visual-profile-photos img{width:44px;height:58px;object-fit:cover;border-radius:8px}
+  .mode-chip{background:var(--cool-wash);border-radius:var(--r-pill);padding:4px 12px;font-size:12px;
+             color:var(--deep-gray);white-space:nowrap;text-decoration:none}
+  .mode-chip:hover{background:#dcdce2;color:var(--ink)}
   @media(max-width:700px){.visual-selfies{grid-template-columns:1fr}}
   @media(max-width:700px){.foto-grid{grid-template-columns:1fr 1fr;padding:24px}}
   .foto-slot{display:flex;flex-direction:column;gap:10px}
@@ -330,6 +338,8 @@
     <div class="hdr-sub">Batalyon Manggala Satya</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:14px;">
+    <a href="/pilih" class="mode-chip" title="Ganti mode">{{ 'Mode token' if mode == 'token' else 'Mode gratis' }} · ganti</a>
+    <a href="/profil" class="btn-logout">Profil</a>
     {% if user_picture %}
     <img class="user-avatar" src="{{ user_picture }}" alt="{{ user_name }}" title="{{ user_name }}"
          onerror="this.style.display='none'">
@@ -349,26 +359,23 @@
     <div class="card-header">Data pribadi</div>
     <div class="grid">
       <div class="field"><label>Nama</label>
-        <input type="text" name="Nama" placeholder="NAMA LENGKAP TARUNA" required></div>
+        <input type="text" name="Nama" placeholder="NAMA LENGKAP TARUNA" value="{{ profile.nama or '' }}" required></div>
       <div class="field"><label>No Ak</label>
-        <input type="text" name="No Ak" placeholder="NO. AKADEMI PANJANG" required></div>
+        <input type="text" name="No Ak" placeholder="NO. AKADEMI PANJANG" value="{{ profile.no_ak or '' }}" required></div>
       <div class="field"><label>Pangkat</label>
         <select name="Pangkat" required>
-          <option value="BHAYANGKARA TARUNA">BHAYANGKARA TARUNA</option>
-          <option value="AJUN BRIGADIR TARUNA">AJUN BRIGADIR TARUNA</option>
-          <option value="BRIGADIR TARUNA">BRIGADIR TARUNA</option>
-          <option value="BRIGADIR KEPALA TARUNA">BRIGADIR KEPALA TARUNA</option>
+          {% for p in ['BHAYANGKARA TARUNA','AJUN BRIGADIR TARUNA','BRIGADIR TARUNA','BRIGADIR KEPALA TARUNA'] %}
+          <option value="{{ p }}" {% if profile.pangkat == p %}selected{% endif %}>{{ p }}</option>{% endfor %}
         </select></div>
       <div class="field"><label>Tingkat</label>
         <select name="Tingkat" id="f-tingkat" required onchange="onTingkatChange()">
-          <option value="1">Tingkat I</option>
-          <option value="2" selected>Tingkat II</option>
-          <option value="3">Tingkat III</option>
+          {% for v, l in [('1','Tingkat I'),('2','Tingkat II'),('3','Tingkat III')] %}
+          <option value="{{ v }}" {% if (profile.tingkat or '2') == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
         </select></div>
       <div class="field"><label>Peleton</label>
-        <input type="number" name="Peleton" id="f-peleton" placeholder="cth. 2" min="1" required></div>
+        <input type="number" name="Peleton" id="f-peleton" placeholder="cth. 2" min="1" value="{{ profile.peleton or '' }}" required></div>
       <div class="field"><label>Kompi</label>
-        <input type="number" name="Kompi" id="f-kompi" placeholder="cth. 4" min="1" required></div>
+        <input type="number" name="Kompi" id="f-kompi" placeholder="cth. 4" min="1" value="{{ profile.kompi or '' }}" required></div>
     </div>
     <!-- Info badge tingkat yang aktif -->
     <div id="tingkat-info">BATALYON TARUNA TK II/60/MS · ANGKATAN KE-60, BATALYON MANGGALA SATYA</div>
@@ -415,6 +422,7 @@
   <div class="card">
     <div class="card-header gold">Langkah 1 — Foto dokumentasi<span class="badge">Maksimal 4 foto</span></div>
 
+    {% if mode == 'token' %}
     <!-- Bar analisa foto — dipromosikan -->
     <div class="analyze-promo">
       
@@ -477,22 +485,17 @@
     <div class="visual-generator" id="visual-generator" style="margin:0 36px 8px;padding:20px;border:1px solid #d8dee7;border-radius:18px">
       <strong>Buat foto dengan Taruna Visual</strong>
       <p style="font-size:13px;color:#666">Untuk taruna laki-laki Tingkat II berseragam PDH. Hasil AI akan langsung masuk ke slot Foto Dokumentasi yang kosong. Foto AI adalah ilustrasi, bukan bukti kejadian nyata.</p>
-      <div role="group" aria-label="Pilihan selfie wajah" style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px">
-        <label><input type="radio" name="visual-mode" value="1" onchange="updateVisualMode()" checked> 1 selfie depan</label>
-        <label><input type="radio" name="visual-mode" value="3" onchange="updateVisualMode()"> 3 selfie arah (lebih akurat)</label>
+      <div class="visual-profile">
+        {% if 'front' in profile_photos %}
+        <div class="visual-profile-photos">
+          {% for k in ['front','left','right','body'] if k in profile_photos %}<img src="/profil/foto/{{ k }}" alt="">{% endfor %}
+        </div>
+        <span>Memakai foto muka{% if 'body' in profile_photos %} &amp; badan{% endif %} dari profil.
+          <a href="/profil">Ubah foto</a></span>
+        {% else %}
+        <span>Belum ada foto muka tersimpan. <a href="/profil">Tambahkan di profil</a> untuk membuat foto AI.</span>
+        {% endif %}
       </div>
-      <div class="visual-selfies">
-        <label class="visual-selfie">Selfie depan <small>Hadap lurus ke kamera.</small>
-          <input id="visual-face-front" type="file" accept="image/jpeg,image/png,image/webp" capture="user" onchange="previewVisualSelfie(this, 'front')">
-          <img id="visual-thumb-front" alt="Pratinjau selfie depan" hidden></label>
-        <label class="visual-selfie" data-visual-extra hidden>Selfie 45° kiri <small>Putar wajah sedikit ke kiri, wajah tetap jelas.</small>
-          <input id="visual-face-left" type="file" accept="image/jpeg,image/png,image/webp" capture="user" onchange="previewVisualSelfie(this, 'left')">
-          <img id="visual-thumb-left" alt="Pratinjau selfie arah kiri" hidden></label>
-        <label class="visual-selfie" data-visual-extra hidden>Selfie 45° kanan <small>Putar wajah sedikit ke kanan, wajah tetap jelas.</small>
-          <input id="visual-face-right" type="file" accept="image/jpeg,image/png,image/webp" capture="user" onchange="previewVisualSelfie(this, 'right')">
-          <img id="visual-thumb-right" alt="Pratinjau selfie arah kanan" hidden></label>
-      </div>
-      <p style="font-size:12px;color:#666">Di ponsel, ketuk tiap slot untuk membuka kamera depan. Di desktop, pilih foto dari perangkat. JPG, PNG, atau WebP; maksimal 10 MB per foto.</p>
       <div class="grid">
         <div class="field"><label>Kegiatan untuk foto</label>
           <select id="visual-activity" onchange="updateVisualLocations()">
@@ -500,11 +503,12 @@
           </select></div>
         <div class="field"><label>Lokasi foto</label><select id="visual-location"></select></div>
       </div>
-      <label style="display:block;margin:14px 0;font-size:13px"><input id="visual-consent" type="checkbox"> Saya memiliki izin atas foto wajah ini dan setuju mengirimkannya ke Taruna Visual dan Google Gemini untuk membuat ilustrasi AI.</label>
+      <label style="display:block;margin:14px 0;font-size:13px"><input id="visual-consent" type="checkbox"> Saya setuju foto muka (dan badan) dari profil saya dikirim ke Taruna Visual dan Google Gemini untuk membuat ilustrasi AI.</label>
       <button type="button" class="btn-preview" id="visual-generate" onclick="generateVisualPhoto()">Buat foto dan masukkan ke dokumentasi</button>
       <div id="visual-status" role="status" style="font-size:13px;margin-top:10px"></div>
     </div>
 
+    {% endif %}
     <div class="foto-grid">
       <div class="foto-slot">
         <div class="foto-preview" id="preview-1">
@@ -515,10 +519,12 @@
                  style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
         </div>
         <div class="foto-label">Foto 1</div>
+        {% if mode == 'token' %}
         <label class="foto-stamp-toggle">
           <input type="checkbox" name="foto_1_stamp" value="1">
           Belum ada timestamp
         </label>
+        {% endif %}
         <button type="button" class="btn-clear" onclick="clearImage(1)">Hapus</button>
       </div>
       <div class="foto-slot">
@@ -530,10 +536,12 @@
                  style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
         </div>
         <div class="foto-label">Foto 2</div>
+        {% if mode == 'token' %}
         <label class="foto-stamp-toggle">
           <input type="checkbox" name="foto_2_stamp" value="1">
           Belum ada timestamp
         </label>
+        {% endif %}
         <button type="button" class="btn-clear" onclick="clearImage(2)">Hapus</button>
       </div>
       <div class="foto-slot">
@@ -545,10 +553,12 @@
                  style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
         </div>
         <div class="foto-label">Foto 3</div>
+        {% if mode == 'token' %}
         <label class="foto-stamp-toggle">
           <input type="checkbox" name="foto_3_stamp" value="1">
           Belum ada timestamp
         </label>
+        {% endif %}
         <button type="button" class="btn-clear" onclick="clearImage(3)">Hapus</button>
       </div>
       <div class="foto-slot">
@@ -560,10 +570,12 @@
                  style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
         </div>
         <div class="foto-label">Foto 4</div>
+        {% if mode == 'token' %}
         <label class="foto-stamp-toggle">
           <input type="checkbox" name="foto_4_stamp" value="1">
           Belum ada timestamp
         </label>
+        {% endif %}
         <button type="button" class="btn-clear" onclick="clearImage(4)">Hapus</button>
       </div>
     </div>
@@ -600,7 +612,7 @@
       <div class="token-info-bar">
         <div class="tib-left">
           Token tersisa <span class="tib-count" id="token-count2">{{ user_tokens }}</span>
-          <span class="tib-sub"> &nbsp;· unduh dokumen gratis; 1 token membuka fitur AI untuk satu dokumen</span>
+          <span class="tib-sub"> &nbsp;· {% if mode == 'token' %}1 token membuka fitur AI untuk dokumen ini{% else %}mode gratis: unduh dokumen tanpa token{% endif %}</span>
         </div>
         <button type="button" class="btn-topup" onclick="openTopup()">
           Beli token
@@ -775,71 +787,38 @@ document.getElementById('f-kompi').addEventListener('input', triggerLookup);
 
 // ── Taruna Visual ─────────────────────────────────────────────────────────────
 // Daftar kegiatan dari Taruna Visual (lihat visual_activities() di app.py).
+const HAS_FACE = {{ ('front' in (profile_photos or []))|tojson }};
 const visualLocations = Object.fromEntries(
   ({{ (visual_activities or [])|tojson }}).map(a => [a.id, a.locations]));
 function updateVisualLocations() {
-  const activity = document.getElementById('visual-activity').value;
+  const sel = document.getElementById('visual-activity');
+  if (!sel) return;   // mode gratis: bagian Taruna Visual tidak ada
   document.getElementById('visual-location').replaceChildren(
-    ...(visualLocations[activity] || []).map(location => new Option(location, location)));
+    ...(visualLocations[sel.value] || []).map(location => new Option(location, location)));
 }
 updateVisualLocations();
 
-function updateVisualMode() {
-  const three = document.querySelector('input[name="visual-mode"]:checked').value === '3';
-  document.querySelectorAll('[data-visual-extra]').forEach(el => { el.hidden = !three; });
-  if (!three) for (const direction of ['left','right']) {
-    document.getElementById(`visual-face-${direction}`).value = '';
-    const thumb = document.getElementById(`visual-thumb-${direction}`);
-    thumb.src = ''; thumb.hidden = true;
-  }
-}
-updateVisualMode();
-
-function previewVisualSelfie(input, direction) {
-  const thumb = document.getElementById(`visual-thumb-${direction}`);
-  if (!input.files[0]) { thumb.src = ''; thumb.hidden = true; return; }
-  const reader = new FileReader();
-  reader.onload = () => { thumb.src = reader.result; thumb.hidden = false; };
-  reader.readAsDataURL(input.files[0]);
-}
-
-function visualPhotoData(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve({mimeType:file.type, data:reader.result.split(',')[1]});
-    reader.onerror = () => reject(new Error('Foto wajah tidak dapat dibaca.'));
-    reader.readAsDataURL(file);
-  });
-}
-
+// Foto muka/badan diambil server dari profil akun (lihat _profile_visual_photos di app.py).
 async function generateVisualPhoto() {
   const status = document.getElementById('visual-status');
   const button = document.getElementById('visual-generate');
-  const three = document.querySelector('input[name="visual-mode"]:checked').value === '3';
-  const directions = three ? ['front','left','right'] : ['front'];
-  const files = directions.map(direction => document.getElementById(`visual-face-${direction}`).files[0]);
   const slot = [1,2,3,4].find(i => !document.getElementById(`foto-input-${i}`).files.length);
   const name = document.querySelector('input[name="Nama"]').value.trim();
   status.textContent = '';
   if (document.getElementById('f-tingkat').value !== '2') { status.textContent = 'Taruna Visual saat ini hanya mendukung Tingkat II.'; return; }
   if (!name) { status.textContent = 'Isi Nama taruna terlebih dahulu.'; return; }
   if (!slot) { status.textContent = 'Hapus salah satu foto dokumentasi sebelum membuat foto baru.'; return; }
-  if (files.some(f => !f || !['image/jpeg','image/png','image/webp'].includes(f.type) || f.size > 10*1024*1024)) {
-    status.textContent = three ? 'Lengkapi selfie depan, kiri, dan kanan. Gunakan JPG, PNG, atau WebP maksimal 10 MB per foto.'
-                               : 'Pilih selfie depan JPG, PNG, atau WebP maksimal 10 MB.'; return;
-  }
+  if (!HAS_FACE) { status.innerHTML = 'Belum ada foto muka tersimpan. <a href="/profil">Tambahkan di profil</a>.'; return; }
   if (!document.getElementById('visual-consent').checked) { status.textContent = 'Konfirmasi izin penggunaan foto wajah terlebih dahulu.'; return; }
   if (button.disabled) return;
   button.disabled = true;
   if (!await confirmAiToken('visual')) { button.disabled = false; return; }
   status.textContent = 'Taruna Visual sedang membuat foto. Ini dapat memakan waktu beberapa menit…';
   try {
-    const payload = {name:name.slice(0,30), level:2, sar:false,
+    const payload = {name:name.toUpperCase().slice(0,30), level:2, sar:false,
       activity:document.getElementById('visual-activity').value,
       location:document.getElementById('visual-location').value,
-      ratio:'4:5', frame:'half_body', consent:true,
-      // Selfie dikecilkan dulu (lihat shrinkPhoto): 3×10 MB base64 lewat data seluler sangat lambat.
-      photos:await Promise.all(files.map(async f => visualPhotoData(await shrinkPhoto(f))))};
+      ratio:'4:5', frame:'half_body', consent:true};
     const response = await fetch('/api/taruna-visual/generate', {
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
     if (response.status === 401) { window.location.href = '/login'; return; }
@@ -945,13 +924,9 @@ function clearImage(idx) {
 function resetForm() {
   document.getElementById('lhp-form').reset();
   for (let i = 1; i <= 4; i++) clearImage(i);
-  for (const direction of ['front','left','right']) {
-    const thumb = document.getElementById(`visual-thumb-${direction}`);
-    thumb.src = ''; thumb.hidden = true;
-  }
-  updateVisualMode();
   updateVisualLocations();
-  document.getElementById('visual-status').textContent = '';
+  const vs = document.getElementById('visual-status');
+  if (vs) vs.textContent = '';
   clearManualDownload();
   ['f-nama-danton','f-pangkat-danton','f-nrp-danton',
    'f-nama-danki','f-pangkat-danki','f-nrp-danki'].forEach(id => {
@@ -1216,6 +1191,12 @@ async function checkPayStatus(orderId) {
     btn.onclick = activeOrder ? () => checkPayStatus(orderId) : doPay;
   }
 }
+
+// Data pribadi terisi dari profil: muat langsung info tingkat + data Danton/Danki.
+document.addEventListener('DOMContentLoaded', () => {
+  onTingkatChange();
+  if (new URLSearchParams(window.location.search).get('topup') === '1') openTopup();
+});
 
 // A browser redirect is only a cue to query our server, never proof of payment.
 document.addEventListener('DOMContentLoaded', () => {

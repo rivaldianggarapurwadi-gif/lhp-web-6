@@ -48,6 +48,16 @@ Callback Duitku: `POST /api/topup/notification` (form-encoded, `resultCode == '0
 
 - **Daftar**: `/register` → Google OAuth (verifikasi identitas saja) → form nama/username/password → akun dibuat, dapat **1 token**.
 - **Login**: username + password. Google TIDAK dipakai lagi setelah daftar.
+- **Alur setelah login** (juga setelah daftar & lupa akun): `/profil` → `/pilih` → `/?mode=gratis|token`.
+  - `/profil`: identitas (Nama, Tingkat, Pangkat, Peleton, Kompi, Nomor Ak → `users[uid]['profile']`)
+    dan foto muka depan/kiri/kanan + badan untuk Taruna Visual (`DATA_DIR/profiles/<uid>/*.jpg`,
+    wajib centang persetujuan, bisa dihapus; ikut terhapus saat akun dihapus).
+  - `/pilih`: penjelasan LHP gratis vs token. `/` tanpa `mode` → redirect ke `/pilih`
+    (kecuali kembali dari Duitku: `payment_order` → mode token).
+  - Mode gratis: bagian scan, Taruna Visual, dan centang "Belum ada timestamp" tidak dirender.
+  - Mode token: Taruna Visual memakai foto profil; server mengisi `photos`/`bodyPhoto`
+    (`_profile_visual_photos`), browser tidak mengirim foto wajah lagi.
+  - Data pribadi di form terisi dari profil; tetap bisa diubah per dokumen.
 - Satu Google ID hanya boleh dipakai sekali daftar (`get_user_by_google_id`).
 - **Lupa akun**: `/lupa-akun` → Google OAuth (callback yang sama, `oauth_flow='recover'`)
   → akun dicari lewat `google_id` → `/lupa-akun/reset` menampilkan username + set password
