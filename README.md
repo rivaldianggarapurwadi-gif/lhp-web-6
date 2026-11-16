@@ -24,15 +24,15 @@ Pada langkah Foto dokumentasi, pengguna Tingkat II dapat mengambil satu selfie
 depan atau tiga selfie berurutan (depan, 45° kiri, 45° kanan), memilih kegiatan
 dan lokasi, lalu memberikan izin sebelum membuat ilustrasi
 melalui Taruna Visual. Hasilnya masuk ke slot foto dokumentasi kosong berikutnya
-dan ikut dipakai oleh pratinjau serta dokumen Word dengan label "ILUSTRASI AI".
+dan ikut dipakai oleh pratinjau serta dokumen Word.
 Foto AI bukan bukti kejadian nyata. Generator Taruna Visual saat ini hanya mendukung
 taruna laki-laki Tingkat II berseragam PDH; tingkat lain tetap memakai upload
 foto biasa. LHP meneruskan permintaan ke
 `https://taruna-visual-production-04a8.up.railway.app/api/generate`; kedua
 layanan perlu menjalankan versi kode yang mendukung integrasi ini.
 Sebelum masuk ke pratinjau dan dokumen Word, setiap foto dokumentasi dipotong
-10% dari bagian atas dan 10% dari bagian bawah. Stempel waktu dan label AI tetap
-berada di area foto yang terlihat.
+10% dari bagian atas dan 10% dari bagian bawah. Stempel waktu tetap berada di
+area foto yang terlihat.
 
 ## Scan timestamp foto
 
