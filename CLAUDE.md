@@ -135,13 +135,13 @@ menambah worker = proses terpisah = lock tidak berlaku lagi.
 - Preview sekarang dirender server (`/api/preview`), bukan `buildPreviewHTML()`;
   poin 4 di atas sudah tidak berlaku.
 
-### 11. Foto: potong 1/10 atas dan bawah, label AI tetap terlihat
+### 11. Foto: potong 1/10 atas dan bawah
 - Setiap foto dipotong 10% bagian atas dan bawah (`_crop_documentation_photo`,
   `PHOTO_CROP_TOP`, `PHOTO_CROP_BOTTOM`) **sebelum** stempel timestamp, supaya
   stempel tidak ikut terpotong. Pratinjau dan dokumen Word memakai hasil yang sama.
-- Label "ILUSTRASI AI" pada foto Taruna Visual berada di bawah area crop atas.
-  Jangan pindahkan ke tepi atas atau bawah: crop akan menghapus penanda AI dari
-  dokumen resmi.
+- Foto hasil Taruna Visual tidak diberi tulisan overlay oleh aplikasi. Filename
+  `taruna-visual-` tetap dipakai agar foto hasil AI tidak dikirim balik sebagai
+  referensi ke layanan tersebut.
 
 ### 12. Referensi foto ke Taruna Visual (opt-in)
 - Form punya centang `share_refs` (muncul hanya jika `TARUNA_VISUAL_REF_TOKEN` diatur).

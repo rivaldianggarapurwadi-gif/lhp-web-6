@@ -1100,20 +1100,10 @@ def _taruna_visual_relay(payload):
             raise ValueError('Taruna Visual tidak mengirim gambar.')
         import base64
         from io import BytesIO
-        from PIL import Image, ImageDraw, ImageFont, ImageOps
+        from PIL import Image, ImageOps
         raw = base64.b64decode(image['data'], validate=True)
         with Image.open(BytesIO(raw)) as source:
             photo = ImageOps.exif_transpose(source).convert('RGB')
-        draw = ImageDraw.Draw(photo)
-        label = 'ILUSTRASI AI'
-        font = ImageFont.load_default(size=max(18, photo.width // 34))
-        margin = max(12, photo.width // 60)
-        box = draw.textbbox((0, 0), label, font=font)
-        height = box[3] - box[1] + margin * 2
-        # Sisakan 1/10 tepi atas untuk crop LHP; label AI tetap terlihat sesudahnya.
-        label_y = round(photo.height * PHOTO_CROP_TOP) + margin
-        draw.rectangle((0, label_y, photo.width, label_y + height), fill=(20, 20, 20))
-        draw.text((margin, label_y + margin - box[1]), label, font=font, fill='white')
         output = BytesIO()
         photo.save(output, format='JPEG', quality=88)
         result['image'] = {'mimeType': 'image/jpeg',
