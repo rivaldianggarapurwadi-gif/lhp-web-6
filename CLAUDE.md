@@ -135,11 +135,13 @@ menambah worker = proses terpisah = lock tidak berlaku lagi.
 - Preview sekarang dirender server (`/api/preview`), bukan `buildPreviewHTML()`;
   poin 4 di atas sudah tidak berlaku.
 
-### 11. Foto: potong 1/10 bawah, label AI di atas
-- Setiap foto dipotong 10% bagian bawah (`_crop_bottom`, `PHOTO_CROP_BOTTOM`) **sebelum**
-  stempel timestamp, supaya stempel tidak ikut terpotong.
-- Label "ILUSTRASI AI" pada foto Taruna Visual sengaja di **atas** gambar. Jangan
-  pindahkan ke bawah: crop akan menghapus penanda AI dari dokumen resmi.
+### 11. Foto: potong 1/10 atas dan bawah, label AI tetap terlihat
+- Setiap foto dipotong 10% bagian atas dan bawah (`_crop_documentation_photo`,
+  `PHOTO_CROP_TOP`, `PHOTO_CROP_BOTTOM`) **sebelum** stempel timestamp, supaya
+  stempel tidak ikut terpotong. Pratinjau dan dokumen Word memakai hasil yang sama.
+- Label "ILUSTRASI AI" pada foto Taruna Visual berada di bawah area crop atas.
+  Jangan pindahkan ke tepi atas atau bawah: crop akan menghapus penanda AI dari
+  dokumen resmi.
 
 ### 12. Referensi foto ke Taruna Visual (opt-in)
 - Form punya centang `share_refs` (muncul hanya jika `TARUNA_VISUAL_REF_TOKEN` diatur).

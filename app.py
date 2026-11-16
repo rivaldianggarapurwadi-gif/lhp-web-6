@@ -984,11 +984,12 @@ def _send_reference_photos(paths, data):
             app.logger.warning('Referensi Taruna Visual gagal dikirim: %s', e)
     threading.Thread(target=post, daemon=True).start()
 
-# Setiap foto dokumentasi dipotong 1/10 bagian bawahnya sebelum masuk LHP.
+# Potong tepi atas dan bawah foto sebelum stempel timestamp dan sebelum masuk LHP.
+PHOTO_CROP_TOP = 0.10
 PHOTO_CROP_BOTTOM = 0.10
 
-def _crop_bottom(path, fraction=PHOTO_CROP_BOTTOM):
-    """Potong `fraction` tinggi foto dari bawah (setelah rotasi EXIF). Gagal → foto asli."""
+def _crop_documentation_photo(path):
+    """Potong 1/10 atas dan bawah foto setelah rotasi EXIF. Gagal → foto asli."""
     try:
         from PIL import Image, ImageOps
         with Image.open(path) as im:
@@ -997,7 +998,9 @@ def _crop_bottom(path, fraction=PHOTO_CROP_BOTTOM):
             if im.mode != 'RGB':
                 im = im.convert('RGB')
             w, h = im.size
-            im = im.crop((0, 0, w, max(1, round(h * (1 - fraction)))))
+            top = min(h - 1, round(h * PHOTO_CROP_TOP))
+            bottom = max(top + 1, round(h * (1 - PHOTO_CROP_BOTTOM)))
+            im = im.crop((0, top, w, bottom))
             out = path + '.crop.jpg'
             im.save(out, 'JPEG', quality=92)
             return out
@@ -1022,7 +1025,7 @@ def _collect_and_stamp_photos(data, refs=None):
             path = tmp.name
             image_tmpfiles.append(path)
             # Potong dulu, baru stempel -- supaya stempel timestamp tidak ikut terpotong.
-            cropped = _crop_bottom(path)
+            cropped = _crop_documentation_photo(path)
             if cropped != path:
                 image_tmpfiles.append(cropped)
                 path = cropped
@@ -1107,10 +1110,10 @@ def _taruna_visual_relay(payload):
         margin = max(12, photo.width // 60)
         box = draw.textbbox((0, 0), label, font=font)
         height = box[3] - box[1] + margin * 2
-        # Label di ATAS: LHP memotong 1/10 bagian bawah tiap foto (PHOTO_CROP_BOTTOM),
-        # label penanda AI tidak boleh ikut terpotong.
-        draw.rectangle((0, 0, photo.width, height), fill=(20, 20, 20))
-        draw.text((margin, margin - box[1]), label, font=font, fill='white')
+        # Sisakan 1/10 tepi atas untuk crop LHP; label AI tetap terlihat sesudahnya.
+        label_y = round(photo.height * PHOTO_CROP_TOP) + margin
+        draw.rectangle((0, label_y, photo.width, label_y + height), fill=(20, 20, 20))
+        draw.text((margin, label_y + margin - box[1]), label, font=font, fill='white')
         output = BytesIO()
         photo.save(output, format='JPEG', quality=88)
         result['image'] = {'mimeType': 'image/jpeg',

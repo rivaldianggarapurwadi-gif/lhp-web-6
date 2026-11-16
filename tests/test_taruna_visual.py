@@ -50,10 +50,20 @@ class TarunaVisualTests(unittest.TestCase):
             result = self.client.post('/api/taruna-visual/generate', json=self.payload)
             self.assertEqual(result.status_code, 200)
             self.assertEqual(result.json['image']['mimeType'], 'image/jpeg')
-            with Image.open(BytesIO(base64.b64decode(result.json['image']['data']))) as stamped:
+            generated = base64.b64decode(result.json['image']['data'])
+            with Image.open(BytesIO(generated)) as stamped:
                 self.assertEqual(stamped.size, (400, 300))
-                self.assertLess(max(stamped.getpixel((5, 5))), 50)      # label AI di atas
+                self.assertGreater(min(stamped.getpixel((5, 5))), 200)
+                self.assertLess(max(stamped.getpixel((5, 45))), 50)     # label below top crop
                 self.assertGreater(min(stamped.getpixel((5, 290))), 200)
+            with tempfile.TemporaryDirectory() as tmp:
+                path = os.path.join(tmp, 'generated.jpg')
+                with open(path, 'wb') as image_file:
+                    image_file.write(generated)
+                cropped = server._crop_documentation_photo(path)
+                with Image.open(cropped) as documentation:
+                    self.assertEqual(documentation.size, (400, 240))
+                    self.assertLess(max(documentation.getpixel((5, 15))), 50)
             request = remote.call_args.args[0]
             self.assertEqual(request.full_url, 'https://taruna-visual-production-04a8.up.railway.app/api/generate')
             self.assertIsNone(request.get_header('Origin'))
