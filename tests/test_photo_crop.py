@@ -1,4 +1,4 @@
-"""Every documentation photo loses its top and bottom tenths before LHP use."""
+"""Every documentation photo loses its top tenth before LHP use (bottom is kept)."""
 import base64
 import io
 import json
@@ -47,15 +47,15 @@ class PhotoCropTests(unittest.TestCase):
             imgs = [Image.open(io.BytesIO(z.read(n))).convert('RGB') for n in names]
         return [im for im in imgs if im.size[0] == 400]           # skip the template logo
 
-    def test_top_and_bottom_tenths_are_cropped_in_document(self):
+    def test_only_top_tenth_is_cropped_in_document(self):
         data = dict(FORM, foto_1=(io.BytesIO(striped_photo()), 'f.png'))
         res = self.client.post('/api/generate', data=data)
         self.assertEqual(res.status_code, 200, res.data[:200])
         (photo,) = self.doc_photos(res.data)
-        self.assertEqual(photo.size, (400, 240))
-        for y in (1, 238):
-            r, g, b = photo.getpixel((200, y))
-            self.assertGreater(min(r, g, b), 200, 'colored edge should be gone')
+        self.assertEqual(photo.size, (400, 270))
+        self.assertGreater(min(photo.getpixel((200, 1))), 200, 'red top strip should be gone')
+        r, g, b = photo.getpixel((200, 268))
+        self.assertTrue(b > 200 and r < 60, 'blue bottom strip should stay')
 
     def test_timestamp_is_added_after_crop(self):
         data = dict(FORM, foto_1=(io.BytesIO(striped_photo()), 'f.png'), foto_1_stamp='1')
@@ -63,8 +63,8 @@ class PhotoCropTests(unittest.TestCase):
             res = self.client.post('/api/generate', data=data)
         self.assertEqual(res.status_code, 200, res.data[:200])
         (photo,) = self.doc_photos(res.data)
-        self.assertEqual(photo.size, (400, 240))
-        self.assertLess(max(photo.getpixel((10, 200))), 180, 'timestamp background should remain')
+        self.assertEqual(photo.size, (400, 270))
+        self.assertLess(max(photo.getpixel((10, 250))), 180, 'timestamp background should remain')
 
     def test_preview_uses_the_same_cropped_photo(self):
         data = dict(FORM, foto_1=(io.BytesIO(striped_photo()), 'f.png'))
@@ -72,7 +72,7 @@ class PhotoCropTests(unittest.TestCase):
         self.assertEqual(res.status_code, 200, res.data[:200])
         images = re.findall(r'data:image/jpeg;base64,([A-Za-z0-9+/=]+)', res.json['html'])
         photos = [Image.open(io.BytesIO(base64.b64decode(image))) for image in images]
-        self.assertIn((400, 240), [photo.size for photo in photos])
+        self.assertIn((400, 270), [photo.size for photo in photos])
 
     def test_crop_failure_keeps_original(self):
         bad = os.path.join(_storage.name, 'not-an-image.jpg')
@@ -130,7 +130,7 @@ class ReferenceForwardTests(unittest.TestCase):
         self.assertTrue(body['consent'])
         self.assertEqual(len(body['photos']), 1)                  # AI photo not sent back
         sent = Image.open(io.BytesIO(base64.b64decode(body['photos'][0]['data'])))
-        self.assertEqual(sent.size, (400, 240))                   # already cropped
+        self.assertEqual(sent.size, (400, 270))                   # already cropped
         self.assertEqual(body['meta']['kegiatan'], 'OLAHRAGA')
         self.assertNotIn('BUDI', req.data.decode())               # no name/NRP
 

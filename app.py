@@ -949,6 +949,62 @@ TARUNA_VISUAL_BASE      = os.environ.get('TARUNA_VISUAL_BASE',
                                          'https://taruna-visual-production-04a8.up.railway.app').rstrip('/')
 TARUNA_VISUAL_REF_TOKEN = os.environ.get('TARUNA_VISUAL_REF_TOKEN', '')
 
+# Daftar kegiatan foto AI diambil dari Taruna Visual (GET /api/activities) supaya
+# pilihan di form selalu sama dengan yang diterima server Taruna Visual. Halaman
+# tidak pernah menunggu: pakai cache/cadangan, segarkan di thread latar.
+TARUNA_VISUAL_ACTIVITIES_FALLBACK = [
+    {'id': 'class', 'name': 'Mengikuti kuliah', 'locations': ['Ruang kelas']},
+    {'id': 'library', 'name': 'Belajar di perpustakaan', 'locations': ['Perpustakaan']},
+    {'id': 'culture', 'name': 'Mempelajari kebudayaan daerah', 'locations': ['Ruang gamelan']},
+    {'id': 'handover', 'name': 'Menyerahkan bantuan', 'locations': ['Area parkir']},
+    {'id': 'sweeping', 'name': 'Membersihkan halaman', 'locations': ['Halaman gereja', 'Halaman beratap']},
+    {'id': 'traffic', 'name': 'Mengatur lalu lintas', 'locations': ['Tepi jalan']},
+    {'id': 'polsek', 'name': 'Berfoto di depan Polsek', 'locations': ['Polsek Gajahmungkur']},
+    {'id': 'donation_count', 'name': 'Menghitung donasi di masjid', 'locations': ['Masjid']},
+    {'id': 'imam_solat', 'name': 'Imam salat', 'locations': ['Akpol']},
+    {'id': 'teach_juniors', 'name': 'Mengajari taruna junior', 'locations': ['Akpol']},
+]
+VISUAL_ACTIVITIES_TTL = 10 * 60
+_visual_activities = {'data': None, 'at': 0.0, 'refreshing': False}
+_visual_activities_lock = threading.Lock()
+
+def _valid_activity_list(items):
+    if not isinstance(items, list) or not items:
+        return None
+    out = []
+    for a in items:
+        if not isinstance(a, dict):
+            return None
+        locs = a.get('locations')
+        if not (isinstance(a.get('id'), str) and isinstance(a.get('name'), str)
+                and isinstance(locs, list) and locs and all(isinstance(l, str) for l in locs)):
+            return None
+        out.append({'id': a['id'], 'name': a['name'], 'locations': locs})
+    return out
+
+def _refresh_visual_activities():
+    import urllib.request
+    try:
+        with urllib.request.urlopen(TARUNA_VISUAL_BASE + '/api/activities', timeout=8) as r:
+            items = _valid_activity_list(json.load(r).get('activities'))
+        if items:
+            with _visual_activities_lock:
+                _visual_activities['data'] = items
+                _visual_activities['at'] = time.time()
+    except Exception as e:
+        app.logger.warning('Daftar kegiatan Taruna Visual gagal dimuat: %s', e)
+    finally:
+        with _visual_activities_lock:
+            _visual_activities['refreshing'] = False
+
+def visual_activities():
+    with _visual_activities_lock:
+        data, stale = _visual_activities['data'], time.time() - _visual_activities['at'] > VISUAL_ACTIVITIES_TTL
+        if stale and not _visual_activities['refreshing']:
+            _visual_activities['refreshing'] = True
+            threading.Thread(target=_refresh_visual_activities, daemon=True).start()
+    return data or TARUNA_VISUAL_ACTIVITIES_FALLBACK
+
 def _send_reference_photos(paths, data):
     """Baca foto sekarang (file temp segera dihapus), kirim di thread latar
     supaya unduhan dokumen tidak menunggu Taruna Visual."""
@@ -986,7 +1042,7 @@ def _send_reference_photos(paths, data):
 
 # Potong tepi atas dan bawah foto sebelum stempel timestamp dan sebelum masuk LHP.
 PHOTO_CROP_TOP = 0.10
-PHOTO_CROP_BOTTOM = 0.10
+PHOTO_CROP_BOTTOM = 0.0    # hanya bagian atas yang dipotong (permintaan pemilik)
 
 def _crop_documentation_photo(path):
     """Potong 1/10 atas dan bawah foto setelah rotasi EXIF. Gagal → foto asli."""
@@ -1563,7 +1619,8 @@ def index():
                            user_picture=user.get('picture',''),
                            token_packages=TOKEN_PACKAGES,
                            duitku_configured=duitku_configured(),
-                           refs_enabled=bool(TARUNA_VISUAL_REF_TOKEN))
+                           refs_enabled=bool(TARUNA_VISUAL_REF_TOKEN),
+                           visual_activities=visual_activities())
 
 @app.route('/admin/login', methods=['GET'])
 def admin_login_redirect():
@@ -2174,8 +2231,12 @@ def api_analyze_photo():
         )
 
         payload = json.dumps({
-            "model": "claude-sonnet-4-6",
-            "max_tokens": 400,
+            # Haiku: cukup untuk membaca teks timestamp, jauh lebih murah dari Sonnet.
+            # Thinking aktif secara default dan ikut dihitung di max_tokens, jadi
+            # effort rendah + batas lebih longgar supaya JSON tidak terpotong.
+            "model": "claude-haiku-5-5",
+            "max_tokens": 2048,
+            "output_config": {"effort": "low"},
             "messages": [{
                 "role": "user",
                 "content": [
