@@ -496,12 +496,7 @@
       <div class="grid">
         <div class="field"><label>Kegiatan untuk foto</label>
           <select id="visual-activity" onchange="updateVisualLocations()">
-            <option value="class">Mengikuti kuliah</option><option value="library">Belajar di perpustakaan</option>
-            <option value="handover">Menyerahkan bantuan</option><option value="sweeping">Membersihkan halaman</option>
-            <option value="traffic">Mengatur lalu lintas</option><option value="donation_count">Menghitung donasi di masjid</option>
-            <option value="saron">Memainkan saron</option><option value="gong">Memukul gong</option>
-            <option value="wayang">Memainkan wayang</option><option value="bonang">Memainkan bonang</option>
-            <option value="polsek">Berfoto di depan Polsek</option>
+            {% for a in visual_activities or [] %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
           </select></div>
         <div class="field"><label>Lokasi foto</label><select id="visual-location"></select></div>
       </div>
@@ -779,16 +774,13 @@ document.getElementById('f-kompi').addEventListener('input', triggerLookup);
 // f-tingkat sudah punya onchange="onTingkatChange()" di HTML-nya.
 
 // ── Taruna Visual ─────────────────────────────────────────────────────────────
-const visualLocations = {
-  class:['Ruang kelas'], library:['Perpustakaan'], handover:['Area parkir'],
-  sweeping:['Halaman gereja','Halaman beratap'], traffic:['Tepi jalan'],
-  donation_count:['Masjid'], saron:['Ruang gamelan'], gong:['Ruang gamelan'],
-  wayang:['Ruang gamelan'], bonang:['Ruang gamelan'], polsek:['Polsek Gajahmungkur']
-};
+// Daftar kegiatan dari Taruna Visual (lihat visual_activities() di app.py).
+const visualLocations = Object.fromEntries(
+  ({{ (visual_activities or [])|tojson }}).map(a => [a.id, a.locations]));
 function updateVisualLocations() {
   const activity = document.getElementById('visual-activity').value;
   document.getElementById('visual-location').replaceChildren(
-    ...visualLocations[activity].map(location => new Option(location, location)));
+    ...(visualLocations[activity] || []).map(location => new Option(location, location)));
 }
 updateVisualLocations();
 

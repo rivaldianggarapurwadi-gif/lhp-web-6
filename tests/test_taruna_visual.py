@@ -61,7 +61,7 @@ class TarunaVisualTests(unittest.TestCase):
                     image_file.write(generated)
                 cropped = server._crop_documentation_photo(path)
                 with Image.open(cropped) as documentation:
-                    self.assertEqual(documentation.size, (400, 240))
+                    self.assertEqual(documentation.size, (400, 270))
                     self.assertGreater(min(documentation.getpixel((5, 15))), 200)
             request = remote.call_args.args[0]
             self.assertEqual(request.full_url, 'https://taruna-visual-production-04a8.up.railway.app/api/generate')
@@ -86,6 +86,42 @@ class TarunaVisualTests(unittest.TestCase):
         self.assertIsNone(remote.call_args_list[0].args[0].get_header('Origin'))
         self.assertEqual(remote.call_args_list[1].args[0].get_header('Origin'),
                          'https://taruna-visual-production-04a8.up.railway.app')
+
+
+class VisualActivitiesTests(unittest.TestCase):
+    """The AI-photo activity list follows Taruna Visual GET /api/activities."""
+    def setUp(self):
+        p = patch.dict(server._visual_activities, {'data': None, 'at': 0.0, 'refreshing': False})
+        p.start()
+        self.addCleanup(p.stop)
+
+    def fetch(self, body):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = json.dumps(body).encode()
+        with patch('urllib.request.urlopen', return_value=response) as remote:
+            server._refresh_visual_activities()
+        self.assertTrue(remote.call_args.args[0].endswith('/api/activities'))
+
+    def test_uses_remote_list(self):
+        self.fetch({'activities': [{'id': 'imam_solat', 'name': 'Imam salat', 'locations': ['Akpol']}]})
+        with patch.object(server.threading, 'Thread'):
+            self.assertEqual([a['id'] for a in server.visual_activities()], ['imam_solat'])
+
+    def test_bad_remote_data_keeps_fallback(self):
+        self.fetch({'activities': [{'id': 'x', 'name': 'X', 'locations': []}]})
+        with patch.object(server.threading, 'Thread'):
+            self.assertIs(server.visual_activities(), server.TARUNA_VISUAL_ACTIVITIES_FALLBACK)
+
+    def test_page_never_waits_for_remote(self):
+        with patch.object(server.threading, 'Thread') as thread:
+            self.assertIs(server.visual_activities(), server.TARUNA_VISUAL_ACTIVITIES_FALLBACK)
+        thread.return_value.start.assert_called_once()
+
+    def test_fallback_has_no_retired_activities(self):
+        ids = {a['id'] for a in server.TARUNA_VISUAL_ACTIVITIES_FALLBACK}
+        self.assertTrue({'culture', 'imam_solat', 'teach_juniors'} <= ids)
+        self.assertFalse({'saron', 'gong', 'wayang', 'bonang'} & ids)
 
 
 if __name__ == '__main__':

@@ -135,13 +135,22 @@ menambah worker = proses terpisah = lock tidak berlaku lagi.
 - Preview sekarang dirender server (`/api/preview`), bukan `buildPreviewHTML()`;
   poin 4 di atas sudah tidak berlaku.
 
-### 11. Foto: potong 1/10 atas dan bawah
-- Setiap foto dipotong 10% bagian atas dan bawah (`_crop_documentation_photo`,
-  `PHOTO_CROP_TOP`, `PHOTO_CROP_BOTTOM`) **sebelum** stempel timestamp, supaya
-  stempel tidak ikut terpotong. Pratinjau dan dokumen Word memakai hasil yang sama.
+### 11. Foto: potong 1/10 bagian atas
+- Setiap foto dipotong 10% bagian **atas** (`_crop_documentation_photo`,
+  `PHOTO_CROP_TOP`; `PHOTO_CROP_BOTTOM` = 0 atas permintaan pemilik) **sebelum** stempel
+  timestamp. Pratinjau dan dokumen Word memakai hasil yang sama.
 - Foto hasil Taruna Visual tidak diberi tulisan overlay oleh aplikasi. Filename
   `taruna-visual-` tetap dipakai agar foto hasil AI tidak dikirim balik sebagai
   referensi ke layanan tersebut.
+
+### 13. Daftar kegiatan foto AI ikut Taruna Visual
+- Pilihan "Kegiatan untuk foto" diambil dari Taruna Visual `GET /api/activities`
+  (`visual_activities()`): cache 10 menit, disegarkan di thread latar, halaman tidak
+  pernah menunggu. Gagal → `TARUNA_VISUAL_ACTIVITIES_FALLBACK`.
+- Jangan hardcode lagi daftar kegiatan di `index.html`. Kalau Taruna Visual menambah
+  kegiatan, LHP ikut otomatis; perbarui fallback sesekali saja.
+- Scan timestamp memakai `claude-haiku-5-5` (effort `low`, `max_tokens` 2048 karena
+  thinking ikut dihitung).
 
 ### 12. Referensi foto ke Taruna Visual (opt-in)
 - Form punya centang `share_refs` (muncul hanya jika `TARUNA_VISUAL_REF_TOKEN` diatur).
