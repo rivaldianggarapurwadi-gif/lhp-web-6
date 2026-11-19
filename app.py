@@ -958,13 +958,13 @@ TARUNA_VISUAL_ACTIVITIES_FALLBACK = [
     {'id': 'class', 'name': 'Mengikuti kuliah', 'locations': ['Ruang kelas']},
     {'id': 'library', 'name': 'Belajar di perpustakaan', 'locations': ['Perpustakaan']},
     {'id': 'culture', 'name': 'Mempelajari kebudayaan daerah', 'locations': ['Ruang gamelan']},
-    {'id': 'handover', 'name': 'Menyerahkan bantuan', 'locations': ['Area parkir']},
-    {'id': 'sweeping', 'name': 'Membersihkan halaman', 'locations': ['Halaman gereja', 'Halaman beratap']},
-    {'id': 'traffic', 'name': 'Mengatur lalu lintas', 'locations': ['Tepi jalan']},
-    {'id': 'polsek', 'name': 'Berfoto di depan Polsek', 'locations': ['Polsek Gajahmungkur']},
-    {'id': 'donation_count', 'name': 'Menghitung donasi di masjid', 'locations': ['Masjid']},
-    {'id': 'imam_solat', 'name': 'Imam salat', 'locations': ['Akpol']},
-    {'id': 'teach_juniors', 'name': 'Mengajari taruna junior', 'locations': ['Akpol']},
+    {'id': 'handover', 'name': 'Memberikan sembako', 'locations': ['Semarang']},
+    {'id': 'sweeping', 'name': 'Membersihkan tempat ibadah', 'locations': ['Gereja Katolik Santo Athanasius Agung Karangpanas Semarang']},
+    {'id': 'traffic', 'name': 'Mengatur lalu lintas', 'locations': ['Polsek Gajah Mungkur']},
+    {'id': 'polsek', 'name': 'Mengunjungi satker', 'locations': ['Polsek Gajah Mungkur']},
+    {'id': 'donation_count', 'name': 'Menghitung donasi di masjid', 'locations': ['Mesjid Asyuhada Akpol']},
+    {'id': 'imam_solat', 'name': 'Imam salat', 'locations': ['Mesjid UBK Akpol']},
+    {'id': 'teach_juniors', 'name': 'Mengajari taruna junior', 'locations': ['Mesjid Asyuhada Akpol', 'Mesjid UBK Akpol']},
 ]
 VISUAL_ACTIVITIES_TTL = 10 * 60
 _visual_activities = {'data': None, 'at': 0.0, 'refreshing': False}
@@ -1128,6 +1128,8 @@ def generate_taruna_visual_photo():
     if not str(payload.get('name') or '').strip():
         prof = (get_user(uid) or {}).get('profile') or {}
         payload['name'] = (prof.get('nama') or '')[:30]
+    # Taruna Visual default 4K; LHP hanya butuh ±1600px, jadi minta 2K (lebih cepat & hemat).
+    payload.setdefault('resolution', '2K')
     ok, info = consume_ai(uid, 'visual')
     if not ok:
         return jsonify(info), 402
@@ -1174,6 +1176,8 @@ def _taruna_visual_relay(payload):
         raw = base64.b64decode(image['data'], validate=True)
         with Image.open(BytesIO(raw)) as source:
             photo = ImageOps.exif_transpose(source).convert('RGB')
+        # Kirim ke HP versi secukupnya; dokumen LHP memakai ±1280px.
+        photo.thumbnail((1600, 1600), Image.LANCZOS)
         output = BytesIO()
         photo.save(output, format='JPEG', quality=88)
         result['image'] = {'mimeType': 'image/jpeg',

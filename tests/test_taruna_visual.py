@@ -124,5 +124,40 @@ class VisualActivitiesTests(unittest.TestCase):
         self.assertFalse({'saron', 'gong', 'wayang', 'bonang'} & ids)
 
 
+class RelayResolutionTests(unittest.TestCase):
+    """LHP asks Taruna Visual for 2K (its default is 4K) and sends at most 1600px to the phone."""
+    def setUp(self):
+        self.client = server.app.test_client()
+        with self.client.session_transaction() as session:
+            session['uid'] = 'tester'
+        for name, fake in (('consume_ai', lambda uid, kind: (True, {'charged': False, 'undo': (kind, False, None)})),
+                           ('release_ai', lambda uid, undo: None)):
+            p = patch.object(server, name, fake)
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_requests_2k_and_downscales_result(self):
+        big = BytesIO()
+        Image.new('RGB', (3200, 4000), 'white').save(big, 'JPEG')
+        reply = MagicMock()
+        reply.__enter__.return_value = reply
+        reply.read.return_value = json.dumps({'image': {'mimeType': 'image/jpeg',
+                                                        'data': base64.b64encode(big.getvalue()).decode()}}).encode()
+        payload = {'name': 'BUDI', 'level': 2, 'sar': False, 'activity': 'class', 'location': 'Ruang kelas',
+                   'ratio': '4:5', 'frame': 'half_body', 'consent': True,
+                   'photos': [{'mimeType': 'image/jpeg', 'data': base64.b64encode(b'face').decode()}]}
+        with patch('urllib.request.urlopen', return_value=reply) as remote:
+            res = self.client.post('/api/taruna-visual/generate', json=payload)
+        self.assertEqual(res.status_code, 200, res.data[:200])
+        self.assertEqual(json.loads(remote.call_args.args[0].data)['resolution'], '2K')
+        with Image.open(BytesIO(base64.b64decode(res.json['image']['data']))) as out:
+            self.assertEqual(max(out.size), 1600)
+
+    def test_fallback_uses_current_catalog_locations(self):
+        locs = {a['id']: a['locations'] for a in server.TARUNA_VISUAL_ACTIVITIES_FALLBACK}
+        self.assertEqual(locs['imam_solat'], ['Mesjid UBK Akpol'])
+        self.assertNotIn('Akpol', sum(locs.values(), []))
+
+
 if __name__ == '__main__':
     unittest.main()
