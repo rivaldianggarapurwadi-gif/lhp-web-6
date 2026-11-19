@@ -68,6 +68,17 @@ class TimestampScanTests(unittest.TestCase):
         self.remote.side_effect = HTTPError('https://api.anthropic.com/v1/messages',
             status, 'rejected', {'request-id': 'req_test'}, io.BytesIO(body))
 
+    def test_image_is_judged_by_content_not_extension(self):
+        unlimited = patch.object(server, 'SCAN_DAILY_LIMIT', 0)    # 0 = tanpa batas
+        unlimited.start()
+        self.addCleanup(unlimited.stop)
+        for name in ('photo.jfif', 'IMG_0001.JPE', 'kamera', 'foto.pjpeg'):
+            with self.subTest(name=name):
+                self.assertEqual(self.scan(photo('JPEG'), name=name).status_code, 200)
+        res = self.scan(b'bukan gambar', name='palsu.jpg')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.json['code'], 'invalid_photo')
+
     def test_mislabeled_png_is_sent_as_real_jpeg(self):
         response = self.scan(photo('PNG'), 'camera.jpg')
         self.assertEqual(response.status_code, 200)
