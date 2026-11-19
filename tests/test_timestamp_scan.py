@@ -156,6 +156,49 @@ class TimestampScanTests(unittest.TestCase):
         self.remote.assert_not_called()
 
 
+    def reply(self, body):
+        self.remote.return_value.__enter__.return_value.read.return_value = json.dumps(body).encode()
+
+    def test_request_uses_haiku_with_json_schema(self):
+        self.assertEqual(self.scan().status_code, 200)
+        payload = json.loads(self.remote.call_args.args[0].data)
+        self.assertEqual(payload['model'], 'claude-haiku-5-5')
+        fmt = payload['output_config']['format']
+        self.assertEqual(fmt['type'], 'json_schema')
+        self.assertEqual(set(fmt['schema']['required']), {'ditemukan', 'tanggal', 'waktu', 'tempat', 'catatan'})
+        self.assertFalse(fmt['schema']['additionalProperties'])
+
+    def test_result_is_normalized_for_the_form(self):
+        self.reply({'stop_reason': 'end_turn', 'content': [
+            {'type': 'thinking', 'thinking': ''},
+            {'type': 'text', 'text': json.dumps({'ditemukan': True, 'tanggal': 'minggu, 20 september 2026',
+                                                'waktu': '08.00 wib', 'tempat': 'null', 'catatan': 'ok'})}]})
+        result = self.scan().json['result']
+        self.assertEqual(result['tanggal'], 'MINGGU, 20 SEPTEMBER 2026')
+        self.assertEqual(result['waktu'], '08.00 WIB')
+        self.assertIsNone(result['tempat'])
+        self.assertTrue(result['ditemukan'])
+
+    def test_found_without_values_is_not_found(self):
+        self.reply({'stop_reason': 'end_turn', 'content': [{'type': 'text', 'text': json.dumps(
+            {'ditemukan': True, 'tanggal': None, 'waktu': None, 'tempat': None, 'catatan': ''})}]})
+        self.assertFalse(self.scan().json['result']['ditemukan'])
+
+    def test_refusal_and_truncation_are_explained(self):
+        for stop in ('refusal', 'max_tokens'):
+            with self.subTest(stop=stop):
+                self.reply({'stop_reason': stop, 'content': [{'type': 'text', 'text': '{"diteme'}]})
+                res = self.scan()
+                self.assertEqual(res.status_code, 422)
+                self.assertEqual(res.json['code'], 'scan_' + stop)
+
+    def test_non_json_text_is_reported_not_crashing(self):
+        self.reply({'stop_reason': 'end_turn', 'content': [{'type': 'text', 'text': 'Maaf, saya tidak bisa.'}]})
+        res = self.scan()
+        self.assertEqual(res.status_code, 500)
+        self.assertIn('Gagal memproses', res.json['error'])
+
+
 class ScanQuotaTests(TimestampScanTests):
     def setUp(self):
         super().setUp()
@@ -180,6 +223,16 @@ class ScanQuotaTests(TimestampScanTests):
             self.provider_error(503, 'overloaded')
             self.assertEqual(self.scan().status_code, 503)
         self.remote.side_effect = None
+        self.assertEqual(self.scan().status_code, 200)
+
+    def test_refusal_and_parse_failure_refund_quota(self):
+        for _ in range(3):
+            self.reply({'stop_reason': 'refusal', 'content': []})
+            self.assertEqual(self.scan().status_code, 422)
+            self.reply({'stop_reason': 'end_turn', 'content': [{'type': 'text', 'text': 'bukan json'}]})
+            self.assertEqual(self.scan().status_code, 500)
+        self.reply({'stop_reason': 'end_turn', 'content': [{'type': 'text', 'text': json.dumps(
+            {'ditemukan': False, 'tanggal': None, 'waktu': None, 'tempat': None, 'catatan': ''})}]})
         self.assertEqual(self.scan().status_code, 200)
 
     def test_invalid_photo_does_not_use_quota(self):

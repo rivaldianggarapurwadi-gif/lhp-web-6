@@ -2350,6 +2350,23 @@ def _timestamp_api_error(error):
                     'code': 'scan_request_rejected'}), 502
 
 
+# Struktur balasan scan dijamin oleh structured outputs (output_config.format):
+# API selalu mengembalikan JSON sesuai skema ini, jadi json.loads tidak gagal hanya
+# karena model menambahkan kalimat di luar JSON.
+_NULLABLE_STR = {'anyOf': [{'type': 'string'}, {'type': 'null'}]}
+SCAN_SCHEMA = {
+    'type': 'object',
+    'properties': {
+        'ditemukan': {'type': 'boolean'},
+        'tanggal': _NULLABLE_STR,
+        'waktu': _NULLABLE_STR,
+        'tempat': _NULLABLE_STR,
+        'catatan': {'type': 'string'},
+    },
+    'required': ['ditemukan', 'tanggal', 'waktu', 'tempat', 'catatan'],
+    'additionalProperties': False,
+}
+
 @app.route('/api/analyze-photo', methods=['POST'])
 @login_required
 def api_analyze_photo():
@@ -2384,7 +2401,7 @@ def api_analyze_photo():
     try:
         prompt = (
             "Analisa foto ini. Cari timestamp, tanggal, waktu, dan lokasi yang TERCETAK di foto.\n\n"
-            "Balas HANYA JSON (tanpa markdown):\n"
+            "Isi setiap kolom JSON sesuai format berikut:\n"
             "{\n"
             '  "ditemukan": true/false,\n'
             '  "tanggal": "HARI, DD BULAN YYYY atau null",\n'
@@ -2404,7 +2421,8 @@ def api_analyze_photo():
             # effort rendah + batas lebih longgar supaya JSON tidak terpotong.
             "model": "claude-haiku-5-5",
             "max_tokens": 2048,
-            "output_config": {"effort": "low"},
+            "output_config": {"effort": "low",
+                              "format": {"type": "json_schema", "schema": SCAN_SCHEMA}},
             "messages": [{
                 "role": "user",
                 "content": [
@@ -2425,13 +2443,35 @@ def api_analyze_photo():
         req.add_header('anthropic-version', '2023-06-01')
         req.add_header('Content-Type', 'application/json')
 
-        with urllib.request.urlopen(req, timeout=30) as r:
+        # Thinking (Haiku 5.5) + gambar bisa lebih dari 30 detik.
+        with urllib.request.urlopen(req, timeout=60) as r:
             resp = json.loads(r.read())
+
+        stop = resp.get('stop_reason')
+        if stop in ('refusal', 'max_tokens'):
+            release_scan(session['uid'])
+            release_ai(session['uid'], ai['undo'])
+            app.logger.warning('Timestamp scan: stop_reason=%s id=%s', stop, resp.get('id'))
+            return jsonify({'error': 'Foto ini tidak dapat dipindai. Coba foto lain, atau isi '
+                                     'tanggal, waktu, dan tempat secara manual.',
+                            'code': 'scan_' + stop}), 422
 
         text = ''.join(b.get('text','') for b in resp.get('content',[]) if b.get('type')=='text').strip()
         text = re.sub(r'^```[a-z]*\n?', '', text)
         text = re.sub(r'```$', '', text).strip()
-        result = json.loads(text)
+        try:
+            result = json.loads(text)
+        except json.JSONDecodeError:
+            app.logger.error('Timestamp scan: balasan bukan JSON (stop=%s): %r', stop, text[:300])
+            raise
+        if not isinstance(result, dict):
+            raise json.JSONDecodeError('not an object', text, 0)
+        # Seragamkan format untuk form (form memakai huruf kapital).
+        for key in ('tanggal', 'waktu', 'tempat'):
+            val = result.get(key)
+            result[key] = val.strip().upper() if isinstance(val, str) and val.strip() and val.strip().lower() != 'null' else None
+        result['ditemukan'] = bool(result.get('ditemukan')) and any(result[k] for k in ('tanggal', 'waktu', 'tempat'))
+        result['catatan'] = str(result.get('catatan') or '')
         return jsonify({'ok': True, 'result': result})
 
     except urllib.error.HTTPError as e:
@@ -2445,10 +2485,12 @@ def api_analyze_photo():
         return jsonify({'error': 'Layanan scan tidak dapat dihubungi. Coba lagi nanti.',
                         'code': 'scan_temporarily_unavailable'}), 503
     except json.JSONDecodeError:
+        release_scan(session['uid'])
         release_ai(session['uid'], ai['undo'])
         return jsonify({'error': 'Gagal memproses respons AI. Coba lagi.'}), 500
     except Exception:
         app.logger.error("analyze-photo:\n%s", traceback.format_exc())
+        release_scan(session['uid'])
         release_ai(session['uid'], ai['undo'])
         return jsonify({'error': 'Terjadi kesalahan. Coba lagi.'}), 500
 

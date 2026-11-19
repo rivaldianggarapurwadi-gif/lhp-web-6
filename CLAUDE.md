@@ -161,6 +161,9 @@ menambah worker = proses terpisah = lock tidak berlaku lagi.
   kegiatan, LHP ikut otomatis; perbarui fallback sesekali saja.
 - Scan timestamp memakai `claude-haiku-5-5` (effort `low`, `max_tokens` 2048 karena
   thinking ikut dihitung).
+- Balasan scan dijamin JSON lewat structured outputs (`output_config.format` +
+  `SCAN_SCHEMA`); jangan kembali ke "balas hanya JSON" di prompt saja. `refusal`/`max_tokens`
+  → 422 + token & jatah harian dikembalikan. Timeout 60 detik.
 
 ### 12. Referensi foto ke Taruna Visual (opt-in)
 - Form punya centang `share_refs` (muncul hanya jika `TARUNA_VISUAL_REF_TOKEN` diatur).
