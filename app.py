@@ -2378,9 +2378,8 @@ def api_analyze_photo():
         return jsonify({'error': 'Tidak ada foto yang dikirim.'}), 400
 
     import urllib.request, urllib.error
-    ext = os.path.splitext(secure_filename(file.filename))[1].lower() or '.jpg'
-    if ext not in {'.jpg', '.jpeg', '.png', '.heic', '.heif', '.webp'}:
-        return jsonify({'error': f'Format tidak didukung ({ext}).'}), 400
+    # Jangan menilai dari ekstensi nama file (.jfif, .jpe, tanpa ekstensi = tetap JPEG).
+    # _prepare_timestamp_photo membuka isi file; yang bukan gambar ditolak di sana.
 
     try:
         img_b64 = _prepare_timestamp_photo(file.stream)
