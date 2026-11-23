@@ -809,14 +809,26 @@ def parse_waktu(s):
 # di memori dan hanya dibaca ulang kalau file Excel-nya berubah.
 _xlsx_cache = {'mtime': None, 'sheets': None}
 
+def _norm_nrp(value):
+    # NRP Polri selalu 8 digit. Excel suka membuang angka 0 di depan
+    # ("0111147" seharusnya "00111147"), jadi kembalikan ke 8 digit.
+    v = str(value).strip()
+    if v.endswith('.0') and v[:-2].isdigit():
+        v = v[:-2]
+    return v.zfill(8) if v.isdigit() and len(v) < 8 else v
+
 def _parse_sheet(ws):
     rows = list(ws.iter_rows(values_only=True))
     if not rows:
         return []
     headers = [str(h).strip() if h else '' for h in rows[0]]
-    return [{headers[i]: (str(rows[j][i]).strip() if rows[j][i] is not None else '')
-             for i in range(len(headers))}
-            for j in range(1, len(rows)) if any(rows[j])]
+    out = [{headers[i]: (str(rows[j][i]).strip() if rows[j][i] is not None else '')
+            for i in range(len(headers))}
+           for j in range(1, len(rows)) if any(rows[j])]
+    for row in out:
+        if row.get('NRP'):
+            row['NRP'] = _norm_nrp(row['NRP'])
+    return out
 
 def _xlsx_sheets():
     with _STORE_LOCK:
